@@ -36,11 +36,12 @@ flowchart LR
         HL7["CI: hl7-equivalence (workflow_dispatch)<br/>• Temurin JDK 17 + Python 3.13<br/>• Downloads official validator_cli.jar<br/>• pytest -m hl7_live"]
     end
 
-    subgraph Phase4["4. Package Build & Clean-Room Smoke Test"]
+    subgraph Phase4["4. Benchmark, Package Build & Clean-Room Smoke Test"]
         direction TB
+        BENCH["Build Benchmark & Docs Sync<br/>• python scripts/benchmark_performance.py --update-docs<br/>• Updates README.md, docs/equivalence-and-testing.md,<br/>  and docs/benchmark-results.json"]
         BUILD["CI: build (ubuntu-latest, Py 3.13)<br/>• python -m build (sdist + wheel)<br/>• twine check dist/*"]
         SMOKE["Clean-Room Venv Smoke Test<br/>• /tmp/smoke-venv pip install dist/*.whl<br/>• fhirlance --help<br/>• Assert len(RESOURCE_MODELS) == 146"]
-        BUILD --> SMOKE
+        BENCH --> BUILD --> SMOKE
     end
 
     PRE -->|"git push / PR"| QUAL
@@ -94,8 +95,8 @@ Triggered on `push` to `main`, `pull_request` targeting `main`, and manual `work
 | **`quality`** | `ubuntu-latest` (Python 3.13) | None | Runs `ruff check .`, `ruff format --check .`, and strict `mypy`. Acts as a fast fail gate (~23s) before launching the 8-job test matrix. |
 | **`security`** | `ubuntu-latest` (Python 3.13) | None | Runs `pip-audit --progress-spinner off` (~22s) to audit all installed runtime and dev dependencies against the PyPA advisory database for known CVEs. |
 | **`test`** | `ubuntu-latest`, `windows-latest` × Python `3.10`, `3.11`, `3.12`, `3.13` (8 jobs) | `needs: quality` | Runs `pytest -m "not hl7_live" --cov --cov-report=xml --cov-report=term-missing --cov-fail-under=95`. Enforces **≥ 95% branch coverage** across all handwritten modules in `src/fhirlance` and uploads `coverage.xml` from `ubuntu-latest` / Python 3.13 (14-day retention). |
-| **`build`** | `ubuntu-latest` (Python 3.13) | `needs: [quality, test]` | Builds sdist (`.tar.gz`) and wheel (`.whl`) via `python -m build`, validates package metadata with `twine check dist/*`, and runs a **clean-room smoke test** inside `/tmp/smoke-venv` (`pip install dist/*.whl`, `fhirlance --help`, and `assert len(fhirlance.RESOURCE_MODELS) == 146`). |
-| **`hl7-equivalence`** | `ubuntu-latest` (Python 3.13 + Temurin JDK 17) | `if: github.event_name == 'workflow_dispatch'` | Downloads the latest official HL7 `validator_cli.jar` from `hapifhir/org.hl7.fhir.core` and runs `pytest -m hl7_live -v -s` to verify equivalence against the reference Java validator across all 146 R4 resources. |
+| **`build`** | `ubuntu-latest` (Python 3.13) | `needs: [quality, test]` | Runs `python scripts/benchmark_performance.py --update-docs` to refresh the Performance section in `README.md`, `docs/equivalence-and-testing.md`, and `docs/benchmark-results.json`, builds sdist (`.tar.gz`) and wheel (`.whl`) via `python -m build`, validates package metadata with `twine check dist/*`, uploads the `benchmark-results` artifact, and runs a **clean-room smoke test** inside `/tmp/smoke-venv` (`pip install dist/*.whl`, `fhirlance --help`, and `assert len(fhirlance.RESOURCE_MODELS) == 146`). |
+| **`hl7-equivalence`** | `ubuntu-latest` (Python 3.13 + Temurin JDK 17) | `if: github.event_name == 'workflow_dispatch'` | Downloads the latest official HL7 `validator_cli.jar` from `hapifhir/org.hl7.fhir.core`, runs `pytest -m hl7_live -v -s` to verify equivalence against the reference Java validator across all 146 R4 resources, and runs `python scripts/benchmark_performance.py --run-hl7-live --update-docs`. |
 
 #### 2. Static Application Security Testing (`.github/workflows/codeql.yml`)
 - Runs GitHub **CodeQL** analysis for Python (`github/codeql-action@v3`) on every push to `main`, every pull request targeting `main`, and on a weekly schedule (`23 4 * * 1` — Mondays at 04:23 UTC).

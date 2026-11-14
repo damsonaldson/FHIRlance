@@ -102,11 +102,27 @@ jobs:
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
 
+      - name: Install package and build tools
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Run build performance benchmark and update documentation
+        run: python scripts/benchmark_performance.py --update-docs
+
       - name: Build sdist and wheel
-        run: python -m pip install --upgrade pip && pip install build twine && python -m build
+        run: python -m build
 
       - name: Verify package metadata
         run: twine check dist/*
+
+      - name: Upload benchmark report artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results
+          path: |
+            docs/benchmark-results.json
+            README.md
+            docs/equivalence-and-testing.md
+          retention-days: 14
 
       - name: Smoke-test clean wheel installation
         run: |
@@ -144,3 +160,8 @@ jobs:
         env:
           FHIR_VALIDATOR_JAR: ${{ github.workspace }}/tools/validator_cli.jar
         run: pytest -m hl7_live -v -s
+
+      - name: Run live HL7 vs FHIRlance benchmark and update documentation
+        env:
+          FHIR_VALIDATOR_JAR: ${{ github.workspace }}/tools/validator_cli.jar
+        run: python scripts/benchmark_performance.py --run-hl7-live --update-docs
