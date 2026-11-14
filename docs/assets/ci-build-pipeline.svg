@@ -1,0 +1,239 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="100%" height="100%" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10b981"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="760" rx="14" fill="url(#bgGrad)"/>
+
+  <!-- Title Banner -->
+  <rect x="28" y="22" width="1144" height="58" rx="10" fill="url(#headerGrad)" filter="url(#shadow)"/>
+  <text x="52" y="50" fill="#ffffff" font-size="20" font-weight="700" letter-spacing="0.3">FHIRlance — Build, Code Generation &amp; CI/CD Architecture</text>
+  <text x="52" y="69" fill="#e0f2fe" font-size="12" font-weight="500">From HL7 FHIR R4 StructureDefinitions to Verified Wheel Distribution (Pydantic v2 / Rust Core)</text>
+  <rect x="1010" y="36" width="142" height="30" rx="15" fill="#064e3b" stroke="#10b981" stroke-width="1.5"/>
+  <circle cx="1028" cy="51" r="5" fill="#10b981"/>
+  <text x="1040" y="55" fill="#ecfdf5" font-size="12" font-weight="700">main: PASSING</text>
+
+  <!-- ===================================================================== -->
+  <!-- PHASE 1: OFFLINE CODEGEN & LOCAL DEV (Left Column)                    -->
+  <!-- ===================================================================== -->
+  <rect x="28" y="98" width="275" height="634" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="28" y="98" width="275" height="36" rx="10" fill="#334155"/>
+  <text x="44" y="121" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">1. CODEGEN &amp; LOCAL DEV</text>
+
+  <!-- Box 1A: HL7 FHIR Packages -->
+  <rect x="44" y="150" width="243" height="118" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="58" y="172" fill="#38bdf8" font-size="13" font-weight="700">HL7 FHIR Package Cache</text>
+  <text x="58" y="190" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">~/.fhir/packages/</text>
+  <text x="58" y="209" fill="#cbd5e1" font-size="11">• hl7.fhir.r4.core#4.0.1</text>
+  <text x="58" y="225" fill="#cbd5e1" font-size="11">• hl7.fhir.ca.baseline#1.2.0</text>
+  <text x="58" y="241" fill="#cbd5e1" font-size="11">• ca.infoway.io.core#1.1.0</text>
+  <text x="58" y="257" fill="#cbd5e1" font-size="11">• IPS 1.0.0 &amp; US Core 8.0.1</text>
+
+  <line x1="165" y1="268" x2="165" y2="296" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+  <!-- Box 1B: Code Generator -->
+  <rect x="44" y="300" width="243" height="122" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="58" y="322" fill="#38bdf8" font-size="13" font-weight="700">Schema Compiler</text>
+  <text x="58" y="340" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">scripts/generate_models.py</text>
+  <text x="58" y="360" fill="#cbd5e1" font-size="11">Emits zero-I/O compiled modules:</text>
+  <text x="58" y="378" fill="#e2e8f0" font-size="11" font-family="Consolas, monospace">• types.py     (39 datatypes)</text>
+  <text x="58" y="394" fill="#e2e8f0" font-size="11" font-family="Consolas, monospace">• resources.py (146 resources)</text>
+  <text x="58" y="410" fill="#e2e8f0" font-size="11" font-family="Consolas, monospace">• profiles.py  (IG constraints)</text>
+
+  <line x1="165" y1="422" x2="165" y2="450" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Box 1C: Handwritten Core -->
+  <rect x="44" y="454" width="243" height="114" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1.5"/>
+  <text x="58" y="476" fill="#f8fafc" font-size="13" font-weight="700">Handwritten Validation Core</text>
+  <text x="58" y="494" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">src/fhirlance/*.py</text>
+  <text x="58" y="513" fill="#cbd5e1" font-size="11">• Rust pydantic-core hot path</text>
+  <text x="58" y="529" fill="#cbd5e1" font-size="11">• FHIRPath invariants &amp; slicing</text>
+  <text x="58" y="545" fill="#cbd5e1" font-size="11">• Canadian rules &amp; parallel CLI</text>
+
+  <line x1="165" y1="568" x2="165" y2="596" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Box 1D: Pre-commit Hooks -->
+  <rect x="44" y="600" width="243" height="114" rx="8" fill="#0f172a" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="58" y="622" fill="#c084fc" font-size="13" font-weight="700">Local Pre-Commit Gate</text>
+  <text x="58" y="640" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">.pre-commit-config.yaml</text>
+  <text x="58" y="659" fill="#cbd5e1" font-size="11">• TOML / YAML / large-file checks</text>
+  <text x="58" y="675" fill="#cbd5e1" font-size="11">• ruff --fix &amp; ruff-format</text>
+  <text x="58" y="691" fill="#cbd5e1" font-size="11">• mypy (strict + pydantic plugin)</text>
+
+  <!-- Arrow from Phase 1 to Phase 2 -->
+  <path d="M 287 657 L 315 657 L 315 260 L 336 260" fill="none" stroke="#38bdf8" stroke-width="2.2" marker-end="url(#arrowBlue)"/>
+
+  <!-- ===================================================================== -->
+  <!-- PHASE 2: PARALLEL FAST GATES & SECURITY (Center-Left Column)          -->
+  <!-- ===================================================================== -->
+  <rect x="328" y="98" width="275" height="634" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="328" y="98" width="275" height="36" rx="10" fill="#334155"/>
+  <text x="344" y="121" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">2. PARALLEL QUALITY &amp; SEC</text>
+
+  <!-- Trigger pill -->
+  <rect x="344" y="148" width="243" height="34" rx="6" fill="#1e3a8a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="358" y="169" fill="#dbeafe" font-size="11" font-weight="600">Triggers: push (main) | pull_request</text>
+
+  <!-- Job: quality -->
+  <rect x="344" y="196" width="243" height="136" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <rect x="518" y="206" width="58" height="20" rx="10" fill="#064e3b"/>
+  <text x="530" y="220" fill="#34d399" font-size="10" font-weight="700">~23s</text>
+  <text x="358" y="218" fill="#34d399" font-size="13" font-weight="700">Job: quality (CI)</text>
+  <text x="358" y="236" fill="#94a3b8" font-size="11">ubuntu-latest | Python 3.13</text>
+  <text x="358" y="256" fill="#cbd5e1" font-size="11">• ruff check . (McCabe ≤ 10)</text>
+  <text x="358" y="272" fill="#cbd5e1" font-size="11">• ruff format --check .</text>
+  <text x="358" y="288" fill="#cbd5e1" font-size="11">• mypy (strict type checking)</text>
+  <text x="358" y="308" fill="#6ee7b7" font-size="10" font-weight="600">✓ Gate required for Test &amp; Build</text>
+
+  <!-- Job: security -->
+  <rect x="344" y="346" width="243" height="106" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <rect x="518" y="356" width="58" height="20" rx="10" fill="#064e3b"/>
+  <text x="530" y="370" fill="#34d399" font-size="10" font-weight="700">~22s</text>
+  <text x="358" y="368" fill="#34d399" font-size="13" font-weight="700">Job: security (CI)</text>
+  <text x="358" y="386" fill="#94a3b8" font-size="11">ubuntu-latest | Python 3.13</text>
+  <text x="358" y="406" fill="#cbd5e1" font-size="11">• pip-audit dependency scan</text>
+  <text x="358" y="422" fill="#cbd5e1" font-size="11">• Checks PyPA CVE database</text>
+
+  <!-- Workflow: CodeQL -->
+  <rect x="344" y="466" width="243" height="110" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <rect x="506" y="476" width="70" height="20" rx="10" fill="#064e3b"/>
+  <text x="516" y="490" fill="#34d399" font-size="10" font-weight="700">PASSING</text>
+  <text x="358" y="488" fill="#34d399" font-size="13" font-weight="700">Workflow: CodeQL SAST</text>
+  <text x="358" y="506" fill="#94a3b8" font-size="11">codeql.yml (+ Mon 04:23 UTC cron)</text>
+  <text x="358" y="526" fill="#cbd5e1" font-size="11">• github/codeql-action/init@v3</text>
+  <text x="358" y="542" fill="#cbd5e1" font-size="11">• Static Python security analysis</text>
+  <text x="358" y="558" fill="#cbd5e1" font-size="11">• Publishes to Security Events</text>
+
+  <!-- Workflow: AI PR Review -->
+  <rect x="344" y="590" width="243" height="124" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="1.5"/>
+  <rect x="492" y="600" width="84" height="20" rx="10" fill="#78350f"/>
+  <text x="502" y="614" fill="#fcd34d" font-size="10" font-weight="700">PRs ONLY</text>
+  <text x="358" y="612" fill="#fbbf24" font-size="13" font-weight="700">Workflow: AI PR Review</text>
+  <text x="358" y="630" fill="#94a3b8" font-size="11">ai-review.yml (pull_request)</text>
+  <text x="358" y="650" fill="#cbd5e1" font-size="11">• Diffs handwritten code only</text>
+  <text x="358" y="666" fill="#cbd5e1" font-size="11">• Checks SOLID &amp; Rust guardrails</text>
+  <text x="358" y="682" fill="#cbd5e1" font-size="11">• Posts PR comment via Gemini</text>
+  <text x="358" y="700" fill="#fcd34d" font-size="10">⚠ Needs model bump to 3.8-flash</text>
+
+  <!-- Arrow from quality to Test Matrix -->
+  <line x1="587" y1="264" x2="636" y2="264" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+
+  <!-- ===================================================================== -->
+  <!-- PHASE 3: CROSS-PLATFORM TEST MATRIX (Center-Right Column)             -->
+  <!-- ===================================================================== -->
+  <rect x="628" y="98" width="265" height="634" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="628" y="98" width="265" height="36" rx="10" fill="#334155"/>
+  <text x="644" y="121" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">3. MATRIX TEST &amp; COVERAGE</text>
+
+  <!-- Matrix Box -->
+  <rect x="644" y="150" width="233" height="295" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <text x="658" y="172" fill="#34d399" font-size="13" font-weight="700">Job: test (needs: quality)</text>
+  <text x="658" y="190" fill="#94a3b8" font-size="11">8 Parallel Jobs (fail-fast: false)</text>
+
+  <!-- OS Grid inside Matrix -->
+  <rect x="658" y="202" width="98" height="106" rx="6" fill="#1e293b" stroke="#334155"/>
+  <text x="670" y="220" fill="#38bdf8" font-size="11" font-weight="700">ubuntu-latest</text>
+  <text x="670" y="238" fill="#cbd5e1" font-size="11">• Py 3.10 (39s)</text>
+  <text x="670" y="254" fill="#cbd5e1" font-size="11">• Py 3.11 (29s)</text>
+  <text x="670" y="270" fill="#cbd5e1" font-size="11">• Py 3.12 (33s)</text>
+  <text x="670" y="286" fill="#cbd5e1" font-size="11">• Py 3.13 (30s)</text>
+
+  <rect x="765" y="202" width="98" height="106" rx="6" fill="#1e293b" stroke="#334155"/>
+  <text x="774" y="220" fill="#38bdf8" font-size="11" font-weight="700">windows-latest</text>
+  <text x="774" y="238" fill="#cbd5e1" font-size="11">• Py 3.10 (85s)</text>
+  <text x="774" y="254" fill="#cbd5e1" font-size="11">• Py 3.11 (68s)</text>
+  <text x="774" y="270" fill="#cbd5e1" font-size="11">• Py 3.12 (54s)</text>
+  <text x="774" y="286" fill="#cbd5e1" font-size="11">• Py 3.13 (62s)</text>
+
+  <text x="658" y="328" fill="#e2e8f0" font-size="11" font-weight="600">Test Suites Executed:</text>
+  <text x="658" y="346" fill="#cbd5e1" font-size="11">• 146 R4 resources &amp; 39 types</text>
+  <text x="658" y="362" fill="#cbd5e1" font-size="11">• Multi-IG profiles &amp; invariants</text>
+  <text x="658" y="378" fill="#cbd5e1" font-size="11">• Hypothesis property &amp; perf</text>
+  <rect x="658" y="392" width="205" height="38" rx="6" fill="#064e3b" stroke="#10b981"/>
+  <text x="670" y="409" fill="#ecfdf5" font-size="11" font-weight="700">Coverage Gate: ≥ 95% Branch</text>
+  <text x="670" y="423" fill="#a7f3d0" font-size="10">Uploads coverage-xml artifact</text>
+
+  <!-- Manual Dispatch HL7 Equivalence -->
+  <rect x="644" y="466" width="233" height="248" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <rect x="772" y="476" width="94" height="20" rx="10" fill="#334155"/>
+  <text x="782" y="490" fill="#cbd5e1" font-size="10" font-weight="700">ON-DEMAND</text>
+  <text x="658" y="488" fill="#f8fafc" font-size="13" font-weight="700">Job: hl7-equivalence</text>
+  <text x="658" y="506" fill="#94a3b8" font-size="11">workflow_dispatch only</text>
+  <text x="658" y="530" fill="#cbd5e1" font-size="11">• Sets up Python 3.13</text>
+  <text x="658" y="548" fill="#cbd5e1" font-size="11">• Sets up Eclipse Temurin JDK 17</text>
+  <text x="658" y="566" fill="#cbd5e1" font-size="11">• Downloads latest official</text>
+  <text x="668" y="582" fill="#38bdf8" font-size="11" font-family="Consolas, monospace">validator_cli.jar</text>
+  <text x="658" y="604" fill="#cbd5e1" font-size="11">• Runs live JVM parity suite:</text>
+  <text x="668" y="620" fill="#e2e8f0" font-size="11" font-family="Consolas, monospace">pytest -m hl7_live -v -s</text>
+  <text x="658" y="646" fill="#94a3b8" font-size="10">Skipped on standard pushes/PRs to</text>
+  <text x="658" y="660" fill="#94a3b8" font-size="10">keep CI runtime under 2 minutes.</text>
+
+  <!-- Arrow from Test Matrix to Build -->
+  <line x1="877" y1="264" x2="926" y2="264" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
+
+  <!-- ===================================================================== -->
+  <!-- PHASE 4: DISTRIBUTION BUILD & SMOKE TEST (Right Column)               -->
+  <!-- ===================================================================== -->
+  <rect x="918" y="98" width="254" height="634" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="918" y="98" width="254" height="36" rx="10" fill="#334155"/>
+  <text x="934" y="121" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">4. PACKAGE &amp; SMOKE TEST</text>
+
+  <!-- Step 4A: PEP 517 Build -->
+  <rect x="934" y="150" width="222" height="130" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <rect x="1086" y="160" width="58" height="20" rx="10" fill="#064e3b"/>
+  <text x="1098" y="174" fill="#34d399" font-size="10" font-weight="700">~21s</text>
+  <text x="948" y="172" fill="#34d399" font-size="13" font-weight="700">Job: build</text>
+  <text x="948" y="190" fill="#94a3b8" font-size="11">needs: [quality, test]</text>
+  <text x="948" y="212" fill="#cbd5e1" font-size="11">• PEP 517 setuptools backend</text>
+  <text x="948" y="230" fill="#e2e8f0" font-size="11" font-family="Consolas, monospace">python -m build</text>
+  <text x="948" y="248" fill="#cbd5e1" font-size="11">• Produces dist/*.whl &amp; *.tar.gz</text>
+  <text x="948" y="266" fill="#cbd5e1" font-size="11">• Metadata: twine check dist/*</text>
+
+  <line x1="1045" y1="280" x2="1045" y2="310" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)"/>
+
+  <!-- Step 4B: Clean-Room Smoke Test -->
+  <rect x="934" y="314" width="222" height="156" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="1.5"/>
+  <text x="948" y="336" fill="#34d399" font-size="13" font-weight="700">Isolated Venv Smoke Test</text>
+  <text x="948" y="354" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">/tmp/smoke-venv</text>
+  <text x="948" y="376" fill="#cbd5e1" font-size="11">1. Clean install from built wheel:</text>
+  <text x="956" y="392" fill="#38bdf8" font-size="10" font-family="Consolas, monospace">pip install dist/*.whl</text>
+  <text x="948" y="412" fill="#cbd5e1" font-size="11">2. Verify CLI entrypoint:</text>
+  <text x="956" y="428" fill="#38bdf8" font-size="10" font-family="Consolas, monospace">fhirlance --help</text>
+  <text x="948" y="448" fill="#cbd5e1" font-size="11">3. Assert 146 R4 models loaded:</text>
+  <text x="956" y="462" fill="#38bdf8" font-size="10" font-family="Consolas, monospace">len(RESOURCE_MODELS) == 146</text>
+
+  <line x1="1045" y1="470" x2="1045" y2="500" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)"/>
+
+  <!-- Step 4C: Dependabot & Supply Chain -->
+  <rect x="934" y="504" width="222" height="210" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="948" y="526" fill="#38bdf8" font-size="13" font-weight="700">Supply Chain &amp; Artifacts</text>
+  <text x="948" y="544" fill="#94a3b8" font-size="11">.github/dependabot.yml</text>
+  <text x="948" y="566" fill="#cbd5e1" font-size="11">• Weekly pip dependency updates</text>
+  <text x="948" y="584" fill="#cbd5e1" font-size="11">• Weekly GitHub Actions updates</text>
+  <text x="948" y="602" fill="#cbd5e1" font-size="11">• Least-privilege GITHUB_TOKEN</text>
+  <text x="956" y="618" fill="#94a3b8" font-size="10" font-family="Consolas, monospace">permissions: contents: read</text>
+  <rect x="948" y="634" width="194" height="64" rx="6" fill="#064e3b" stroke="#10b981"/>
+  <text x="960" y="654" fill="#ecfdf5" font-size="12" font-weight="700">Verified Release Artifact</text>
+  <text x="960" y="672" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.1.0-py3-none-any.whl</text>
+  <text x="960" y="688" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.1.0.tar.gz</text>
+</svg>
