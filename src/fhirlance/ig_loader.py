@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fhirlance.profile_engine import COMPILED_PROFILES, CompiledProfile, compile_profiles
-from fhirlance.profiles import PROFILE_CONSTRAINTS
+from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
 
 if TYPE_CHECKING:
@@ -33,6 +33,14 @@ _SORTED_RESOURCE_MODELS: tuple[str, ...] = tuple(
     sorted(RESOURCE_MODELS.keys(), key=len, reverse=True)
 )
 
+_VsData = tuple[dict[str, list[str]], dict[str, dict[str, Any]]] | dict[str, list[str]]
+
+
+def _unpack_vs_data(vs_data: _VsData) -> tuple[dict[str, list[str]], dict[str, dict[str, Any]]]:
+    if isinstance(vs_data, tuple):
+        return vs_data
+    return vs_data, {}
+
 
 @dataclass
 class _IGResources:
@@ -51,6 +59,7 @@ class _ProfileAccumulator:
     type_narrowing: dict[str, list[str]] = field(default_factory=dict)
     target_types: dict[str, list[str]] = field(default_factory=dict)
     bindings: dict[str, list[str]] = field(default_factory=dict)
+    binding_specs: dict[str, dict[str, Any]] = field(default_factory=dict)
     slices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -92,9 +101,33 @@ def _extract_code_systems(cs_list: list[dict[str, Any]]) -> dict[str, list[str]]
     return code_systems
 
 
+def _extract_include_spec(
+    inc: dict[str, Any],
+    code_systems: dict[str, list[str]],
+    codes: list[str],
+    system_codes: dict[str, list[str]],
+    external_systems: list[str],
+) -> None:
+    system = inc.get("system")
+    concepts = inc.get("concept") or []
+    if concepts:
+        c_codes = [c["code"] for c in concepts if isinstance(c, dict) and "code" in c]
+        codes.extend(c_codes)
+        if system:
+            system_codes.setdefault(system, []).extend(c_codes)
+    elif system and not inc.get("filter"):
+        sys_c = code_systems.get(system) or COMPLETE_CODE_SYSTEMS.get(system, [])
+        if sys_c:
+            codes.extend(sys_c)
+            system_codes.setdefault(system, []).extend(sys_c)
+        else:
+            external_systems.append(system)
+
+
 def _extract_value_sets(
     vs_list: list[dict[str, Any]],
     code_systems: dict[str, list[str]],
+    vs_specs: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, list[str]]:
     value_sets: dict[str, list[str]] = {}
     for vs in vs_list:
@@ -102,20 +135,28 @@ def _extract_value_sets(
         if not url:
             continue
         codes: list[str] = []
-        compose = vs.get("compose") or {}
-        for inc in compose.get("include") or []:
-            if not isinstance(inc, dict):
-                continue
-            concepts = inc.get("concept") or []
-            if concepts:
-                codes.extend(c["code"] for c in concepts if isinstance(c, dict) and "code" in c)
-            elif "system" in inc and not inc.get("filter"):
-                codes.extend(code_systems.get(inc["system"], []))
+        system_codes: dict[str, list[str]] = {}
+        external_systems: list[str] = []
+        for inc in (vs.get("compose") or {}).get("include") or []:
+            if isinstance(inc, dict):
+                _extract_include_spec(inc, code_systems, codes, system_codes, external_systems)
         if not codes:
-            expansion = vs.get("expansion") or {}
-            _collect_expansion_codes(expansion.get("contains") or [], codes)
+            _collect_expansion_codes((vs.get("expansion") or {}).get("contains") or [], codes)
         if codes:
-            value_sets[url] = sorted(set(codes))
+            sorted_codes = sorted(set(codes))
+            value_sets[url] = sorted_codes
+            if vs_specs is not None:
+                vs_specs[url] = {
+                    "codes": sorted_codes,
+                    "system_codes": {s: sorted(set(c)) for s, c in system_codes.items()},
+                    "external_systems": sorted(set(external_systems)),
+                }
+        elif vs_specs is not None and (system_codes or external_systems):
+            vs_specs[url] = {
+                "codes": [],
+                "system_codes": {s: sorted(set(c)) for s, c in system_codes.items()},
+                "external_systems": sorted(set(external_systems)),
+            }
     return value_sets
 
 
@@ -213,10 +254,33 @@ def _record_element_types(
                 acc.target_types[path] = allowed
 
 
+def _record_element_binding(
+    el: dict[str, Any],
+    path: str,
+    value_sets: dict[str, list[str]],
+    vs_specs: dict[str, dict[str, Any]],
+    acc: _ProfileAccumulator,
+) -> None:
+    binding = el.get("binding") or {}
+    strength = binding.get("strength")
+    raw_vs = binding.get("valueSet")
+    if strength in ("required", "extensible") and raw_vs:
+        vs_url = raw_vs.split("|", maxsplit=1)[0]
+        rel_path = path.split(".", 1)[1] if "." in path else path
+        spec_entry = vs_specs.get(vs_url) or VALUE_SET_SPECS.get(vs_url)
+        acc.binding_specs[rel_path] = {
+            "strength": strength,
+            "value_set": vs_url,
+            "vs_spec": spec_entry,
+        }
+        if strength == "required" and vs_url in value_sets:
+            acc.bindings[path] = value_sets[vs_url]
+
+
 def _record_differential_element(
     el: dict[str, Any],
     sd_type_by_url: dict[str, str],
-    value_sets: dict[str, list[str]],
+    vs_data: _VsData,
     acc: _ProfileAccumulator,
 ) -> None:
     path = el.get("path", "")
@@ -240,19 +304,15 @@ def _record_differential_element(
         acc.pattern[path] = pattern
 
     _record_element_types(el, path, sd_type_by_url, acc)
-
-    binding = el.get("binding") or {}
-    if binding.get("strength") == "required" and binding.get("valueSet"):
-        vs_url = binding["valueSet"].split("|", maxsplit=1)[0]
-        if vs_url in value_sets:
-            acc.bindings[path] = value_sets[vs_url]
+    value_sets, vs_specs = _unpack_vs_data(vs_data)
+    _record_element_binding(el, path, value_sets, vs_specs, acc)
 
 
 def _record_snapshot_element(
     el: dict[str, Any],
     base_elements: dict[str, dict[str, Any]],
     sd_type_by_url: dict[str, str],
-    value_sets: dict[str, list[str]],
+    vs_data: _VsData,
     acc: _ProfileAccumulator,
 ) -> None:
     path = el.get("path", "")
@@ -281,12 +341,8 @@ def _record_snapshot_element(
         acc.pattern[path] = pattern
 
     _record_element_types(el, path, sd_type_by_url, acc)
-
-    binding = el.get("binding") or {}
-    if binding.get("strength") == "required" and binding.get("valueSet"):
-        vs_url = binding["valueSet"].split("|", maxsplit=1)[0]
-        if vs_url in value_sets:
-            acc.bindings[path] = value_sets[vs_url]
+    value_sets, vs_specs = _unpack_vs_data(vs_data)
+    _record_element_binding(el, path, value_sets, vs_specs, acc)
 
 
 def _get_base_elements(
@@ -320,7 +376,7 @@ def _get_base_elements(
 def _extract_profile_spec(
     sd: dict[str, Any],
     sd_type_by_url: dict[str, str],
-    value_sets: dict[str, list[str]],
+    vs_data: _VsData,
     all_sds: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     acc = _ProfileAccumulator()
@@ -329,13 +385,13 @@ def _extract_profile_spec(
     if diff_elements:
         for el in diff_elements:
             if isinstance(el, dict):
-                _record_differential_element(el, sd_type_by_url, value_sets, acc)
+                _record_differential_element(el, sd_type_by_url, vs_data, acc)
     else:
         base_elements = _get_base_elements(sd.get("baseDefinition"), sd.get("type"), all_sds)
         snap = sd.get("snapshot") or {}
         for el in snap.get("element") or []:
             if isinstance(el, dict):
-                _record_snapshot_element(el, base_elements, sd_type_by_url, value_sets, acc)
+                _record_snapshot_element(el, base_elements, sd_type_by_url, vs_data, acc)
 
     snap = sd.get("snapshot") or {}
     for el in snap.get("element") or []:
@@ -359,6 +415,7 @@ def _extract_profile_spec(
         "type_narrowing": acc.type_narrowing,
         "target_types": acc.target_types,
         "bindings": acc.bindings,
+        "binding_specs": acc.binding_specs,
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
     }
 
@@ -377,6 +434,12 @@ def _merge_profile_with_parent(
     p_tgt = parent.get("target_types", {}) if parent else {}
     p_bind = parent.get("bindings", {}) if parent else {}
     p_sl = parent.get("slices", []) if parent else []
+    p_bs = parent.get("binding_specs", {}) if parent else {}
+
+    merged_bs = {**p_bs, **spec.get("binding_specs", {})}
+    for path, p_spec in p_bs.items():
+        if p_spec.get("strength") == "required" and path in merged_bs:
+            merged_bs[path] = {**merged_bs[path], "strength": "required"}
 
     return {
         "base_type": spec.get("base_type") or (parent.get("base_type") if parent else None),
@@ -389,6 +452,7 @@ def _merge_profile_with_parent(
         "type_narrowing": {**p_narr, **spec.get("type_narrowing", {})},
         "target_types": {**p_tgt, **spec.get("target_types", {})},
         "bindings": {**p_bind, **spec.get("bindings", {})},
+        "binding_specs": merged_bs,
         "slices": [*p_sl, *spec.get("slices", [])],
     }
 
@@ -560,7 +624,8 @@ def load_raw_ig_profiles(sources: Sequence[str | Path]) -> dict[str, dict[str, A
         _load_source(path, container)
 
     code_systems = _extract_code_systems(container.code_systems)
-    value_sets = _extract_value_sets(container.value_sets, code_systems)
+    vs_specs: dict[str, dict[str, Any]] = {}
+    value_sets = _extract_value_sets(container.value_sets, code_systems, vs_specs)
 
     all_sds: dict[str, dict[str, Any]] = {}
     sd_type_by_url: dict[str, str] = {}
@@ -582,7 +647,9 @@ def load_raw_ig_profiles(sources: Sequence[str | Path]) -> dict[str, dict[str, A
             or sd.get("derivation") != "constraint"
         ):
             continue
-        raw_profiles[url] = _extract_profile_spec(sd, sd_type_by_url, value_sets, all_sds)
+        raw_profiles[url] = _extract_profile_spec(
+            sd, sd_type_by_url, (value_sets, vs_specs), all_sds
+        )
 
     return _resolve_all_profiles(raw_profiles)
 

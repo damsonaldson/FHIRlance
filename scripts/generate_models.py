@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import keyword
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,12 @@ DOMAIN_BASE_FIELDS = frozenset(
 )
 
 
+def _glob_json(pkg: Path, prefix: str) -> list[Path]:
+    """Glob JSON files matching prefix case-insensitively for Linux filesystem compatibility."""
+    prefix_lower = prefix.lower()
+    return sorted(p for p in pkg.glob("*.json") if p.name.lower().startswith(prefix_lower))
+
+
 @dataclass(frozen=True, slots=True)
 class CodegenContext:
     """Shared context for emitting Pydantic model classes from StructureDefinitions."""
@@ -71,6 +78,46 @@ class CodegenContext:
     value_sets: dict[str, list[str]]
     known_types: set[str]
     is_resource_pkg: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CodeSystemHierarchy:
+    """Complete CodeSystem codes and descendant hierarchy for filter expansion."""
+
+    codes: frozenset[str]
+    descendants: dict[str, frozenset[str]]
+
+
+@dataclass(frozen=True, slots=True)
+class ValueSetSpec:
+    """Expanded ValueSet specification with local codes and external system tracking."""
+
+    codes: list[str]
+    system_codes: dict[str, list[str]]
+    external_systems: list[str]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "codes": self.codes,
+            "system_codes": self.system_codes,
+            "external_systems": self.external_systems,
+        }
+
+
+@dataclass(slots=True)
+class _VsTarget:
+    codes: set[str] = field(default_factory=set)
+    sys_codes: dict[str, set[str]] = field(default_factory=dict)
+    ext_systems: set[str] = field(default_factory=set)
+
+
+@dataclass(frozen=True, slots=True)
+class _VsResolverContext:
+    raw_vs: dict[str, dict[str, Any]]
+    complete_cs: dict[str, list[str]]
+    hierarchy_map: dict[str, CodeSystemHierarchy]
+    resolved: dict[str, ValueSetSpec]
+    resolving: set[str]
 
 
 @dataclass(slots=True)
@@ -83,6 +130,7 @@ class _ProfileAccumulator:
     type_narrowing: dict[str, list[str]] = field(default_factory=dict)
     target_types: dict[str, list[str]] = field(default_factory=dict)
     bindings: dict[str, list[str]] = field(default_factory=dict)
+    binding_specs: dict[str, dict[str, Any]] = field(default_factory=dict)
     slices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -96,46 +144,298 @@ def _pascal_from_path(path: str) -> str:
     return "".join(part[0].upper() + part[1:] for part in path.split("."))
 
 
-def _collect_concepts(concepts: list[dict[str, Any]], out: list[str]) -> None:
-    for concept in concepts:
-        if "code" in concept:
-            out.append(concept["code"])
-        if "concept" in concept:
-            _collect_concepts(concept["concept"], out)
-
-
-def _load_code_systems(pkg_dir: Path) -> dict[str, list[str]]:
-    code_systems: dict[str, list[str]] = {}
-    for path in pkg_dir.glob("CodeSystem-*.json"):
-        cs = json.loads(path.read_text(encoding="utf-8"))
-        url = cs.get("url")
-        if not url:
+def _walk_concept_tree(
+    concepts: list[dict[str, Any]],
+    all_codes: set[str],
+    descendants: dict[str, set[str]],
+) -> set[str]:
+    subtree: set[str] = set()
+    for item in concepts:
+        code = item.get("code")
+        if not code or not isinstance(code, str):
             continue
-        codes: list[str] = []
-        _collect_concepts(cs.get("concept", []), codes)
-        if codes:
-            code_systems[url] = codes
-    return code_systems
+        all_codes.add(code)
+        subtree.add(code)
+        sub_concepts = item.get("concept")
+        children: set[str] = set()
+        if isinstance(sub_concepts, list):
+            children = _walk_concept_tree(sub_concepts, all_codes, descendants)
+        descendants.setdefault(code, set()).update(children)
+        subtree.update(children)
+    return subtree
+
+
+def _load_complete_code_systems(
+    ig_pkgs: list[Path],
+) -> tuple[dict[str, list[str]], dict[str, CodeSystemHierarchy]]:
+    """Extract complete CodeSystems and their hierarchies across all IG packages."""
+    complete_map: dict[str, list[str]] = {}
+    hierarchy_map: dict[str, CodeSystemHierarchy] = {}
+    for pkg in ig_pkgs:
+        if not pkg.exists():
+            continue
+        for path in _glob_json(pkg, "CodeSystem-"):
+            cs = json.loads(path.read_text(encoding="utf-8"))
+            url = (cs.get("url") or "").split("|", 1)[0]
+            if not url or cs.get("content") != "complete":
+                continue
+            all_codes: set[str] = set()
+            descendants: dict[str, set[str]] = {}
+            _walk_concept_tree(cs.get("concept", []), all_codes, descendants)
+            if not all_codes:
+                continue
+            complete_map[url] = sorted(all_codes)
+            hierarchy_map[url] = CodeSystemHierarchy(
+                codes=frozenset(all_codes),
+                descendants={k: frozenset(v) for k, v in descendants.items()},
+            )
+    return complete_map, hierarchy_map
+
+
+def _eval_regex_filter(val: str, codes: frozenset[str]) -> set[str]:
+    try:
+        rx = re.compile(val)
+        return {c for c in codes if rx.fullmatch(c)}
+    except re.error:
+        return set()
+
+
+def _eval_single_filter(
+    f: dict[str, Any],
+    cs: CodeSystemHierarchy,
+) -> set[str]:
+    op = f.get("op")
+    val = str(f.get("value", ""))
+    if op == "is-a":
+        return ({val} if val in cs.codes else set()) | set(cs.descendants.get(val, ()))
+    if op == "descendent-of":
+        return set(cs.descendants.get(val, ()))
+    if op == "=":
+        return {val} if val in cs.codes else set()
+    if op == "in":
+        return set(val.split(",")) & cs.codes
+    if op == "regex":
+        return _eval_regex_filter(val, cs.codes)
+    not_allowed = ({val} if val in cs.codes else set()) | set(cs.descendants.get(val, ()))
+    return set(cs.codes - not_allowed) if op == "is-not-a" else set()
+
+
+def _eval_filters(
+    filters: list[dict[str, Any]],
+    cs: CodeSystemHierarchy,
+) -> set[str]:
+    matches: set[str] | None = None
+    for f in filters:
+        m = _eval_single_filter(f, cs)
+        matches = m if matches is None else (matches & m)
+    return matches or set()
+
+
+def _collect_expansion_contains(
+    contains: list[Any],
+    sys_codes: dict[str, set[str]],
+    codes: set[str],
+) -> None:
+    for item in contains:
+        if not isinstance(item, dict):
+            continue
+        code = item.get("code")
+        sys_url = (item.get("system") or "").split("|", 1)[0]
+        if code and isinstance(code, str):
+            codes.add(code)
+            if sys_url:
+                sys_codes.setdefault(sys_url, set()).add(code)
+        sub_contains = item.get("contains")
+        if isinstance(sub_contains, list):
+            _collect_expansion_contains(sub_contains, sys_codes, codes)
+
+
+def _apply_imported_valuesets(
+    ctx: _VsResolverContext,
+    raw_refs: Any,
+    target: _VsTarget,
+) -> None:
+    if not raw_refs:
+        return
+    refs = raw_refs if isinstance(raw_refs, list) else [raw_refs]
+    for ref_vs in refs:
+        ref_url = str(ref_vs).split("|", 1)[0]
+        ref_spec = _resolve_single_value_set(ctx, ref_url)
+        target.codes.update(ref_spec.codes)
+        for s, sc in ref_spec.system_codes.items():
+            target.sys_codes.setdefault(s, set()).update(sc)
+        target.ext_systems.update(ref_spec.external_systems)
+
+
+def _apply_include_concepts(
+    inc: dict[str, Any],
+    sys_url: str,
+    target: _VsTarget,
+) -> None:
+    for c in inc.get("concept", []):
+        code = c.get("code")
+        if code and isinstance(code, str):
+            target.codes.add(code)
+            if sys_url:
+                target.sys_codes.setdefault(sys_url, set()).add(code)
+
+
+def _apply_include_filter(
+    ctx: _VsResolverContext,
+    inc: dict[str, Any],
+    sys_url: str,
+    target: _VsTarget,
+) -> None:
+    if sys_url in ctx.hierarchy_map:
+        matched = _eval_filters(inc["filter"], ctx.hierarchy_map[sys_url])
+        target.codes.update(matched)
+        if matched and sys_url:
+            target.sys_codes.setdefault(sys_url, set()).update(matched)
+    elif sys_url:
+        target.ext_systems.add(sys_url)
+
+
+def _apply_include_system(
+    ctx: _VsResolverContext,
+    sys_url: str,
+    target: _VsTarget,
+) -> None:
+    if sys_url in ctx.complete_cs:
+        matched = set(ctx.complete_cs[sys_url])
+        target.codes.update(matched)
+        target.sys_codes.setdefault(sys_url, set()).update(matched)
+    elif sys_url:
+        target.ext_systems.add(sys_url)
+
+
+def _apply_include(
+    ctx: _VsResolverContext,
+    inc: dict[str, Any],
+    target: _VsTarget,
+) -> None:
+    sys_url = (inc.get("system") or "").split("|", 1)[0]
+    if "concept" in inc:
+        _apply_include_concepts(inc, sys_url, target)
+    elif "filter" in inc:
+        _apply_include_filter(ctx, inc, sys_url, target)
+    elif sys_url:
+        _apply_include_system(ctx, sys_url, target)
+
+    _apply_imported_valuesets(ctx, inc.get("valueSet"), target)
+
+
+def _apply_exclude_concepts(
+    exc: dict[str, Any],
+    sys_url: str,
+    target: _VsTarget,
+) -> None:
+    for c in exc.get("concept", []):
+        code = c.get("code")
+        if not code or not isinstance(code, str):
+            continue
+        if sys_url in target.sys_codes:
+            target.sys_codes[sys_url].discard(code)
+        elif not sys_url:
+            for s in target.sys_codes:
+                target.sys_codes[s].discard(code)
+
+
+def _apply_exclude_filter(
+    ctx: _VsResolverContext,
+    exc: dict[str, Any],
+    sys_url: str,
+    target: _VsTarget,
+) -> None:
+    if sys_url in ctx.hierarchy_map:
+        excluded = _eval_filters(exc["filter"], ctx.hierarchy_map[sys_url])
+        if sys_url in target.sys_codes:
+            target.sys_codes[sys_url].difference_update(excluded)
+
+
+def _apply_exclude(
+    ctx: _VsResolverContext,
+    exc: dict[str, Any],
+    target: _VsTarget,
+) -> None:
+    sys_url = (exc.get("system") or "").split("|", 1)[0]
+    if "concept" in exc:
+        _apply_exclude_concepts(exc, sys_url, target)
+    elif "filter" in exc:
+        _apply_exclude_filter(ctx, exc, sys_url, target)
+    elif sys_url:
+        target.sys_codes.pop(sys_url, None)
+
+
+def _resolve_single_value_set(
+    ctx: _VsResolverContext,
+    url: str,
+) -> ValueSetSpec:
+    if url in ctx.resolved:
+        return ctx.resolved[url]
+    if url in ctx.resolving:
+        return ValueSetSpec(codes=[], system_codes={}, external_systems=[])
+    raw = ctx.raw_vs.get(url)
+    if raw is None:
+        return ValueSetSpec(codes=[], system_codes={}, external_systems=["*"])
+
+    ctx.resolving.add(url)
+    target = _VsTarget()
+    compose = raw.get("compose")
+    if not compose:
+        contains = raw.get("expansion", {}).get("contains", [])
+        if isinstance(contains, list):
+            _collect_expansion_contains(contains, target.sys_codes, target.codes)
+    else:
+        for inc in compose.get("include", []):
+            _apply_include(ctx, inc, target)
+        for exc in compose.get("exclude", []):
+            _apply_exclude(ctx, exc, target)
+        clean_sys = {s: sorted(sc) for s, sc in sorted(target.sys_codes.items()) if sc}
+        target.codes = set().union(*clean_sys.values()) if clean_sys else target.codes
+
+    ctx.resolving.remove(url)
+    spec = ValueSetSpec(
+        codes=sorted(target.codes),
+        system_codes={s: sorted(sc) for s, sc in sorted(target.sys_codes.items()) if sc},
+        external_systems=sorted(target.ext_systems),
+    )
+    ctx.resolved[url] = spec
+    return spec
+
+
+def _load_all_value_sets(
+    ig_pkgs: list[Path],
+    complete_cs: dict[str, list[str]],
+    hierarchy_map: dict[str, CodeSystemHierarchy],
+) -> dict[str, ValueSetSpec]:
+    """Load and resolve all ValueSets across all IG packages."""
+    raw_vs: dict[str, dict[str, Any]] = {}
+    for pkg in ig_pkgs:
+        if not pkg.exists():
+            continue
+        for path in _glob_json(pkg, "ValueSet-"):
+            vs = json.loads(path.read_text(encoding="utf-8"))
+            url = (vs.get("url") or "").split("|", 1)[0]
+            if url:
+                raw_vs[url] = vs
+
+    ctx = _VsResolverContext(
+        raw_vs=raw_vs,
+        complete_cs=complete_cs,
+        hierarchy_map=hierarchy_map,
+        resolved={},
+        resolving=set(),
+    )
+    for u in raw_vs:
+        _resolve_single_value_set(ctx, u)
+    return ctx.resolved
 
 
 def _load_terminology(pkg_dir: Path) -> dict[str, list[str]]:
-    """Build ValueSet URL -> sorted list of valid codes from CodeSystem & ValueSet JSONs."""
-    code_systems = _load_code_systems(pkg_dir)
-    value_sets: dict[str, list[str]] = {}
-    for path in pkg_dir.glob("ValueSet-*.json"):
-        vs = json.loads(path.read_text(encoding="utf-8"))
-        url = vs.get("url")
-        if not url:
-            continue
-        codes: list[str] = []
-        for inc in vs.get("compose", {}).get("include", []):
-            if "concept" in inc:
-                codes.extend(c["code"] for c in inc["concept"] if "code" in c)
-            elif "system" in inc and not inc.get("filter"):
-                codes.extend(code_systems.get(inc["system"], []))
-        if codes:
-            value_sets[url] = sorted(set(codes))
-    return value_sets
+    """Build ValueSet URL -> sorted list of valid codes for a single package."""
+    complete_cs, hierarchy_map = _load_complete_code_systems([pkg_dir])
+    specs = _load_all_value_sets([pkg_dir], complete_cs, hierarchy_map)
+    return {u: s.codes for u, s in specs.items()}
 
 
 def _resolve_code_literal(elem: dict[str, Any], value_sets: dict[str, list[str]]) -> str | None:
@@ -352,7 +652,7 @@ def _collect_sd_types(ig_pkgs: list[Path]) -> dict[str, str]:
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in pkg.glob("StructureDefinition-*.json"):
+        for path in _glob_json(pkg, "StructureDefinition-"):
             sd = json.loads(path.read_text(encoding="utf-8"))
             if sd.get("url") and sd.get("type"):
                 sd_type_by_url[sd["url"]] = sd["type"]
@@ -409,6 +709,27 @@ def _record_element_types(
                 acc.target_types[path] = allowed
 
 
+def _record_element_binding(
+    el: dict[str, Any],
+    path: str,
+    value_sets: dict[str, list[str]],
+    acc: _ProfileAccumulator,
+) -> None:
+    binding = el.get("binding", {})
+    strength = binding.get("strength")
+    raw_vs = binding.get("valueSet")
+    if strength == "required" and raw_vs:
+        vs_url = raw_vs.split("|")[0]
+        codes = value_sets.get(vs_url)
+        if codes:
+            acc.bindings[path] = codes
+
+    if strength in ("required", "extensible") and raw_vs:
+        vs_url = raw_vs.split("|")[0]
+        rel_path = path.split(".", 1)[1]
+        acc.binding_specs[rel_path] = {"strength": strength, "value_set": vs_url}
+
+
 def _record_differential_element(
     el: dict[str, Any],
     sd_type_by_url: dict[str, str],
@@ -436,12 +757,7 @@ def _record_differential_element(
         acc.pattern[path] = pattern
 
     _record_element_types(el, path, sd_type_by_url, acc)
-
-    binding = el.get("binding", {})
-    if binding.get("strength") == "required" and binding.get("valueSet"):
-        vs_url = binding["valueSet"].split("|")[0]
-        if vs_url in value_sets:
-            acc.bindings[path] = value_sets[vs_url]
+    _record_element_binding(el, path, value_sets, acc)
 
 
 def _extract_profile_spec(
@@ -471,8 +787,21 @@ def _extract_profile_spec(
         "type_narrowing": acc.type_narrowing,
         "target_types": acc.target_types,
         "bindings": acc.bindings,
+        "binding_specs": acc.binding_specs,
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
     }
+
+
+def _merge_binding_specs(
+    parent_specs: dict[str, dict[str, str]],
+    child_specs: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    """Merge parent and child binding specs, preserving required strength."""
+    merged: dict[str, dict[str, str]] = {**parent_specs, **child_specs}
+    for path, parent_spec in parent_specs.items():
+        if parent_spec.get("strength") == "required" and path in merged:
+            merged[path] = {**merged[path], "strength": "required"}
+    return merged
 
 
 def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -503,6 +832,10 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
             },
             "target_types": {**(parent["target_types"] if parent else {}), **spec["target_types"]},
             "bindings": {**(parent["bindings"] if parent else {}), **spec["bindings"]},
+            "binding_specs": _merge_binding_specs(
+                parent.get("binding_specs", {}) if parent else {},
+                spec.get("binding_specs", {}),
+            ),
             "slices": [*(parent["slices"] if parent else []), *spec["slices"]],
         }
         resolved[url] = merged
@@ -513,14 +846,55 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
     return resolved
 
 
-def _generate_all_ig_profiles(ig_pkgs: list[Path], value_sets: dict[str, list[str]]) -> str:
-    """Extract constraint specs with baseDefinition inheritance across configured IG packages."""
+def _extract_base_resource_bindings(
+    r4_pkg: Path,
+) -> dict[str, dict[str, dict[str, str]]]:
+    """Extract required/extensible bindings for CodeableConcept/Coding elements."""
+    bindings: dict[str, dict[str, dict[str, str]]] = {}
+    for path in _glob_json(r4_pkg, "StructureDefinition-"):
+        sd = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            sd.get("kind") != "resource"
+            or sd.get("abstract")
+            or sd.get("derivation") != "specialization"
+        ):
+            continue
+        rtype = sd["id"]
+        res_bindings: dict[str, dict[str, str]] = {}
+        for el in sd.get("snapshot", {}).get("element", []):
+            el_path = el.get("path", "")
+            if "." not in el_path:
+                continue
+            b = el.get("binding")
+            if (
+                not b
+                or b.get("strength") not in ("required", "extensible")
+                or not b.get("valueSet")
+            ):
+                continue
+            types = [t.get("code") for t in el.get("type", []) if isinstance(t, dict)]
+            if any(t in ("CodeableConcept", "Coding") for t in types):
+                rel_path = el_path.split(".", 1)[1]
+                vs_url = str(b["valueSet"]).split("|", 1)[0]
+                res_bindings[rel_path] = {"strength": b["strength"], "value_set": vs_url}
+        bindings[rtype] = res_bindings
+    return bindings
+
+
+def _generate_all_ig_profiles(
+    ig_pkgs: list[Path],
+    value_sets: dict[str, list[str]],
+    complete_cs: dict[str, list[str]] | None = None,
+    vs_specs: dict[str, ValueSetSpec] | None = None,
+    base_bindings: dict[str, dict[str, dict[str, str]]] | None = None,
+) -> str:
+    """Extract constraint specs and compile terminology across configured IG packages."""
     sd_type_by_url = _collect_sd_types(ig_pkgs)
     profiles: dict[str, dict[str, Any]] = {}
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in sorted(pkg.glob("StructureDefinition-*.json")):
+        for path in _glob_json(pkg, "StructureDefinition-"):
             sd = json.loads(path.read_text(encoding="utf-8"))
             url = sd.get("url")
             if not url or sd.get("kind") != "resource" or sd.get("derivation") != "constraint":
@@ -529,12 +903,18 @@ def _generate_all_ig_profiles(ig_pkgs: list[Path], value_sets: dict[str, list[st
 
     resolved = _resolve_all_profiles(profiles)
     header = (
-        '"""Profile constraints extracted from R4 Core, '
-        'CA-Baseline, CA-Core, IPS, and US Core IGs."""\n\n'
+        '"""Profile constraints and terminology tables compiled '
+        'from R4 Core and IG packages."""\n\n'
+        "from typing import Any\n\n"
     )
+    cs_table = complete_cs if complete_cs is not None else {}
+    vs_table = {u: s.to_dict() for u, s in vs_specs.items()} if vs_specs is not None else {}
+    bb_table = base_bindings if base_bindings is not None else {}
     return (
         header
-        + "from typing import Any\n\n"
+        + f"COMPLETE_CODE_SYSTEMS: dict[str, list[str]] = {cs_table!r}\n\n"
+        + f"VALUE_SET_SPECS: dict[str, dict[str, Any]] = {vs_table!r}\n\n"
+        + f"BASE_RESOURCE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {bb_table!r}\n\n"
         + f"PROFILE_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved!r}\n"
     )
 
@@ -612,10 +992,13 @@ def _write_resources(
 
 def main() -> None:
     """Regenerate types.py, resources.py, and profiles.py from cached HL7 FHIR packages."""
-    value_sets = _load_terminology(R4_PKG)
+    complete_cs, hierarchy_map = _load_complete_code_systems(IG_PKGS)
+    vs_specs = _load_all_value_sets(IG_PKGS, complete_cs, hierarchy_map)
+    value_set_codes = {u: s.codes for u, s in vs_specs.items()}
+
     sds = [
         json.loads(p.read_text(encoding="utf-8"))
-        for p in sorted(R4_PKG.glob("StructureDefinition-*.json"))
+        for p in _glob_json(R4_PKG, "StructureDefinition-")
     ]
     complex_sds = [
         s
@@ -625,7 +1008,7 @@ def main() -> None:
         and s.get("derivation") == "specialization"
     ]
     known_types = {s["id"] for s in complex_sds} | {"Element", "BackboneElement"}
-    _write_complex_types(complex_sds, value_sets, known_types)
+    _write_complex_types(complex_sds, value_set_codes, known_types)
 
     resource_sds = [
         s
@@ -634,11 +1017,18 @@ def main() -> None:
         and not s.get("abstract")
         and s.get("derivation") == "specialization"
     ]
-    res_names = _write_resources(resource_sds, value_sets, known_types)
-    (OUT_DIR / "profiles.py").write_text(
-        _generate_all_ig_profiles(IG_PKGS, value_sets), encoding="utf-8"
+    res_names = _write_resources(resource_sds, value_set_codes, known_types)
+    base_bindings = _extract_base_resource_bindings(R4_PKG)
+
+    profiles_content = _generate_all_ig_profiles(
+        IG_PKGS, value_set_codes, complete_cs, vs_specs, base_bindings
     )
+    (OUT_DIR / "profiles.py").write_text(profiles_content, encoding="utf-8")
     print(f"Generated {len(complex_sds)} complex types and {len(res_names)} R4 resources.")
+    print(
+        f"Compiled {len(complete_cs)} CodeSystems, {len(vs_specs)} ValueSets, "
+        f"and {len(base_bindings)} base bindings."
+    )
 
 
 if __name__ == "__main__":

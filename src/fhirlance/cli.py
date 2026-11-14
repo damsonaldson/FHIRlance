@@ -49,6 +49,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Validate multiple files across worker processes",
     )
     parser.add_argument(
+        "-tx",
+        "--tx",
+        "-term",
+        "--term",
+        dest="tx",
+        default="local",
+        help="Terminology validation mode: local (default), off, or remote TX server URL",
+    )
+    parser.add_argument(
+        "--strict-extensible",
+        action="store_true",
+        help="Treat extensible binding violations with unknown code systems as errors",
+    )
+    parser.add_argument(
         "--format",
         choices=SUPPORTED_OUTPUT_FORMATS,
         default=None,
@@ -102,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
             require_canadian_profile=not args.no_canadian,
             profile_urls=args.profile,
             ig_sources=args.ig_sources,
+            tx=args.tx,
+            strict_extensible=args.strict_extensible,
         )
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)

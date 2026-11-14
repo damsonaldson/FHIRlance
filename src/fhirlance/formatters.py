@@ -185,6 +185,7 @@ _RE_NESTED_STRIP = re.compile(r"^(?:(?:entry\[\d+\]\.resource|contained\[\d+\]):
 _RE_STRUCTURAL_LOC = re.compile(r"Structural\[(.*?)\]")
 _RE_PROFILE_PATH = re.compile(r"Profile\[.*?\]:.*?['\"]([A-Za-z][A-Za-z0-9_.[\]]+)['\"]")
 _RE_INVARIANT_PATH = re.compile(r"Invariant\[.*?\]\s+([A-Za-z0-9_.[\]]+):")
+_RE_BARE_PATH = re.compile(r"^['\"]([A-Za-z][A-Za-z0-9_.[\]]+)['\"](?:\s*code|:)")
 _RE_ADDRESS_PATH = re.compile(r"(Address\[\d+\])(?:\s+(country|state|postalCode))?")
 _FIRST_SEGMENT_RE = re.compile(r"^[A-Za-z0-9]+")
 _XML_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -235,6 +236,15 @@ SARIF_RULES: list[dict[str, Any]] = [
         },
         "defaultConfiguration": {"level": "error"},
     },
+    {
+        "id": "FHIRLANCE_TERMINOLOGY",
+        "name": "TerminologyValidation",
+        "shortDescription": {"text": "FHIR R4 terminology or code system validation issue"},
+        "fullDescription": {
+            "text": "The resource fails code system, ValueSet binding, or grammar validation."
+        },
+        "defaultConfiguration": {"level": "error"},
+    },
 ]
 
 _RULE_INDEX_MAP: dict[str, int] = {rule["id"]: idx for idx, rule in enumerate(SARIF_RULES)}
@@ -250,7 +260,14 @@ def _classify_issue_code(issue_str: str) -> str:
         return "structure"
     if "Invariant[" in issue_str or "ext-1" in issue_str:
         return "invariant"
-    if "not in required ValueSet" in issue_str:
+    if (
+        "not in required ValueSet" in issue_str
+        or "Terminology[" in issue_str
+        or "ValueSet" in issue_str
+        or "CodeSystem" in issue_str
+        or "grammar system" in issue_str
+        or "could not validate code" in issue_str
+    ):
         return "code-invalid"
     if (
         "missing required element" in issue_str
@@ -269,16 +286,17 @@ def _classify_issue_code(issue_str: str) -> str:
 
 
 def _extract_raw_path(issue_str: str) -> str:
+    m_term = re.search(r"Terminology\[(.*?)\](?::|\s|$)", issue_str)
+    if m_term:
+        return m_term.group(1).strip()
     m_struct = _RE_STRUCTURAL_LOC.search(issue_str)
     if m_struct:
         raw_loc = m_struct.group(1).strip()
         return re.sub(r"\.(\d+)(?=\.|$)", r"[\1]", raw_loc)
-    m_prof = _RE_PROFILE_PATH.search(issue_str)
-    if m_prof:
-        return m_prof.group(1).strip()
-    m_inv = _RE_INVARIANT_PATH.search(issue_str)
-    if m_inv:
-        return m_inv.group(1).strip()
+    for pattern in (_RE_PROFILE_PATH, _RE_BARE_PATH, _RE_INVARIANT_PATH):
+        m = pattern.search(issue_str)
+        if m:
+            return m.group(1).strip()
     m_addr = _RE_ADDRESS_PATH.search(issue_str)
     if m_addr:
         base = m_addr.group(1).lower()
@@ -330,12 +348,18 @@ def _build_outcome_issue(
     *,
     resource_type: str | None = None,
     resource_id: str | None = None,
+    severity: str = "error",
 ) -> dict[str, Any]:
     code = _classify_issue_code(issue_str)
     diag = _format_diagnostics(issue_str, resource_type=resource_type, resource_id=resource_id)
     expr = _extract_expression(issue_str, resource_type=resource_type)
+    actual_severity = severity
+    if severity == "error" and (
+        issue_str.startswith("Warning: ") or "could not validate code" in issue_str
+    ):
+        actual_severity = "warning"
     item: dict[str, Any] = {
-        "severity": "error",
+        "severity": actual_severity,
         "code": code,
         "diagnostics": diag,
     }
@@ -349,9 +373,29 @@ def issues_to_operation_outcome(
     *,
     resource_type: str | None = None,
     resource_id: str | None = None,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Convert a list of validation issue strings to a valid FHIR R4 OperationOutcome."""
-    if not issues:
+    outcomes: list[dict[str, Any]] = [
+        _build_outcome_issue(
+            issue_str,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            severity="error",
+        )
+        for issue_str in issues
+    ]
+    if warnings:
+        outcomes.extend(
+            _build_outcome_issue(
+                warn_str,
+                resource_type=resource_type,
+                resource_id=resource_id,
+                severity="warning",
+            )
+            for warn_str in warnings
+        )
+    if not outcomes:
         return {
             "resourceType": "OperationOutcome",
             "issue": [
@@ -364,14 +408,7 @@ def issues_to_operation_outcome(
         }
     return {
         "resourceType": "OperationOutcome",
-        "issue": [
-            _build_outcome_issue(
-                issue_str,
-                resource_type=resource_type,
-                resource_id=resource_id,
-            )
-            for issue_str in issues
-        ],
+        "issue": outcomes,
     }
 
 
@@ -379,7 +416,8 @@ def _infer_resource_type(entry: dict[str, Any]) -> str | None:
     declared = entry.get("resource_type") or entry.get("resourceType")
     if declared and str(declared) in FHIR_RESOURCE_TYPES:
         return str(declared)
-    for issue in entry.get("issues") or []:
+    all_msgs = (entry.get("issues") or []) + (entry.get("warnings") or [])
+    for issue in all_msgs:
         m = re.search(r"\bResource\s+([A-Z][a-zA-Z0-9]+)/", str(issue))
         if m and m.group(1) in FHIR_RESOURCE_TYPES:
             return m.group(1)
@@ -395,16 +433,17 @@ def _infer_resource_type(entry: dict[str, Any]) -> str | None:
 def dataset_to_operation_outcome(report: dict[str, Any]) -> dict[str, Any]:
     """Convert a validate_dataset report dict into a single valid FHIR R4 OperationOutcome."""
     raw_issues: list[Any] = report.get("issues") or []
-    if not raw_issues:
+    raw_warnings: list[Any] = report.get("warnings") or []
+    if not raw_issues and not raw_warnings:
         return issues_to_operation_outcome([])
 
     outcomes: list[dict[str, Any]] = []
     for entry in raw_issues:
         if isinstance(entry, str):
-            outcomes.append(_build_outcome_issue(entry))
+            outcomes.append(_build_outcome_issue(entry, severity="error"))
             continue
         if not isinstance(entry, dict):
-            outcomes.append(_build_outcome_issue(str(entry)))
+            outcomes.append(_build_outcome_issue(str(entry), severity="error"))
             continue
 
         if "error" in entry:
@@ -431,8 +470,24 @@ def dataset_to_operation_outcome(report: dict[str, Any]) -> dict[str, Any]:
                     str(sub_issue),
                     resource_type=res_type,
                     resource_id=str(res_id) if res_id else None,
+                    severity="error",
                 )
                 for sub_issue in sub_issues
+            )
+
+    for entry in raw_warnings:
+        if isinstance(entry, dict) and "warnings" in entry:
+            res_id = entry.get("id")
+            res_type = _infer_resource_type(entry)
+            sub_warns = entry.get("warnings") or []
+            outcomes.extend(
+                _build_outcome_issue(
+                    str(sw),
+                    resource_type=res_type,
+                    resource_id=str(res_id) if res_id else None,
+                    severity="warning",
+                )
+                for sw in sub_warns
             )
 
     if not outcomes:
@@ -457,6 +512,14 @@ def _classify_sarif_rule_id(issue_str: str) -> str:
         return "FHIR004-Canadian"
     if "Profile[" in issue_str or "not in required ValueSet" in issue_str:
         return "FHIR003-Profile"
+    if (
+        "Terminology[" in issue_str
+        or "ValueSet" in issue_str
+        or "CodeSystem" in issue_str
+        or "grammar system" in issue_str
+        or "could not validate code" in issue_str
+    ):
+        return "FHIRLANCE_TERMINOLOGY"
     return "FHIR001-Structural"
 
 
@@ -707,13 +770,17 @@ def validate_to_operation_outcome(
     require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Validate a single resource and return a valid FHIR R4 OperationOutcome."""
+    warnings: list[str] = []
     issues = validate_resource(
         resource,
         require_canadian_profile=require_canadian_profile,
         profile_urls=profile_urls,
         ig_sources=ig_sources,
+        _warnings_out=warnings,
+        **kwargs,
     )
     res_type = resource.get("resourceType") if isinstance(resource, dict) else None
     res_id = resource.get("id") if isinstance(resource, dict) else None
@@ -721,6 +788,7 @@ def validate_to_operation_outcome(
         issues,
         resource_type=str(res_type) if res_type else None,
         resource_id=str(res_id) if res_id else None,
+        warnings=warnings,
     )
 
 

@@ -19,12 +19,24 @@ from fhirlance.ig_loader import (
     register_ig,
 )
 from fhirlance.resource_validator import validate_resource
+from fhirlance.terminology import (
+    TerminologyResult,
+    TxClient,
+    TxOptions,
+    parse_tx_options,
+    validate_binding_value,
+    validate_remote_code,
+    validate_standalone_codings,
+)
 
 validate_structural_and_canadian = validate_resource
 validate_dataset_structural = validate_dataset
 
 __all__ = [
     "SUPPORTED_OUTPUT_FORMATS",
+    "TerminologyResult",
+    "TxClient",
+    "TxOptions",
     "clear_ig_cache",
     "dataset_to_junit_xml",
     "dataset_to_operation_outcome",
@@ -34,10 +46,14 @@ __all__ = [
     "load_compiled_ig_profiles",
     "load_raw_ig_profiles",
     "loads_strict_json",
+    "parse_tx_options",
     "register_ig",
+    "validate_binding_value",
     "validate_dataset",
     "validate_dataset_structural",
+    "validate_remote_code",
     "validate_resource",
+    "validate_standalone_codings",
     "validate_structural_and_canadian",
     "validate_to_operation_outcome",
 ]

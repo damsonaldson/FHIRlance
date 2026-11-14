@@ -28,6 +28,8 @@ usage: fhirlance [-h] [--no-canadian] [--profile PROFILE] [-ig IG_SOURCES]
 | `--no-canadian` | No | `False` | Disable Canadian localization checks (`meta.profile` presence, provincial/territorial JHN NamingSystem checks, `A1A 1A1` postal code FSA validation, and US-extension restrictions). |
 | `--profile <URL>` | **Yes** | `None` | Additional `StructureDefinition` canonical URL to validate resources against (evaluated alongside any profiles declared in `resource.meta.profile`). |
 | `-ig <SOURCE>`, `--ig <SOURCE>` | **Yes** | `None` | Load custom FHIR Implementation Guide(s) at runtime from an NPM tarball (`.tgz` / `.tar.gz`), unpacked directory, `Bundle` / `StructureDefinition` `.json` file, or `~/.fhir/packages` specifier (`<pkg>#<version>` or `<pkg>`). |
+| `-tx <MODE>`, `--tx <MODE>` | No | `local` | Terminology validation mode: `local` (offline grammars + complete CodeSystems + precompiled ValueSets), `remote` or `<URL>` (two-tier cache with remote Tx server fallback), or `off` (aliases: `-term`, `--term`). |
+| `--strict-extensible` | No | `False` | Treat extensible ValueSet binding violations as errors instead of non-blocking warnings. |
 | `--parallel` | No | `False` | Validate multi-file directories, multi-entry `Bundle` JSON files (`>= 64` entries), and multi-line `.ndjson` files (`>= 64` lines) in parallel across worker processes (`ProcessPoolExecutor`). |
 | `--format <FMT>` | No | `text` | Output format: `text`, `json`, `operation-outcome`, `sarif`, or `junit` (see table below). |
 | `--operation-outcome` | No | `False` | Shorthand alias for `--format operation-outcome` (emits a compliant FHIR R4 `OperationOutcome` JSON resource). |
@@ -142,6 +144,7 @@ register_ig("path/to/custom-ig.tgz")
 | [`canadian.py`](../src/fhirlance/canadian.py) | Pan-Canadian profile and patient localization rules (13 provincial/territorial JHN NamingSystems, `A1A 1A1` postal code FSA validation, and US-extension bans). |
 | [`formatters.py`](../src/fhirlance/formatters.py) | Self-validating FHIR R4 `OperationOutcome`, OASIS SARIF v2.1.0, JUnit XML, JSON, and human-readable text report formatters. |
 | [`resource_validator.py`](../src/fhirlance/resource_validator.py) | Single-resource validation orchestrator and depth-guarded (`max_depth=16`) recursive `Bundle.entry[].resource` and `DomainResource.contained[]` validator. |
+| [`terminology.py`](../src/fhirlance/terminology.py) | Offline grammar validation (UCUM, BCP-47, MIME, ISO-3166), local complete CodeSystems, ValueSet binding validation, and two-tier L1 in-memory / L2 SQLite remote caching client. |
 | [`dataset.py`](../src/fhirlance/dataset.py) | Strict JSON (`NaN`/`Infinity`-rejecting) loader and sequential/multi-process (`ProcessPoolExecutor`) dataset runner for `.json`, `.ndjson`, and directories. |
 | [`validator.py`](../src/fhirlance/validator.py) | Public validation facade re-exported by `fhirlance`. |
 | [`cli.py`](../src/fhirlance/cli.py) | `fhirlance` command-line entrypoint. |

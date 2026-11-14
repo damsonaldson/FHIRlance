@@ -226,22 +226,24 @@ It compares:
 3. **Official HL7 Baseline Validator (`validator_cli.jar`)** (`-version 4.0.1 -tx n/a -ig hl7.fhir.uv.ips#1.0.0 -ig hl7.fhir.us.core.r4#8.0.1 -output outcome.json`) against the **exact same 325-resource dataset**.
 
 <!-- PERFORMANCE_BENCHMARK_START -->
-**Release**: `v0.1.0` | **Python**: `3.13.7` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-14 17:45 UTC`
+**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-14 20:46 UTC`
 
-#### 1. Master Equivalence Dataset (`325` Resources across all `146` R4 Types, `10` Invariants & `5` IGs)
+#### 1. Master Equivalence Dataset (`325` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
 
-| Validator / Execution Mode | API / Command | Batch Elapsed (`325` Resources) | Latency per Resource | Throughput (`resources/s`) | Speedup vs. HL7 Baseline |
-| :--- | :--- | ---: | ---: | ---: | ---: |
-| **FHIRlance — Standard Mode** | `validate_resource(res)` (`list[str]`) | **`11.67 ms`** | **`35.9 µs`** | **`27,847 res/s`** | **`3,010.1x faster`** |
-| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | `validate_to_operation_outcome(res)` (FHIR R4 `OperationOutcome`) | **`12.70 ms`** | **`39.1 µs`** | **`25,590 res/s`** | **`2,766.1x faster`** |
-| **Official HL7 Baseline Validator** | `java -jar validator_cli.jar -version 4.0.1 -tx n/a -output` | `35.13 s` (`35,130 ms`) | `108.09 ms` (`108,092 µs`) | `9.25 res/s` | `1.0x` (baseline) |
+| Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |
+| :--- | ---: | ---: | ---: | ---: |
+| **FHIRlance — Standard Mode** | **`25.87 ms`** | **`79.6 µs`** | **`12,564 /s`** | **`1,358.0x`** |
+| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`29.93 ms`** | **`92.1 µs`** | **`10,859 /s`** | **`1,173.8x`** |
+| **Official HL7 Baseline Validator** | `35.13 s` | `108.1 ms` | `9.25 /s` | `1.0x` |
 
-#### 2. High-Volume NDJSON Dataset & Master Test Suite Throughput
+<sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` · HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>
 
-| Benchmark Workload | Mode | Volume | Elapsed Time | Effective Throughput |
-| :--- | :--- | ---: | ---: | ---: |
-| **NDJSON Dataset Batch (`validate_dataset`)** | Standard Report Mode (`dict` / JSON) | `1,000` resources | **`60.35 ms`** | **`16,570 resources/s`** |
-| **NDJSON Dataset Batch (`--format operation-outcome`)** | FHIR R4 `OperationOutcome` Mode | `1,000` resources | **`73.05 ms`** | **`13,689 resources/s`** |
-| **Master Offline Pytest Suite (`pytest -m "not hl7_live"`)** | Full R4 (`146` types) + `183` IG Profiles (`2,009` rules) + Fuzzing | `2,686` test items (`8,380+` scenarios) | `~12.5 s` (no-cov) / `~32.9 s` (branch-cov) | **`~670 scenarios/s`** |
+#### 2. High-Volume NDJSON & Test Suite Throughput
+
+| Workload | Volume | Elapsed | Throughput |
+| :--- | ---: | ---: | ---: |
+| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`114.70 ms`** | **`8,718 /s`** |
+| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`116.09 ms`** | **`8,614 /s`** |
+| **Offline Pytest Suite** (`not hl7_live`) | `2,686` items (`8,380+` cases) | `~12.5 s` | **`~670 cases/s`** |
 <!-- PERFORMANCE_BENCHMARK_END -->
 

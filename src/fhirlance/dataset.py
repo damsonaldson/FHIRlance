@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import repeat
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fhirlance.ig_loader import load_compiled_ig_profiles
 from fhirlance.resource_validator import validate_resource
+from fhirlance.terminology import TxOptions, parse_tx_options
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -28,6 +29,7 @@ class _ValidationOptions:
     profile_urls: tuple[str, ...] | None = None
     ig_sources: tuple[str, ...] | None = None
     compiled_profiles: dict[str, CompiledProfile] | None = None
+    tx_options: TxOptions = field(default_factory=TxOptions)
 
 
 def _reject_bad_json_constant(val: str) -> Any:
@@ -51,17 +53,41 @@ def _record_validation(
     effective_ig = (
         options.compiled_profiles if options.compiled_profiles is not None else options.ig_sources
     )
+    warnings: list[str] = []
     issues = validate_resource(
         resource,
         require_canadian_profile=options.require_canadian_profile,
         profile_urls=list(options.profile_urls) if options.profile_urls else None,
         ig_sources=effective_ig,
+        tx=options.tx_options,
+        _warnings_out=warnings,
     )
+    res_id = resource.get("id") if isinstance(resource, dict) else None
+    res_type = resource.get("resourceType") if isinstance(resource, dict) else None
+
+    if warnings and not issues:
+        warn_entry: dict[str, Any] = {
+            "file": file_name,
+            "resourceType": res_type,
+            "id": res_id,
+            "warnings": warnings,
+        }
+        if line_no is not None:
+            warn_entry["line"] = line_no
+        issues_list.append(warn_entry)
+        return True
+
     if not issues:
         return True
 
-    res_id = resource.get("id") if isinstance(resource, dict) else None
-    entry: dict[str, Any] = {"file": file_name, "id": res_id, "issues": issues}
+    entry: dict[str, Any] = {
+        "file": file_name,
+        "resourceType": res_type,
+        "id": res_id,
+        "issues": issues,
+    }
+    if warnings:
+        entry["warnings"] = warnings
     if line_no is not None:
         entry["line"] = line_no
     issues_list.append(entry)
@@ -291,6 +317,7 @@ def validate_dataset(
     require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """Validate a single file or all FHIR bundles / NDJSON files in a directory."""
     target_path = Path(target)
@@ -299,12 +326,21 @@ def validate_dataset(
 
     compiled_map = load_compiled_ig_profiles(ig_sources) if ig_sources else None
 
+    tx_raw = kwargs.get("tx", "local")
+    strict_extensible = bool(kwargs.get("strict_extensible", False))
+    tx_options = (
+        tx_raw
+        if isinstance(tx_raw, TxOptions)
+        else parse_tx_options(tx_raw, strict_extensible=strict_extensible)
+    )
+
     files = _collect_dataset_files(target_path)
     options = _ValidationOptions(
         require_canadian_profile=require_canadian_profile,
         profile_urls=tuple(profile_urls) if profile_urls else None,
         ig_sources=tuple(str(s) for s in ig_sources) if ig_sources else None,
         compiled_profiles=compiled_map,
+        tx_options=tx_options,
     )
     total_resources = 0
     valid_resources = 0
@@ -330,11 +366,14 @@ def validate_dataset(
     compliance_rate = (
         (valid_resources / total_resources * _PERCENT_SCALE) if total_resources > 0 else 0.0
     )
+    issues_only = [item for item in all_issues if "error" in item or item.get("issues")]
+    warnings_only = [item for item in all_issues if item.get("warnings")]
     return {
         "directory": str(target_path),
         "total_resources": total_resources,
         "valid_resources": valid_resources,
         "invalid_resources": total_resources - valid_resources,
         "compliance_rate": compliance_rate,
-        "issues": all_issues,
+        "issues": issues_only,
+        "warnings": warnings_only,
     }

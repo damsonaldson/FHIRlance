@@ -88,10 +88,11 @@ To achieve 100% structural/profile parity with `validator_cli.jar` on US Core, I
 1. **Dynamic `-ig` Loader & Package Cache Resolver** *(Core delivered in [`ig_loader.py`](../src/fhirlance/ig_loader.py))*
    - Supports `--ig <package#version | path/to/package.tgz | path/to/dir | path/to/file.json>` on the CLI and Python API with in-memory `(st_mtime_ns, st_size)` fingerprinting.
    - Next: persistent disk cache in `~/.cache/fhirlance/` and `fhirlance pkg install <id>#<version>` to fetch directly from `packages.fhir.org` without Java or Node.
-2. **Embedded Zero-Latency Terminology Engine** *(Core delivered in [`terminology.py`](../src/fhirlance/terminology.py))*
+2. **Embedded Zero-Latency Terminology Engine** *(Delivered in [`terminology.py`](../src/fhirlance/terminology.py))*
    - Built-in offline grammar validators for **UCUM** (`http://unitsofmeasure.org`), **BCP-47** (`urn:ietf:bcp:47`), **BCP-13 MIME**, and **ISO-3166** country/subdivision codes.
    - Two-tier terminology client (`TxClient`): L1 in-memory LRU cache + L2 SQLite WAL-mode persistent cache (`~/.fhir/fhirlance-tx-cache.sqlite`) with optional remote `$validate-code` fallback.
-   - Next: wire `COMPLETE_CODE_SYSTEMS`, `VALUE_SET_SPECS`, and `--tx` (`local`, `remote`, `off`) into `profile_engine.py`, `resource_validator.py`, and `cli.py`.
+   - Complete CodeSystem tables (`COMPLETE_CODE_SYSTEMS`) and ValueSet expansion tables (`VALUE_SET_SPECS`) precompiled across R4 Core and all 5 IGs.
+   - Integrated `--tx` (`local` [default], `remote`, `off`) and `--strict-extensible` options wired into `profile_engine.py`, `resource_validator.py`, `dataset.py`, `formatters.py`, and `cli.py`.
 
 ---
 

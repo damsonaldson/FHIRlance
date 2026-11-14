@@ -20,6 +20,15 @@ from fhirlance.ig_loader import (
 from fhirlance.profiles import PROFILE_CONSTRAINTS
 from fhirlance.resource_validator import validate_resource
 from fhirlance.resources import RESOURCE_MODELS
+from fhirlance.terminology import (
+    TerminologyResult,
+    TxClient,
+    TxOptions,
+    parse_tx_options,
+    validate_binding_value,
+    validate_remote_code,
+    validate_standalone_codings,
+)
 from fhirlance.validator import validate_dataset_structural, validate_structural_and_canadian
 
 __version__ = "0.1.0"
@@ -30,6 +39,9 @@ __all__ = [
     "SUPPORTED_OUTPUT_FORMATS",
     "DomainResourceBase",
     "FHIRBaseModel",
+    "TerminologyResult",
+    "TxClient",
+    "TxOptions",
     "__version__",
     "clear_ig_cache",
     "dataset_to_junit_xml",
@@ -40,10 +52,14 @@ __all__ = [
     "load_compiled_ig_profiles",
     "load_raw_ig_profiles",
     "loads_strict_json",
+    "parse_tx_options",
     "register_ig",
+    "validate_binding_value",
     "validate_dataset",
     "validate_dataset_structural",
+    "validate_remote_code",
     "validate_resource",
+    "validate_standalone_codings",
     "validate_structural_and_canadian",
     "validate_to_operation_outcome",
 ]
