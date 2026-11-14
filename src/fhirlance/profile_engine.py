@@ -5,8 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from fhirlance.profiles import PROFILE_CONSTRAINTS
+from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
+from fhirlance.terminology import (
+    TxOptions,
+    _normalize_vs_spec,
+    parse_tx_options,
+    validate_binding_value,
+)
 
 _CHOICE_SUFFIX = "[x]"
 _CHOICE_SUFFIX_LEN = len(_CHOICE_SUFFIX)
@@ -68,6 +74,17 @@ class CompiledSlice:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledBindingRule:
+    """A compiled ValueSet binding constraint."""
+
+    path: str
+    parts: tuple[str, ...]
+    strength: str
+    value_set: str
+    vs_spec: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CompiledProfile:
     """Pre-compiled StructureDefinition constraint set for fast validation."""
 
@@ -81,6 +98,7 @@ class CompiledProfile:
     target_types: tuple[AllowedValuesRule, ...]
     bindings: tuple[AllowedValuesRule, ...]
     slices: tuple[CompiledSlice, ...]
+    binding_specs: tuple[CompiledBindingRule, ...] = ()
 
 
 def pattern_matches(actual: Any, pattern: Any) -> bool:
@@ -145,9 +163,57 @@ def _extract_ref_resource_type(ref_str: str) -> str | None:
     return None
 
 
+def _compile_binding_specs(
+    base_type: str | None,
+    raw_binding_specs: dict[str, Any],
+    raw_bindings: dict[str, Any],
+) -> tuple[CompiledBindingRule, ...]:
+    rules: list[CompiledBindingRule] = []
+    seen: set[str] = set()
+    for rel_path, b_info in raw_binding_specs.items():
+        if base_type and rel_path.startswith(f"{base_type}."):
+            full_path = rel_path
+            parts = tuple(rel_path.split(".")[1:])
+        elif "." in rel_path and not base_type:
+            full_path = rel_path
+            parts = tuple(p for p in rel_path.split(".") if p)
+        else:
+            full_path = f"{base_type}.{rel_path}" if base_type else rel_path
+            parts = tuple(p for p in rel_path.split(".") if p)
+        seen.add(full_path)
+        seen.add(rel_path)
+        vs_url = b_info.get("value_set", "")
+        raw_vs = b_info.get("vs_spec") or VALUE_SET_SPECS.get(vs_url)
+        vs_spec = _normalize_vs_spec(raw_vs)
+        rules.append(
+            CompiledBindingRule(
+                path=full_path,
+                parts=parts,
+                strength=b_info.get("strength", "extensible"),
+                value_set=vs_url,
+                vs_spec=vs_spec,
+            )
+        )
+    for p, codes in raw_bindings.items():
+        rel_p = p.split(".", 1)[1] if "." in p else p
+        if p not in seen and rel_p not in seen:
+            parts = tuple(p.split(".")[1:] if "." in p else p.split("."))
+            rules.append(
+                CompiledBindingRule(
+                    path=p,
+                    parts=parts,
+                    strength="required",
+                    value_set="urn:fhirlance:inline",
+                    vs_spec={"codes": frozenset(codes), "system_codes": {}, "external_systems": []},
+                )
+            )
+    return tuple(rules)
+
+
 def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
+    base_type = spec.get("base_type")
     return CompiledProfile(
-        base_type=spec.get("base_type"),
+        base_type=base_type,
         required=tuple(PathRule(p, tuple(p.split(".")[1:])) for p in spec.get("required", ())),
         forbidden=tuple(PathRule(p, tuple(p.split(".")[1:])) for p in spec.get("forbidden", ())),
         max_one=tuple(PathRule(p, tuple(p.split(".")[1:])) for p in spec.get("max_one", ())),
@@ -191,6 +257,11 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
                 ),
             )
             for sl in spec.get("slices", ())
+        ),
+        binding_specs=_compile_binding_specs(
+            base_type,
+            spec.get("binding_specs", {}),
+            spec.get("bindings", {}),
         ),
     )
 
@@ -312,15 +383,29 @@ def _check_target_types(
 
 
 def _check_bindings(
-    resource: dict[str, Any], prof_url: str, rules: tuple[AllowedValuesRule, ...]
+    resource: dict[str, Any],
+    prof_url: str,
+    rules: tuple[CompiledBindingRule, ...],
+    tx_options: TxOptions,
+    *,
+    _warnings_out: list[str] | None = None,
 ) -> list[str]:
     issues: list[str] = []
     for rule in rules:
-        issues.extend(
-            f"Profile[{prof_url}]: '{rule.path}' code '{val}' not in required ValueSet"
-            for val in resolve_nodes(resource, rule.parts)
-            if isinstance(val, str) and val not in rule.allowed
-        )
+        for val in resolve_nodes(resource, rule.parts):
+            res = validate_binding_value(
+                val,
+                rule.path,
+                rule.value_set,
+                rule.strength,
+                tx_options,
+                profile_prefix=f"Profile[{prof_url}]: ",
+                vs_spec=rule.vs_spec,
+                complete_systems=COMPLETE_CODE_SYSTEMS,
+            )
+            issues.extend(res.errors)
+            if _warnings_out is not None and res.warnings:
+                _warnings_out.extend(res.warnings)
     return issues
 
 
@@ -355,6 +440,7 @@ def validate_single_profile(
     rtype: str,
     prof_url: str,
     compiled_profiles: dict[str, CompiledProfile] = COMPILED_PROFILES,
+    **kwargs: Any,
 ) -> list[str]:
     """Validate a resource against a single compiled IG StructureDefinition constraint set."""
     spec = compiled_profiles.get(prof_url)
@@ -364,6 +450,15 @@ def validate_single_profile(
     if spec.base_type and spec.base_type != rtype:
         return [f"Profile[{prof_url}]: profile applies to '{spec.base_type}', got '{rtype}'"]
 
+    tx_raw = kwargs.get("tx", "local")
+    strict_extensible = bool(kwargs.get("strict_extensible", False))
+    _warnings_out: list[str] | None = kwargs.get("_warnings_out")
+    tx_options = (
+        tx_raw
+        if isinstance(tx_raw, TxOptions)
+        else parse_tx_options(tx_raw, strict_extensible=strict_extensible)
+    )
+
     return [
         *_check_required(resource, prof_url, spec.required),
         *_check_forbidden(resource, prof_url, spec.forbidden),
@@ -372,6 +467,12 @@ def validate_single_profile(
         *_check_pattern(resource, prof_url, spec.pattern),
         *_check_type_narrowing(resource, prof_url, spec.type_narrowing),
         *_check_target_types(resource, prof_url, spec.target_types),
-        *_check_bindings(resource, prof_url, spec.bindings),
+        *_check_bindings(
+            resource,
+            prof_url,
+            spec.binding_specs,
+            tx_options,
+            _warnings_out=_warnings_out,
+        ),
         *_check_slices(resource, prof_url, spec.slices),
     ]

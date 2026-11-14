@@ -63,6 +63,12 @@ DOMAIN_BASE_FIELDS = frozenset(
 )
 
 
+def _glob_json(pkg: Path, prefix: str) -> list[Path]:
+    """Glob JSON files matching prefix case-insensitively for Linux filesystem compatibility."""
+    prefix_lower = prefix.lower()
+    return sorted(p for p in pkg.glob("*.json") if p.name.lower().startswith(prefix_lower))
+
+
 @dataclass(frozen=True, slots=True)
 class CodegenContext:
     """Shared context for emitting Pydantic model classes from StructureDefinitions."""
@@ -168,7 +174,7 @@ def _load_complete_code_systems(
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in sorted(pkg.glob("CodeSystem-*.json")):
+        for path in _glob_json(pkg, "CodeSystem-"):
             cs = json.loads(path.read_text(encoding="utf-8"))
             url = (cs.get("url") or "").split("|", 1)[0]
             if not url or cs.get("content") != "complete":
@@ -407,7 +413,7 @@ def _load_all_value_sets(
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in sorted(pkg.glob("ValueSet-*.json")):
+        for path in _glob_json(pkg, "ValueSet-"):
             vs = json.loads(path.read_text(encoding="utf-8"))
             url = (vs.get("url") or "").split("|", 1)[0]
             if url:
@@ -646,7 +652,7 @@ def _collect_sd_types(ig_pkgs: list[Path]) -> dict[str, str]:
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in pkg.glob("StructureDefinition-*.json"):
+        for path in _glob_json(pkg, "StructureDefinition-"):
             sd = json.loads(path.read_text(encoding="utf-8"))
             if sd.get("url") and sd.get("type"):
                 sd_type_by_url[sd["url"]] = sd["type"]
@@ -786,6 +792,18 @@ def _extract_profile_spec(
     }
 
 
+def _merge_binding_specs(
+    parent_specs: dict[str, dict[str, str]],
+    child_specs: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    """Merge parent and child binding specs, preserving required strength."""
+    merged: dict[str, dict[str, str]] = {**parent_specs, **child_specs}
+    for path, parent_spec in parent_specs.items():
+        if parent_spec.get("strength") == "required" and path in merged:
+            merged[path] = {**merged[path], "strength": "required"}
+    return merged
+
+
 def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     resolved: dict[str, dict[str, Any]] = {}
 
@@ -814,10 +832,10 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
             },
             "target_types": {**(parent["target_types"] if parent else {}), **spec["target_types"]},
             "bindings": {**(parent["bindings"] if parent else {}), **spec["bindings"]},
-            "binding_specs": {
-                **(parent.get("binding_specs", {}) if parent else {}),
-                **spec.get("binding_specs", {}),
-            },
+            "binding_specs": _merge_binding_specs(
+                parent.get("binding_specs", {}) if parent else {},
+                spec.get("binding_specs", {}),
+            ),
             "slices": [*(parent["slices"] if parent else []), *spec["slices"]],
         }
         resolved[url] = merged
@@ -833,7 +851,7 @@ def _extract_base_resource_bindings(
 ) -> dict[str, dict[str, dict[str, str]]]:
     """Extract required/extensible bindings for CodeableConcept/Coding elements."""
     bindings: dict[str, dict[str, dict[str, str]]] = {}
-    for path in sorted(r4_pkg.glob("StructureDefinition-*.json")):
+    for path in _glob_json(r4_pkg, "StructureDefinition-"):
         sd = json.loads(path.read_text(encoding="utf-8"))
         if (
             sd.get("kind") != "resource"
@@ -876,7 +894,7 @@ def _generate_all_ig_profiles(
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in sorted(pkg.glob("StructureDefinition-*.json")):
+        for path in _glob_json(pkg, "StructureDefinition-"):
             sd = json.loads(path.read_text(encoding="utf-8"))
             url = sd.get("url")
             if not url or sd.get("kind") != "resource" or sd.get("derivation") != "constraint":
@@ -980,7 +998,7 @@ def main() -> None:
 
     sds = [
         json.loads(p.read_text(encoding="utf-8"))
-        for p in sorted(R4_PKG.glob("StructureDefinition-*.json"))
+        for p in _glob_json(R4_PKG, "StructureDefinition-")
     ]
     complex_sds = [
         s

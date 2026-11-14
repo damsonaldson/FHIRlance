@@ -14,6 +14,7 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 ## Coverage (TL;DR)
 - **Full FHIR R4 Base Spec**: All **146 resources** and **39 complex datatypes** (`659` generated Pydantic v2 models, `8,350` fields, `186` `[x]` choice groups, `_primitive` extensions, `ext-1`, core FHIRPath invariants, and recursive `Bundle` / `contained[]` validation).
 - **Multi-IG Profile Engine**: **183 pre-compiled profiles** (`2,009` rules) across **HL7 R4 Core, CA-Baseline 1.2.0, Infoway CA Core 1.1.0, HL7 IPS 1.0.0, and HL7 US Core 8.0.1**, plus dynamic runtime `-ig` loading (`.tgz`, folders, Bundles, StructureDefinitions).
+- **Terminology Validation Engine**: Built-in offline grammar validators (UCUM, BCP-47, MIME, ISO-3166), complete CodeSystems (`1,059` systems), precompiled ValueSets (`1,442` ValueSets), `--tx` (`local`, `remote`, `off`), and `--strict-extensible` with two-tier in-memory / SQLite caching.
 - **Canadian Localization**: Opt-in CA-Baseline / PS-CA `meta.profile`, all **13 provincial/territorial JHN systems**, `A1A 1A1` postal code FSA checks, and US-extension restrictions (`--no-canadian` to disable).
 - **Standard Output Formats**: Text, JSON, self-validating FHIR R4 `OperationOutcome`, **SARIF v2.1.0**, and **JUnit XML**.
 
@@ -22,23 +23,25 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 Auto-updated on build via [`scripts/benchmark_performance.py`](scripts/benchmark_performance.py) (raw JSON: [`docs/benchmark-results.json`](docs/benchmark-results.json); full methodology: **[Equivalence & Testing](docs/equivalence-and-testing.md)**).
 
 <!-- PERFORMANCE_BENCHMARK_START -->
-**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-14 19:35 UTC`
+**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-14 20:46 UTC`
 
-#### 1. Master Equivalence Dataset (`325` Resources across all `146` R4 Types, `10` Invariants & `5` IGs)
+#### 1. Master Equivalence Dataset (`325` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
 
-| Validator / Execution Mode | API / Command | Batch Elapsed (`325` Resources) | Latency per Resource | Throughput (`resources/s`) | Speedup vs. HL7 Baseline |
-| :--- | :--- | ---: | ---: | ---: | ---: |
-| **FHIRlance — Standard Mode** | `validate_resource(res)` (`list[str]`) | **`13.25 ms`** | **`40.8 µs`** | **`24,532 res/s`** | **`2,651.7x faster`** |
-| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | `validate_to_operation_outcome(res)` (FHIR R4 `OperationOutcome`) | **`15.26 ms`** | **`47.0 µs`** | **`21,292 res/s`** | **`2,301.5x faster`** |
-| **Official HL7 Baseline Validator** | `java -jar validator_cli.jar -version 4.0.1 -tx n/a -output` | `35.13 s` (`35,130 ms`) | `108.09 ms` (`108,092 µs`) | `9.25 res/s` | `1.0x` (baseline) |
+| Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |
+| :--- | ---: | ---: | ---: | ---: |
+| **FHIRlance — Standard Mode** | **`25.87 ms`** | **`79.6 µs`** | **`12,564 /s`** | **`1,358.0x`** |
+| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`29.93 ms`** | **`92.1 µs`** | **`10,859 /s`** | **`1,173.8x`** |
+| **Official HL7 Baseline Validator** | `35.13 s` | `108.1 ms` | `9.25 /s` | `1.0x` |
 
-#### 2. High-Volume NDJSON Dataset & Master Test Suite Throughput
+<sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` · HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>
 
-| Benchmark Workload | Mode | Volume | Elapsed Time | Effective Throughput |
-| :--- | :--- | ---: | ---: | ---: |
-| **NDJSON Dataset Batch (`validate_dataset`)** | Standard Report Mode (`dict` / JSON) | `1,000` resources | **`72.17 ms`** | **`13,856 resources/s`** |
-| **NDJSON Dataset Batch (`--format operation-outcome`)** | FHIR R4 `OperationOutcome` Mode | `1,000` resources | **`77.64 ms`** | **`12,880 resources/s`** |
-| **Master Offline Pytest Suite (`pytest -m "not hl7_live"`)** | Full R4 (`146` types) + `183` IG Profiles (`2,009` rules) + Fuzzing | `2,686` test items (`8,380+` scenarios) | `~12.5 s` (no-cov) / `~32.9 s` (branch-cov) | **`~670 scenarios/s`** |
+#### 2. High-Volume NDJSON & Test Suite Throughput
+
+| Workload | Volume | Elapsed | Throughput |
+| :--- | ---: | ---: | ---: |
+| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`114.70 ms`** | **`8,718 /s`** |
+| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`116.09 ms`** | **`8,614 /s`** |
+| **Offline Pytest Suite** (`not hl7_live`) | `2,686` items (`8,380+` cases) | `~12.5 s` | **`~670 cases/s`** |
 <!-- PERFORMANCE_BENCHMARK_END -->
 
 ## HL7 Equivalence & Testing (TL;DR)

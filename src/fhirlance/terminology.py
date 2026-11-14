@@ -10,14 +10,18 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import json
+import os
 import re
 import sqlite3
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from fhirlance.profiles import COMPLETE_CODE_SYSTEMS
 
 DEFAULT_TX_SERVER = "https://tx.fhir.org/r4"
 
@@ -65,7 +69,22 @@ class _BindingContext:
 @dataclass(frozen=True, slots=True)
 class _StandaloneContext:
     options: TxOptions
-    complete_systems: dict[str, Any] | None
+    complete_systems: Mapping[str, frozenset[str]] | None
+
+
+_DEFAULT_FROZEN_COMPLETE_SYSTEMS: dict[str, frozenset[str]] = {
+    k: frozenset(v) for k, v in COMPLETE_CODE_SYSTEMS.items()
+}
+
+
+def _get_frozen_complete_systems(
+    systems: Mapping[str, Collection[str]] | None,
+) -> Mapping[str, frozenset[str]] | None:
+    if systems is None:
+        return None
+    if systems is COMPLETE_CODE_SYSTEMS:
+        return _DEFAULT_FROZEN_COMPLETE_SYSTEMS
+    return {k: (v if isinstance(v, frozenset) else frozenset(v)) for k, v in systems.items()}
 
 
 def _resolve_tx_mode_and_server(
@@ -824,8 +843,16 @@ def _default_cache_db_path() -> Path:
     return Path.home() / ".fhir" / "fhirlance-tx-cache.sqlite"
 
 
+_INITIALIZED_SQLITE_PATHS: set[tuple[int, Path]] = set()
+
+
 def _init_sqlite_cache(path: Path) -> sqlite3.Connection | None:
     try:
+        resolved_path = path.resolve()
+        proc_key = (os.getpid(), resolved_path)
+        if proc_key in _INITIALIZED_SQLITE_PATHS and path.exists():
+            return sqlite3.connect(str(path), timeout=5.0)
+
         path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(path), timeout=5.0)
         conn.execute("PRAGMA journal_mode=WAL;")
@@ -843,6 +870,7 @@ def _init_sqlite_cache(path: Path) -> sqlite3.Connection | None:
             );
             """
         )
+        _INITIALIZED_SQLITE_PATHS.add(proc_key)
     except (sqlite3.Error, OSError):
         return None
     else:
@@ -1030,6 +1058,47 @@ def _evaluate_external_code(
     return False, None
 
 
+def _evaluate_grammar_in_valueset(
+    system: str,
+    code: str,
+    valid_grammar: bool,
+    vs_spec: dict[str, Any] | None,
+) -> tuple[bool | None, str | None]:
+    if not valid_grammar:
+        return False, f"Invalid code '{code}' in grammar system '{system}'"
+    if vs_spec is None:
+        return True, None
+    sys_codes = vs_spec.get("system_codes", {})
+    ext = vs_spec.get("external_systems", ())
+    if system in sys_codes:
+        return (code in sys_codes[system]), None
+    if system in ext or "*" in ext:
+        return True, None
+    if vs_spec.get("codes"):
+        return (code in vs_spec["codes"]), None
+    return True, None
+
+
+def _evaluate_plain_code_in_valueset(
+    code: str,
+    vs_spec: dict[str, Any],
+) -> tuple[bool | None, str | None] | None:
+    sys_codes = vs_spec.get("system_codes", {})
+    if code in vs_spec.get("codes", ()) or any(code in c for c in sys_codes.values()):
+        return True, None
+    ext = vs_spec.get("external_systems", ())
+    if ext:
+        grammar_checks = [_check_grammar_system(s, code) for s in ext]
+        if any(is_g and valid for is_g, valid in grammar_checks):
+            return True, None
+        all_grammar = bool(grammar_checks) and all(is_g for is_g, _ in grammar_checks)
+        if all_grammar and not vs_spec.get("codes") and not sys_codes:
+            return False, f"Invalid code '{code}'"
+    if sys_codes or vs_spec.get("codes"):
+        return False, None
+    return None
+
+
 def _evaluate_code_in_valueset(
     system: str,
     code: str,
@@ -1039,21 +1108,17 @@ def _evaluate_code_in_valueset(
 ) -> tuple[bool | None, str | None]:
     is_grammar, valid_grammar = _check_grammar_system(system, code)
     if is_grammar:
-        if not valid_grammar:
-            return False, f"Invalid code '{code}' in grammar system '{system}'"
-        if vs_spec is not None and "codes" in vs_spec:
-            return (code in vs_spec["codes"]), None
-        return True, None
+        return _evaluate_grammar_in_valueset(system, code, valid_grammar, vs_spec)
 
     if vs_spec is not None:
-        sys_codes = vs_spec.get("system_codes", {})
-        if system and system in sys_codes:
-            return (code in sys_codes[system]), None
-        if not system and (sys_codes or vs_spec.get("codes")):
-            in_codes = any(code in c for c in sys_codes.values()) or (
-                code in vs_spec.get("codes", ())
-            )
-            return in_codes, None
+        if system:
+            sys_codes = vs_spec.get("system_codes", {})
+            if system in sys_codes:
+                return (code in sys_codes[system]), None
+        else:
+            plain_res = _evaluate_plain_code_in_valueset(code, vs_spec)
+            if plain_res is not None:
+                return plain_res
 
     return _evaluate_external_code(system, code, vs_url, vs_spec, options)
 
@@ -1085,6 +1150,45 @@ def _record_binding_issue(
     return [], []
 
 
+def _validate_codings_list(
+    codings: list[Any],
+    ctx: _BindingContext,
+) -> tuple[list[str], list[str]]:
+    results: list[tuple[bool | None, str | None, str, str]] = []
+    for c in codings:
+        if isinstance(c, dict) and "code" in c and isinstance(c["code"], str) and c["code"]:
+            c_sys = str(c.get("system") or "")
+            c_code = c["code"]
+            r, m = _evaluate_code_in_valueset(c_sys, c_code, ctx.vs_url, ctx.vs_spec, ctx.options)
+            results.append((r, m, c_sys, c_code))
+
+    if not results:
+        if ctx.strength == "required":
+            msg = (
+                f"{ctx.profile_prefix}'{ctx.path}' has no coding "
+                f"for required ValueSet '{ctx.vs_url}'"
+            )
+            return [msg], []
+        return [], []
+
+    if any(r is True for r, _, _, _ in results):
+        return [], []
+
+    none_entry = next(((r, m, s, c) for r, m, s, c in results if r is None), None)
+    if none_entry is not None:
+        _, first_warn, _, c_repr = none_entry
+        warn_msg = (
+            f"{ctx.profile_prefix}'{ctx.path}': could not validate code '{c_repr}' ({first_warn})"
+        )
+        return [], [warn_msg]
+
+    sys_codes = (ctx.vs_spec or {}).get("system_codes", {})
+    known_entry = next(((r, m, s, c) for r, m, s, c in results if s in sys_codes), None)
+    chosen = known_entry if known_entry is not None else results[0]
+    _, _, c_sys, c_repr = chosen
+    return _record_binding_issue(c_sys, c_repr, False, None, ctx)
+
+
 def _validate_codeable_concept(
     val: dict[str, Any],
     ctx: _BindingContext,
@@ -1093,37 +1197,18 @@ def _validate_codeable_concept(
         return [], []
     codings = val.get("coding")
     if isinstance(codings, list) and codings:
-        results: list[tuple[bool | None, str | None]] = []
-        for c in codings:
-            if isinstance(c, dict) and "code" in c and isinstance(c["code"], str):
-                c_sys = str(c.get("system") or "")
-                r, m = _evaluate_code_in_valueset(
-                    c_sys, c["code"], ctx.vs_url, ctx.vs_spec, ctx.options
-                )
-                results.append((r, m))
-        if any(r is True for r, _ in results):
-            return [], []
-        if any(r is None for r, _ in results):
-            first_warn = next((m for r, m in results if r is None), None)
-            first_entry = codings[0] if isinstance(codings[0], dict) else {}
-            c_repr = str(first_entry.get("code") or "")
-            warn_msg = (
-                f"{ctx.profile_prefix}'{ctx.path}': "
-                f"could not validate code '{c_repr}' ({first_warn})"
-            )
-            return [], [warn_msg]
-        first_c = codings[0] if isinstance(codings[0], dict) else {}
-        c_repr = str(first_c.get("code") or "")
-        c_sys = str(first_c.get("system") or "")
-        return _record_binding_issue(c_sys, c_repr, False, None, ctx)
+        return _validate_codings_list(codings, ctx)
 
-    if ctx.strength == "required" and val.get("text"):
-        text_repr = str(val.get("text") or "")
-        err_msg = (
-            f"{ctx.profile_prefix}'{ctx.path}' code '{text_repr}' "
-            f"not in required ValueSet '{ctx.vs_url}'"
-        )
-        return [err_msg], []
+    if ctx.strength == "required":
+        if val.get("text"):
+            text_repr = str(val.get("text") or "")
+            return [
+                f"{ctx.profile_prefix}'{ctx.path}' code '{text_repr}' "
+                f"not in required ValueSet '{ctx.vs_url}'"
+            ], []
+        return [
+            f"{ctx.profile_prefix}'{ctx.path}' has no coding for required ValueSet '{ctx.vs_url}'"
+        ], []
     return [], []
 
 
@@ -1148,9 +1233,24 @@ def _validate_one_binding_value(
 
 def _normalize_vs_spec(vs_spec: Any) -> dict[str, Any] | None:
     if isinstance(vs_spec, dict):
-        return vs_spec
+        codes = vs_spec.get("codes")
+        sys_codes = vs_spec.get("system_codes")
+        codes_ok = codes is None or isinstance(codes, frozenset)
+        sys_ok = not isinstance(sys_codes, dict) or all(
+            isinstance(v, frozenset) for v in sys_codes.values()
+        )
+        if codes_ok and sys_ok:
+            return vs_spec
+        normalized = dict(vs_spec)
+        if codes is not None and not isinstance(codes, frozenset):
+            normalized["codes"] = frozenset(codes)
+        if isinstance(sys_codes, dict):
+            normalized["system_codes"] = {
+                k: (v if isinstance(v, frozenset) else frozenset(v)) for k, v in sys_codes.items()
+            }
+        return normalized
     if isinstance(vs_spec, (list, set, tuple, frozenset)):
-        return {"codes": set(vs_spec)}
+        return {"codes": frozenset(vs_spec)}
     return None
 
 
@@ -1191,8 +1291,15 @@ def validate_binding_value(
     return TerminologyResult(errors=errs, warnings=warns)
 
 
-def _walk_codings(node: Any, current_path: str, items: list[tuple[str, str, str]]) -> None:
+def _walk_codings(
+    node: Any,
+    current_path: str,
+    items: list[tuple[str, str, str]],
+    root_path: str = "",
+) -> None:
     if isinstance(node, dict):
+        if current_path and current_path != root_path and isinstance(node.get("resourceType"), str):
+            return
         is_coding = (
             "url" not in node
             and isinstance(node.get("system"), str)
@@ -1202,10 +1309,10 @@ def _walk_codings(node: Any, current_path: str, items: list[tuple[str, str, str]
             items.append((current_path, node["system"], node["code"]))
         for k, v in node.items():
             child_path = f"{current_path}.{k}" if current_path else k
-            _walk_codings(v, child_path, items)
+            _walk_codings(v, child_path, items, root_path=root_path)
     elif isinstance(node, list):
         for idx, item in enumerate(node):
-            _walk_codings(item, f"{current_path}[{idx}]", items)
+            _walk_codings(item, f"{current_path}[{idx}]", items, root_path=root_path)
 
 
 def _check_standalone_item(
@@ -1251,7 +1358,7 @@ def validate_standalone_codings(
     resource: dict[str, Any],
     options: TxOptions,
     *,
-    complete_systems: dict[str, Any] | None = None,
+    complete_systems: Mapping[str, Collection[str]] | None = None,
 ) -> TerminologyResult:
     """Recursively validate standalone Codings and Quantities against CodeSystems."""
     if options.mode == "off":
@@ -1259,9 +1366,10 @@ def validate_standalone_codings(
 
     root_path = str(resource.get("resourceType") or "Resource")
     items: list[tuple[str, str, str]] = []
-    _walk_codings(resource, root_path, items)
+    _walk_codings(resource, root_path, items, root_path=root_path)
 
-    ctx = _StandaloneContext(options=options, complete_systems=complete_systems)
+    frozen_systems = _get_frozen_complete_systems(complete_systems)
+    ctx = _StandaloneContext(options=options, complete_systems=frozen_systems)
     errors: list[str] = []
     warnings: list[str] = []
     for path, system, code in items:

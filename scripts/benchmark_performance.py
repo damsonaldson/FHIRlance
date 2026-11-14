@@ -308,40 +308,37 @@ def render_markdown_section(report: BenchmarkReport) -> str:
         f"(`{report.master_suite_scenarios:,}+` scenarios, `99.62%` coverage) | "
         f"**Updated**: `{report.recorded_at_utc}`",
         "",
-        f"#### 1. Master Equivalence Dataset (`{report.corpus_size}` Resources across all "
+        f"#### 1. Master Equivalence Dataset (`{report.corpus_size}` Resources, "
         f"`{report.r4_resource_types}` R4 Types, `10` Invariants & `5` IGs)",
         "",
-        "| Validator / Execution Mode | API / Command | Batch Elapsed (`325` Resources) | "
-        "Latency per Resource | Throughput (`resources/s`) | Speedup vs. HL7 Baseline |",
-        "| :--- | :--- | ---: | ---: | ---: | ---: |",
-        f"| **FHIRlance — Standard Mode** | `validate_resource(res)` (`list[str]`) | "
+        "| Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |",
+        "| :--- | ---: | ---: | ---: | ---: |",
+        "| **FHIRlance — Standard Mode** | "
         f"**`{std.elapsed_ms:.2f} ms`** | **`{std.per_resource_us:.1f} µs`** | "
-        f"**`{std.resources_per_sec:,.0f} res/s`** | **`{std.speedup_vs_hl7:,.1f}x faster`** |",
-        f"| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | "
-        f"`validate_to_operation_outcome(res)` (FHIR R4 `OperationOutcome`) | "
+        f"**`{std.resources_per_sec:,.0f} /s`** | **`{std.speedup_vs_hl7:,.1f}x`** |",
+        "| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | "
         f"**`{oo.elapsed_ms:.2f} ms`** | **`{oo.per_resource_us:.1f} µs`** | "
-        f"**`{oo.resources_per_sec:,.0f} res/s`** | **`{oo.speedup_vs_hl7:,.1f}x faster`** |",
-        f"| **Official HL7 Baseline Validator** | "
-        f"`java -jar validator_cli.jar -version 4.0.1 -tx n/a -output` | "
-        f"`{hl7_s:.2f} s` (`{hl7.elapsed_ms:,.0f} ms`) | `{hl7_ms_per_res:.2f} ms` "
-        f"(`{hl7.per_resource_us:,.0f} µs`) | `{hl7.resources_per_sec:.2f} res/s` | "
-        "`1.0x` (baseline) |",
+        f"**`{oo.resources_per_sec:,.0f} /s`** | **`{oo.speedup_vs_hl7:,.1f}x`** |",
+        "| **Official HL7 Baseline Validator** | "
+        f"`{hl7_s:.2f} s` | `{hl7_ms_per_res:.1f} ms` | "
+        f"`{hl7.resources_per_sec:.2f} /s` | `1.0x` |",
         "",
-        "#### 2. High-Volume NDJSON Dataset & Master Test Suite Throughput",
+        "<sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` "
+        "· HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>",
         "",
-        "| Benchmark Workload | Mode | Volume | Elapsed Time | Effective Throughput |",
-        "| :--- | :--- | ---: | ---: | ---: |",
-        "| **NDJSON Dataset Batch (`validate_dataset`)** | Standard Report Mode (`dict` / JSON) | "
-        f"`1,000` resources | **`{report.ndjson_1k_standard_ms:.2f} ms`** | "
-        f"**`{nd_std_tput:,.0f} resources/s`** |",
-        "| **NDJSON Dataset Batch (`--format operation-outcome`)** | "
-        "FHIR R4 `OperationOutcome` Mode | `1,000` resources | "
-        f"**`{report.ndjson_1k_operation_outcome_ms:.2f} ms`** | "
-        f"**`{nd_oo_tput:,.0f} resources/s`** |",
-        '| **Master Offline Pytest Suite (`pytest -m "not hl7_live"`)** | '
-        "Full R4 (`146` types) + `183` IG Profiles (`2,009` rules) + Fuzzing | "
-        f"`{offline_items:,}` test items (`{report.master_suite_scenarios:,}+` scenarios) | "
-        "`~12.5 s` (no-cov) / `~32.9 s` (branch-cov) | **`~670 scenarios/s`** |",
+        "#### 2. High-Volume NDJSON & Test Suite Throughput",
+        "",
+        "| Workload | Volume | Elapsed | Throughput |",
+        "| :--- | ---: | ---: | ---: |",
+        "| **NDJSON Batch** (`validate_dataset`, JSON) | "
+        f"`1,000` res | **`{report.ndjson_1k_standard_ms:.2f} ms`** | "
+        f"**`{nd_std_tput:,.0f} /s`** |",
+        "| **NDJSON Batch** (`--format operation-outcome`) | "
+        f"`1,000` res | **`{report.ndjson_1k_operation_outcome_ms:.2f} ms`** | "
+        f"**`{nd_oo_tput:,.0f} /s`** |",
+        "| **Offline Pytest Suite** (`not hl7_live`) | "
+        f"`{offline_items:,}` items (`{report.master_suite_scenarios:,}+` cases) | "
+        "`~12.5 s` | **`~670 cases/s`** |",
         END_MARKER,
     ]
     return "\n".join(lines)
