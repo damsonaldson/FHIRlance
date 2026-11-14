@@ -7,6 +7,7 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 
 ## Documentation
 - **[CLI, Python API & Architecture Reference](docs/usage-and-architecture.md)** — Full CLI flags, output formats, Python API, module breakdown, and dev workflow.
+- **[Terminology Validation Engine & TX Reference](docs/terminology.md)** — Offline grammars (UCUM, BCP-47, MIME, ISO-3166), 1,059 complete CodeSystems, 1,442 ValueSets, `--tx` modes, and L1/SQLite caching.
 - **[Proof of Functional Equivalence & Test Suite](docs/equivalence-and-testing.md)** — HL7 `validator_cli.jar` equivalence matrix and test catalog (`2,697` items / `8,380+` scenarios).
 - **[Build & CI/CD Architecture](docs/ci-and-build.md)** — Ahead-of-time schema compilation, security gates, and cross-platform CI pipeline.
 - **[Architecture & Product Roadmap](docs/roadmap.md)** — Multi-phase roadmap (`v0.1.0`–`v1.0.0`) and HAPI FHIR / Smile CDR integration design.
@@ -58,6 +59,9 @@ pip install -e ".[dev]"
 # Validate a file or directory (parallel, base R4 + IG profiles, OperationOutcome output)
 fhirlance path/to/data --no-canadian --parallel --operation-outcome -o outcome.json
 
+# Validate with offline terminology engine (--tx local default) or remote server fallback
+fhirlance path/to/data --no-canadian --tx local --strict-extensible
+
 # Validate with custom runtime IGs (.tgz, folder, or cached package) and explicit profiles
 fhirlance path/to/data --no-canadian -ig path/to/custom-ig.tgz --profile http://hl7.org/fhir/StructureDefinition/vitalsigns
 ```
@@ -65,9 +69,10 @@ fhirlance path/to/data --no-canadian -ig path/to/custom-ig.tgz --profile http://
 ```python
 from fhirlance import validate_dataset, validate_resource, validate_to_operation_outcome
 
-issues = validate_resource(resource_dict, require_canadian_profile=False)
-outcome = validate_to_operation_outcome(resource_dict, require_canadian_profile=False)
-report = validate_dataset("path/to/data", parallel=True, require_canadian_profile=False)
+# Validate with offline terminology checks (UCUM, BCP-47, complete CodeSystems & ValueSets)
+issues = validate_resource(resource_dict, require_canadian_profile=False, tx="local")
+outcome = validate_to_operation_outcome(resource_dict, require_canadian_profile=False, tx="local")
+report = validate_dataset("path/to/data", parallel=True, require_canadian_profile=False, tx="local")
 ```
 
 - **Full CLI flags, exit codes, Python API & module guide**: **[CLI, Python API & Architecture Reference](docs/usage-and-architecture.md)**.
