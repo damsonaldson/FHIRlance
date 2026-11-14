@@ -69,16 +69,17 @@ flowchart LR
 | **Recursive `Bundle` & `contained[]`** | Recursively validates `Bundle.entry[].resource` and `DomainResource.contained[]` | `_validate_nested_resources` in `resource_validator.py` with path prefixing and depth guard (`max_depth=16`) | **100% Equivalent** |
 | **Multi-IG Profile Constraints** | Evaluates differential/snapshot constraints across loaded IGs | Pre-compiled `COMPILED_PROFILES` (183 profiles, 2,009 rules) + runtime `ig_loader.py` supporting `.tgz`, folders, Bundles, and SDs | **100% Equivalent** on structural & closed ValueSet rules |
 | **Canadian Localization (`canadian.py`)** | Requires loading CA-Baseline / PS-CA IGs + custom rules | Built-in opt-in check (`require_canadian_profile=True/False`) for CA `meta.profile`, 13 provincial JHN systems, `A1A 1A1` postal codes, and US-extension bans | **Intentional Superset** when `require_canadian_profile=True`; **100% Equivalent** when `False` |
+| **Terminology & Grammar Validation** | Evaluates ValueSets, CodeSystems, and intensional grammars; queries `-tx` server for remote/external systems | 1,059 complete CodeSystems, 1,442 ValueSets, offline UCUM / BCP-47 / MIME / ISO-3166 grammars, `--tx local` (default), `--tx remote` / `<url>` with two-tier L1/L2 SQLite cache, and `--strict-extensible` ([`terminology.md`](terminology.md)) | **100% Equivalent** |
 
 > [!NOTE]
-> **Scoped Offline Boundaries (`-tx n/a`)**:
-> Like `validator_cli.jar -tx n/a`, FHIRlance is a zero-network, deterministic offline validator. It enforces **required ValueSet bindings** for all code systems defined inside the compiled R4 Core and IG packages (**176 root `Literal[...]` bindings** + **78 IG profile ValueSet bindings**), while intentionally not making external HTTP calls to `tx.fhir.org` for external terminology servers (e.g., full SNOMED-CT or LOINC server lookups) or resolving remote HTTP resource references.
+> **Terminology Boundaries & Execution Modes (`--tx`)**:
+> By default (`--tx local`), FHIRlance operates in an ultra-fast, zero-network mode. It enforces **required and extensible ValueSet bindings** for all 1,059 complete code systems defined in the base specification and compiled IGs, all 1,442 precompiled ValueSets, and native offline grammars (UCUM, BCP-47, MIME, ISO-3166). External systems (e.g., SNOMED-CT, LOINC) pass without error on extensible bindings in local mode, or can be queried against a live terminology server using `--tx remote` or `--tx <url>` with two-tier L1 in-memory / L2 SQLite caching (see **[Terminology Reference](terminology.md)**). Setting `--tx off` disables terminology checks to match `validator_cli.jar -tx n/a`.
 
 ---
 
 ## 2. Test Suite Scale, Breadth & Coverage Summary
 
-The FHIRlance test suite is organized into **10 test modules** in `tests/` containing **2,697 collected pytest items** that execute **8,300+ distinct resource, datatype, primitive, invariant, and IG profile validation scenarios**.
+The FHIRlance test suite is organized into **12 test modules** in `tests/` containing **2,751 collected pytest items** (plus 11 live HL7 equivalence tests) that execute **8,580+ distinct resource, datatype, primitive, invariant, and IG profile validation scenarios**.
 
 ### 2.1 Quantitative Overview by Test Module
 
@@ -89,34 +90,37 @@ The FHIRlance test suite is organized into **10 test modules** in `tests/` conta
 | [`tests/test_complex_types_and_primitives.py`](../tests/test_complex_types_and_primitives.py) | **342** | **620+** | All **54 complex datatype & BackboneElement classes** in `types.py`, **112 primitive regex/calendar/type boundary cases**, and all **176 root resource `Literal` ValueSet bindings** |
 | [`tests/test_invariants_and_profiles_unit.py`](../tests/test_invariants_and_profiles_unit.py) | **93** | **185+** | All **10 FHIRPath invariants** across 11 `Observation.value[x]` fields, 5 `Condition.abatement[x]` fields, 4 `Patient.contact` fields, 9 `Bundle.type` codes; **13 Canadian provincial JHN systems**, **29 postal code FSA cases**, **15 CA profiles**, and internal engine edge branches |
 | [`tests/test_output_ig_and_parallel.py`](../tests/test_output_ig_and_parallel.py) | **41** | **150+** | Output formatters (`OperationOutcome`, SARIF v2.1.0, JUnit XML, JSON, text), dynamic runtime IG loader (`.tgz`, directory, Bundle, SD, semver cache, ZipSlip/size guards), and multi-process intra-file/inter-file parallelism |
+| [`tests/test_terminology_unit.py`](../tests/test_terminology_unit.py) | **32** | **120+** | Terminology unit tests: offline grammars (UCUM, BCP-47, MIME, ISO-3166), L1 LRU + L2 SQLite WAL caching, remote `$validate-code` mocking, binding strengths, and standalone codings |
+| [`tests/test_terminology.py`](../tests/test_terminology.py) | **24** | **85+** | End-to-end terminology integration: CLI flags (`--tx`, `--strict-extensible`), dataset validation (serial & parallel), base & profile binding deduplication, US Core vital signs, and OperationOutcome/SARIF formatters |
 | [`tests/test_comprehensive_profiles_and_resilience.py`](../tests/test_comprehensive_profiles_and_resilience.py) | **14** | **45+** | End-to-end Canadian Patient rules, `_primitive` extensions, `ext-1`, `obs-7`, `bdl-7`, `contained[]` recursion, depth guard (`>16`), strict JSON `NaN`/`Infinity`, and CLI exit codes |
 | [`tests/test_validator_equivalence.py`](../tests/test_validator_equivalence.py) | **10** (`hl7_live`) | **20** | Per-resource comparative equivalence between `validate_resource` and `validator_cli.jar`, including intentional Canadian JHN rule verification |
 | [`tests/test_property_and_perf.py`](../tests/test_property_and_perf.py) | **6** | **405+** | Property-based Hypothesis fuzzing (200 arbitrary JSON & mutated resource examples), strict JSON `NaN`/`Infinity`/`-Infinity` rejection, and Rust hot-path guard + 200-iteration throughput benchmark (`<0.5s`) |
 | [`tests/test_codegen_unit.py`](../tests/test_codegen_unit.py) | **4** | **12+** | Unit tests for `scripts/generate_models.py` keyword escaping, `baseDefinition` profile inheritance merging, and BackboneElement / `[x]` choice model emission |
 | [`tests/test_all_146_live_hl7_equivalence.py`](../tests/test_all_146_live_hl7_equivalence.py) | **2** (`1` offline + `1` `hl7_live`) | **358** (`325` live JVM + `33` offline) | Batch equivalence across all **146 R4 resource types** (146 valid + 146 mutated) + **33 targeted invariant, primitive, choice, recursive, and multi-IG profile cases** in a single `validator_cli.jar` run |
-| **Total** | **2,697 items** | **8,380+ scenarios** | **99.62% statement & branch coverage across `src/fhirlance/` (`0` skipped)** |
+| **Total** | **2,751 items** (offline) | **8,580+ scenarios** | **98.71% branch coverage across `src/fhirlance/` (`0` skipped)** |
 
 ---
 
 ### 2.2 Code Coverage by Module (`src/fhirlance/`)
 
-Running `pytest -m "not hl7_live" --cov --cov-report=term-missing` achieves **99.5%+ combined statement and branch coverage** across all handwritten modules (well above the 95% CI gate enforced in `pyproject.toml`):
+Running `pytest -m "not hl7_live" --cov --cov-report=term-missing` achieves **98.71% branch coverage** across all handwritten modules (well above the 95% CI gate enforced in `pyproject.toml`):
 
 | Module | Statements | Missed | Branches | Partial | Coverage |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| `src/fhirlance/__init__.py` | 9 | 0 | 0 | 0 | **100%** |
+| `src/fhirlance/__init__.py` | 11 | 0 | 0 | 0 | **100%** |
 | `src/fhirlance/base.py` | 81 | 0 | 30 | 0 | **100%** |
 | `src/fhirlance/canadian.py` | 69 | 0 | 32 | 0 | **100%** |
-| `src/fhirlance/cli.py` | 48 | 0 | 8 | 0 | **100%** |
-| `src/fhirlance/dataset.py` | 189 | 0 | 46 | 0 | **100%** |
-| `src/fhirlance/formatters.py` | 240 | 0 | 102 | 0 | **100%** |
-| `src/fhirlance/ig_loader.py` | 437 | 1 | 234 | 7 | **99%** |
+| `src/fhirlance/cli.py` | 50 | 0 | 8 | 0 | **100%** |
+| `src/fhirlance/dataset.py` | 206 | 0 | 52 | 0 | **100%** |
+| `src/fhirlance/formatters.py` | 259 | 1 | 114 | 2 | **99%** |
+| `src/fhirlance/ig_loader.py` | 468 | 4 | 244 | 11 | **98%** |
 | `src/fhirlance/invariants.py` | 89 | 0 | 44 | 0 | **100%** |
 | `src/fhirlance/primitive_extensions.py` | 44 | 0 | 24 | 0 | **100%** |
-| `src/fhirlance/profile_engine.py` | 182 | 0 | 86 | 0 | **100%** |
-| `src/fhirlance/resource_validator.py` | 77 | 0 | 32 | 0 | **100%** |
-| `src/fhirlance/validator.py` | 8 | 0 | 0 | 0 | **100%** |
-| **TOTAL** | **1,473** | **1** | **638** | **7** | **99.6%** |
+| `src/fhirlance/profile_engine.py` | 224 | 5 | 100 | 3 | **98%** |
+| `src/fhirlance/resource_validator.py` | 128 | 3 | 56 | 4 | **96%** |
+| `src/fhirlance/terminology.py` | 555 | 4 | 276 | 4 | **99%** |
+| `src/fhirlance/validator.py` | 9 | 0 | 0 | 0 | **100%** |
+| **TOTAL** | **2,193** | **17** | **980** | **24** | **98.71%** |
 
 ---
 
@@ -213,6 +217,16 @@ Contains **92 pytest items**:
 - **[`tests/test_property_and_perf.py`](../tests/test_property_and_perf.py)** (**6 items / 400+ runtime checks**):
   - **Hypothesis Property-Based Fuzzing**: Generates 100 arbitrary recursive JSON structures (`None`, `bool`, `int`, `float`, `str`, `list`, `dict`) and 100 mutated FHIR resources (`Patient`, `Observation`, `Condition`, `Bundle`, `Organization` with arbitrary extra fields), asserting `validate_resource` always returns `list[str]` and never raises an unhandled exception.
   - **Hot-Path Architecture Guard**: Asserts `not FHIRBaseModel.__pydantic_decorators__.model_validators` (ensuring zero Python callbacks on the Rust `pydantic-core` hot path) and verifies 200 `Patient` validations complete in `< 0.5s`.
+
+---
+
+### 3.7 Terminology Validation Engine & TX Integration (`tests/test_terminology_unit.py` & `tests/test_terminology.py`)
+
+Contains **56 pytest items** (32 unit + 24 integration) exercising the complete terminology subsystem:
+- **Offline Grammars (`test_ucum_*`, `test_bcp47_*`, `test_mime_*`, `test_iso3166_*`)**: Validates full UCUM syntax (metric prefixes, clinical brackets `mm[Hg]`, `[lb_av]`, exponents, `{annotations}`, division), RFC 5646 BCP-47 language/region/variant subtags, RFC 2045/6838 MIME media types, and ISO-3166 alpha-2/alpha-3/numeric-3 country codes and subdivisions.
+- **Two-Tier Cache & SQLite WAL (`test_sqlite_cache_*`, `test_validate_remote_code_*`)**: Verifies L1 in-memory LRU caching, L2 persistent SQLite WAL mode initialization once per process, and graceful degradation to non-blocking diagnostic warnings upon remote network errors or timeouts.
+- **Binding Evaluation & Attribution (`test_validate_binding_*`, `test_validate_standalone_codings`)**: Verifies `required` vs `extensible` semantics, multi-coding `CodeableConcept` matching, error attribution to known systems in extensible bindings, missing code detection, and base vs. active profile binding deduplication.
+- **CLI & Output Integration (`test_terminology_cli_*`, `test_formatters_*_with_terminology`)**: Verifies `-tx` / `--tx` / `--strict-extensible` flags across JSON, OperationOutcome, SARIF v2.1.0 (`FHIRLANCE_TERMINOLOGY`), and JUnit XML formatters.
 
 ---
 

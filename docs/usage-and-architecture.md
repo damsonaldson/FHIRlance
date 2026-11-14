@@ -3,6 +3,7 @@
 This document provides the complete reference for the **`fhirlance` CLI**, **Python API**, **internal module architecture**, and **local development & code-generation workflows**.
 
 For other topics, see:
+- **[Terminology Validation Engine & TX Reference](terminology.md)**
 - **[Proof of Functional Equivalence & Test Suite Architecture](equivalence-and-testing.md)**
 - **[Build & CI/CD Architecture](ci-and-build.md)**
 - **[Architecture & Product Roadmap](roadmap.md)**
@@ -43,7 +44,7 @@ usage: fhirlance [-h] [--no-canadian] [--profile PROFILE] [-ig IG_SOURCES]
 | **`text`** | `--format text` *(default)* | Human-readable summary line (`Validated N resource(s) in X.XXXXs \| valid=... invalid=...`) followed by up to 20 issue descriptions. |
 | **`json`** | `--format json` or `--json` | Full JSON summary dictionary (`total_resources`, `valid_resources`, `invalid_resources`, `compliance_rate`, `elapsed_seconds`, and per-resource `issues`). |
 | **`operation-outcome`** | `--format operation-outcome` or `--operation-outcome` | Self-validating **FHIR R4 `OperationOutcome`** JSON resource with mapped `IssueType` codes (`structure`, `invariant`, `code-invalid`, `required`, `value`, `exception`), `diagnostics`, and FHIRPath `expression` locations. |
-| **`sarif`** | `--format sarif` | **OASIS SARIF v2.1.0** static analysis JSON report with categorized rules (`FHIR001-Structural` through `FHIR005-ParseError`) for GitHub Code Scanning and IDE integration. |
+| **`sarif`** | `--format sarif` | **OASIS SARIF v2.1.0** static analysis JSON report with categorized rules (`FHIR001-Structural` through `FHIR005-ParseError`, plus `FHIRLANCE_TERMINOLOGY`) for GitHub Code Scanning and IDE integration. |
 | **`junit`** | `--format junit` | **JUnit XML** (`<testsuites>` / `<testcase>` / `<failure>`) report for CI/CD test runners. |
 
 ### 1.3 Exit Codes
@@ -63,18 +64,23 @@ fhirlance path/to/data --no-canadian --parallel
 # 2. Emit a standard FHIR R4 OperationOutcome JSON resource to a file
 fhirlance path/to/patient.json --no-canadian --operation-outcome -o outcome.json
 
-# 3. Validate against explicit StructureDefinition profile URLs (repeatable)
+# 3. Validate terminology: offline local (default), remote fallback, or strict extensible
+fhirlance path/to/data --no-canadian --tx local
+fhirlance path/to/data --no-canadian --tx remote --strict-extensible
+fhirlance path/to/data --no-canadian --tx https://tx.fhir.org/r4
+
+# 4. Validate against explicit StructureDefinition profile URLs (repeatable)
 fhirlance path/to/observations.ndjson --no-canadian \
   --profile http://hl7.org/fhir/StructureDefinition/vitalsigns \
   --profile http://hl7.org/fhir/StructureDefinition/heartrate
 
-# 4. Load custom runtime Implementation Guides (.tgz tarball, folder, or cached package)
+# 5. Load custom runtime Implementation Guides (.tgz tarball, folder, or cached package)
 fhirlance path/to/data --no-canadian \
   -ig path/to/custom-ig.tgz \
   -ig hl7.fhir.uv.ips#1.0.0 \
   --format operation-outcome -o ips-outcome.json
 
-# 5. Generate SARIF v2.1.0 or JUnit XML reports for CI pipelines
+# 6. Generate SARIF v2.1.0 or JUnit XML reports for CI pipelines
 fhirlance path/to/data --no-canadian --format sarif -o results.sarif.json
 fhirlance path/to/data --no-canadian --format junit -o junit-report.xml
 ```
@@ -85,6 +91,7 @@ fhirlance path/to/data --no-canadian --format junit -o junit-report.xml
 
 ```python
 from fhirlance import (
+    TxOptions,
     dataset_to_junit_xml,
     dataset_to_operation_outcome,
     dataset_to_sarif,
@@ -95,18 +102,20 @@ from fhirlance import (
     validate_to_operation_outcome,
 )
 
-# 1. Validate a single resource dictionary -> list[str]
+# 1. Validate a single resource dictionary -> list[str] (with optional terminology options)
 issues = validate_resource(
     resource_dict,
     require_canadian_profile=False,
     profile_urls=["http://hl7.org/fhir/StructureDefinition/vitalsigns"],
     ig_sources=["path/to/custom-ig.tgz"],
+    tx="local",  # "local", "remote", "off", or TxOptions(mode="local", strict_extensible=True)
 )
 
 # 2. Validate a single resource directly into a FHIR R4 OperationOutcome dict
 outcome = validate_to_operation_outcome(
     resource_dict,
     require_canadian_profile=False,
+    tx="local",
 )
 
 # 3. Validate a file (.json / .ndjson) or directory in parallel
@@ -116,7 +125,14 @@ report = validate_dataset(
     require_canadian_profile=False,
     profile_urls=["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"],
     ig_sources=["path/to/custom-ig.tgz"],
+    tx="local",
+    strict_extensible=False,
 )
+
+# Note: report separates blocking errors from non-blocking diagnostic warnings:
+# report["issues"]   -> dict[file_name, list[error_str]]
+# report["warnings"] -> dict[file_name, list[warning_str]]
+# Warning-only resources remain counted in report["valid_resources"].
 
 # 4. Format a dataset report into OperationOutcome, SARIF v2.1.0, or JUnit XML
 oo_dict = dataset_to_operation_outcome(report)

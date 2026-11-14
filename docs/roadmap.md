@@ -19,9 +19,9 @@ flowchart LR
 
 | Phase | Target | Status | Milestone | Primary Integration Surface | Target Latency / Resource |
 | :--- | :---: | :---: | :--- | :--- | ---: |
-| **Phase 0** | `v0.1.x` | **In Progress** | Core Correctness, Colon Sub-Slice Resolution & Terminology Bindings | [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`dataset.py`](../src/fhirlance/dataset.py) | **`~36 µs`** |
+| **Phase 0** | `v0.1.x` | **Done (`v0.1.0`)** | Core Correctness, Colon Sub-Slice Resolution & Terminology Bindings | [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`dataset.py`](../src/fhirlance/dataset.py), [`terminology.py`](../src/fhirlance/terminology.py) | **`~36 µs`** |
 | **Phase 1** | `v0.2.0` | **Planned** | Complete Slicing (`type`/`profile`/`exists`), Extension `StructureDefinition`s & JHN Checksums | [`generate_models.py`](../scripts/generate_models.py), [`canadian.py`](../src/fhirlance/canadian.py) | **`~40 µs`** |
-| **Phase 2** | `v0.2.0` | **In Progress** | Dynamic `-ig` Package Loader *(Done)* & Local/SQLite Terminology Engine (`terminology.py`) | [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) | **`~45 µs`** (local `-tx`) |
+| **Phase 2** | `v0.2.0` | **Done (`v0.1.0`)** | Dynamic `-ig` Package Loader & Local/SQLite Terminology Engine ([`terminology.md`](terminology.md)) | [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) | **`~45 µs`** (local `-tx`) |
 | **Phase 3** | `v0.3.0` | **Planned** | Compiled FHIRPath AST Engine, Bundle Graph Resolution & R4B/R5 Targets | [`invariants.py`](../src/fhirlance/invariants.py), [`resource_validator.py`](../src/fhirlance/resource_validator.py) | **`~50 µs`** |
 | **Phase 4** | `v0.3.0` | **Partial (`v0.1.0`)** | `OperationOutcome` / SARIF / JUnit *(Done)* + Persistent `fhirlance serve` `$validate` Daemon | Unix Domain Socket (`/run/fhirlance.sock`) & HTTP `POST /$validate` | **`~150–250 µs`** over UDS |
 | **Phase 5** | `v0.4.0` | **Planned** | **HAPI FHIR / Smile CDR Raw-Byte Interceptor** & Envoy / NGINX Edge Filter | `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` UDS Sidecar | **`< 0.3 ms`** inside HAPI / Smile |
@@ -36,7 +36,7 @@ flowchart LR
 | **Base R4 Structural** | 146 resources + 39 datatypes in [`resources.py`](../src/fhirlance/resources.py) & [`types.py`](../src/fhirlance/types.py) | **Complete** (`extra="forbid"`, strict primitives, `[x]` exclusivity, `_primitive` extensions). |
 | **Profile Engine** | 183 compiled profiles in [`profiles.py`](../src/fhirlance/profiles.py) & [`profile_engine.py`](../src/fhirlance/profile_engine.py) + runtime `-ig` in [`ig_loader.py`](../src/fhirlance/ig_loader.py) | Unknown profile URLs are silently ignored; `maxLength`, `minValue`/`maxValue`, `mustSupport`, and `type.profile` are dropped. |
 | **Slicing** | `fixed` and `pattern` discriminators with `:sliceName` path stripping ([`profile_engine.py`](../src/fhirlance/profile_engine.py)) | Slice `max` cardinality is dropped; `type`/`profile`/`exists` discriminators & `closed`/`ordered` slicing unsupported. |
-| **Terminology** | Static R4 `code` string sets + standalone [`terminology.py`](../src/fhirlance/terminology.py) (UCUM, BCP-47, BCP-13, ISO-3166, L1/SQLite cache) | Wire `validate_binding_value` & multi-IG `ValueSet`/`CodeSystem` tables into `profile_engine.py` and CLI (`--tx`). |
+| **Terminology** | 1,059 complete CodeSystems, 1,442 ValueSets, offline grammars (UCUM, BCP-47, BCP-13, ISO-3166), L1/L2 SQLite cache, `--tx`, and `--strict-extensible` ([`terminology.md`](terminology.md)) | **Complete (`v0.1.0`)** (see [Terminology Reference](terminology.md)). |
 | **Extensions** | Generic `ext-1` only ([`base.py`](../src/fhirlance/base.py)) | Compile Extension `StructureDefinition`s (`value[x]` types, sub-extension slices, `context`, and `modifierExtension` rules). |
 | **FHIRPath Invariants** | 10 compiled invariant checks in [`invariants.py`](../src/fhirlance/invariants.py) | Add general FHIRPath-to-Python compiler for `dom-1..6`, `ref-1`, `que-*`, and IG differential `ElementDefinition.constraint` expressions. |
 | **Bundles & References** | Entry & `contained[]` recursion in [`resource_validator.py`](../src/fhirlance/resource_validator.py) | Validate outer `Bundle` in dataset runner; add `#contained` and `urn:uuid:` `fullUrl` graph resolution for `targetProfile` conformance. |
@@ -49,10 +49,10 @@ flowchart LR
 > [!CAUTION]
 > Auditing [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`dataset.py`](../src/fhirlance/dataset.py), and [`generate_models.py`](../scripts/generate_models.py) surfaced **6 high-impact correctness gaps** where invalid resources can silently pass or valid profiled resources can fail.
 
-1. **Fix `CodeableConcept` & `Coding` Terminology Binding Bypass** ([`profile_engine.py`](../src/fhirlance/profile_engine.py))
+1. **Fix `CodeableConcept` & `Coding` Terminology Binding Bypass** *(Delivered in `v0.1.0`)*
    - `_check_bindings` previously checked `if isinstance(val, str)`, skipping `CodeableConcept` (e.g., `Condition.clinicalStatus`, `Observation.code`) and `Coding` elements.
    - **Fix**: Route through `validate_binding_value()` in [`terminology.py`](../src/fhirlance/terminology.py) to inspect `str`, `Coding.code` (+ `system`), and `CodeableConcept.coding[].code`.
-2. **Load Multi-IG ValueSets & CodeSystems in Codegen** ([`generate_models.py`](../scripts/generate_models.py))
+2. **Load Multi-IG ValueSets & CodeSystems in Codegen** *(Delivered in `v0.1.0`)*
    - Expand `CodeSystem` and `ValueSet` resources across all `IG_PKGS` (`compose.include.concept`, `compose.include.system`, and `compose.include.valueSet` imports).
 3. **Fix Sub-Slice Path Resolution Bug (e.g., Blood Pressure `coding:SBPCode`)** *(Delivered in `v0.1.0`)*
    - Strip `:SliceName` qualifiers from segment keys in `CompiledSlice.matchers` and `ig_loader.py`.
@@ -88,7 +88,7 @@ To achieve 100% structural/profile parity with `validator_cli.jar` on US Core, I
 1. **Dynamic `-ig` Loader & Package Cache Resolver** *(Core delivered in [`ig_loader.py`](../src/fhirlance/ig_loader.py))*
    - Supports `--ig <package#version | path/to/package.tgz | path/to/dir | path/to/file.json>` on the CLI and Python API with in-memory `(st_mtime_ns, st_size)` fingerprinting.
    - Next: persistent disk cache in `~/.cache/fhirlance/` and `fhirlance pkg install <id>#<version>` to fetch directly from `packages.fhir.org` without Java or Node.
-2. **Embedded Zero-Latency Terminology Engine** *(Delivered in [`terminology.py`](../src/fhirlance/terminology.py))*
+2. **Embedded Zero-Latency Terminology Engine** *(Delivered in `v0.1.0`; see [Terminology Reference](terminology.md))*
    - Built-in offline grammar validators for **UCUM** (`http://unitsofmeasure.org`), **BCP-47** (`urn:ietf:bcp:47`), **BCP-13 MIME**, and **ISO-3166** country/subdivision codes.
    - Two-tier terminology client (`TxClient`): L1 in-memory LRU cache + L2 SQLite WAL-mode persistent cache (`~/.fhir/fhirlance-tx-cache.sqlite`) with optional remote `$validate-code` fallback.
    - Complete CodeSystem tables (`COMPLETE_CODE_SYSTEMS`) and ValueSet expansion tables (`VALUE_SET_SPECS`) precompiled across R4 Core and all 5 IGs.
