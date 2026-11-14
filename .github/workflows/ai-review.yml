@@ -1,0 +1,129 @@
+name: AI PR Code Review (Free Gemini Tier)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gemini-review:
+    name: Automated AI Code Review
+    # Skip fork PRs where repository secrets are unavailable
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Gemini API key configuration
+        id: check_key
+        env:
+          HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### AI Code Review Skipped"
+              echo "Set the \`GEMINI_API_KEY\` repository secret (free tier from Google AI Studio) to enable automatic PR reviews."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate PR diff
+        if: steps.check_key.outputs.enabled == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --unified=5 "$BASE_SHA" "$HEAD_SHA" -- \
+            ':!src/fhirlance/types.py' \
+            ':!src/fhirlance/resources.py' \
+            ':!src/fhirlance/profiles.py' > pr_diff.patch || true
+
+      - name: Review diff with Gemini
+        if: steps.check_key.outputs.enabled == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          diff = Path("pr_diff.patch").read_text(encoding="utf-8", errors="replace").strip()
+          if not diff:
+              print("No handwritten source diff to review.")
+              raise SystemExit(0)
+
+          # Truncate huge diffs safely for free-tier token limits
+          max_chars = 60_000
+          if len(diff) > max_chars:
+              diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+          prompt = (
+              "You are a senior Python & FHIR R4 reviewer following Robert C. Martin's Clean Code "
+              "and SOLID principles. Review this PR diff for FHIRlance.\n"
+              "Check specifically for:\n"
+              "1. Correctness, edge cases, and FHIR R4 / IG profile semantics.\n"
+              "2. Engineering guardrail #1: NEVER add @model_validator(mode='before') to FHIRBaseModel "
+              "(keep the hot path in Rust pydantic-core).\n"
+              "3. Engineering guardrail #2: NEVER hand-edit generated files (types.py, resources.py, profiles.py).\n"
+              "4. Clean Code: single responsibility, shallow nesting, small functions, no duplicated logic, strict typing.\n"
+              "Be concise, concrete, and cite file/line/symbol names. If everything looks solid, say LGTM with brief notes.\n\n"
+              f"```diff\n{diff}\n```"
+          )
+
+          api_key = os.environ["GEMINI_API_KEY"]
+          url = (
+              "https://generativelanguage.googleapis.com/v1beta/models/"
+              f"gemini-2.5-flash:generateContent?key={api_key}"
+          )
+          payload = json.dumps({
+              "contents": [{"parts": [{"text": prompt}]}],
+              "generationConfig": {"temperature": 0.1},
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              url,
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=60) as resp:
+              data = json.loads(resp.read().decode("utf-8"))
+
+          candidates = data.get("candidates") or []
+          review_text = (
+              candidates[0]["content"]["parts"][0]["text"]
+              if candidates
+              else "AI review produced no output."
+          )
+
+          comment_url = f"https://api.github.com/repos/{os.environ['REPO']}/issues/{os.environ['PR_NUMBER']}/comments"
+          comment_body = json.dumps({"body": f"## Automated Gemini Code Review\n\n{review_text}"}).encode("utf-8")
+          gh_req = urllib.request.Request(
+              comment_url,
+              data=comment_body,
+              headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(gh_req, timeout=30) as gh_resp:
+              print(f"Posted review comment: HTTP {gh_resp.status}")
+          PY
