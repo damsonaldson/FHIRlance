@@ -64,3 +64,9 @@ pytest -m hl7_live -v
 - `.github/workflows/ci.yml`: Enforces Ruff lint/format, strict Mypy, multi-OS/Python matrix (`ubuntu-latest` + `windows-latest`, Python 3.10–3.13) with a 95% branch coverage gate, `pip-audit`, distribution build verification, and manual `workflow_dispatch` live HL7 equivalence.
 - `.github/workflows/codeql.yml`: Static security analysis via GitHub CodeQL.
 - `.github/workflows/ai-review.yml`: Optional free-tier Gemini API automated PR code review (add a free Google AI Studio key as the `GEMINI_API_KEY` repository secret).
+
+## License
+Copyright (c) 2026 **Brightwood Consulting Group Limited**.
+
+Licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License ([CC BY-NC 4.0](LICENSE))** — free to use, share, and adapt for **non-commercial purposes only** with attribution. For commercial licensing inquiries, please contact Brightwood Consulting Group Limited.
+
