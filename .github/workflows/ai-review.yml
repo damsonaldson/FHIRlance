@@ -112,7 +112,7 @@ jobs:
                       method="POST",
                   )
                   try:
-                      with urllib.request.urlopen(req, timeout=60) as resp:
+                      with urllib.request.urlopen(req, timeout=90) as resp:
                           data = json.loads(resp.read().decode("utf-8"))
                           used_model = model
                           break
@@ -123,12 +123,25 @@ jobs:
                           time.sleep(4)
                           continue
                       break
+                  except (TimeoutError, urllib.error.URLError, OSError) as exc:
+                      print(
+                          f"Gemini API ({model}, attempt {attempt + 1}) network/timeout error: {exc}",
+                          file=sys.stderr,
+                      )
+                      if attempt == 0:
+                          time.sleep(4)
+                          continue
+                      break
               if data is not None:
                   break
 
           if data is None:
               summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-              msg = "### AI Code Review Deferred\nFree-tier Gemini endpoints returned transient capacity/rate-limit errors (HTTP 429/503). Skipping non-blocking review."
+              msg = (
+                  "### AI Code Review Deferred\n"
+                  "Free-tier Gemini endpoints returned transient capacity, rate-limit, or timeout errors. "
+                  "Skipping non-blocking review."
+              )
               print(msg)
               if summary_path:
                   with open(summary_path, "a", encoding="utf-8") as sf:
@@ -136,9 +149,10 @@ jobs:
               raise SystemExit(0)
 
           candidates = data.get("candidates") or []
+          parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
           review_text = (
-              candidates[0]["content"]["parts"][0]["text"]
-              if candidates
+              parts[0].get("text", "AI review produced no output.")
+              if parts
               else "AI review produced no output."
           )
 
