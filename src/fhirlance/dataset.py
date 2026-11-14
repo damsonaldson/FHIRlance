@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from itertools import repeat
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from fhirlance.ig_loader import load_compiled_ig_profiles
 from fhirlance.resource_validator import validate_resource
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from fhirlance.profile_engine import CompiledProfile
 
 _PERCENT_SCALE = 100.0
 _FILE_READ_ERRORS = (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError)
@@ -18,7 +25,9 @@ _FILE_READ_ERRORS = (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueErr
 @dataclass(frozen=True, slots=True)
 class _ValidationOptions:
     require_canadian_profile: bool = True
-    profile_urls: list[str] | None = None
+    profile_urls: tuple[str, ...] | None = None
+    ig_sources: tuple[str, ...] | None = None
+    compiled_profiles: dict[str, CompiledProfile] | None = None
 
 
 def _reject_bad_json_constant(val: str) -> Any:
@@ -39,10 +48,14 @@ def _record_validation(
     line_no: int | None = None,
 ) -> bool:
     """Validate one resource and append any issues; return True if valid."""
+    effective_ig = (
+        options.compiled_profiles if options.compiled_profiles is not None else options.ig_sources
+    )
     issues = validate_resource(
         resource,
         require_canadian_profile=options.require_canadian_profile,
-        profile_urls=options.profile_urls,
+        profile_urls=list(options.profile_urls) if options.profile_urls else None,
+        ig_sources=effective_ig,
     )
     if not issues:
         return True
@@ -63,6 +76,42 @@ def _iter_json_resources(data: Any) -> list[Any]:
             if isinstance(entry, dict) and entry.get("resource") is not None
         ]
     return [data]
+
+
+def _validate_resource_batch(
+    args: tuple[list[Any], str, _ValidationOptions],
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Picklable worker for validating a batch of in-memory resources from a Bundle."""
+    batch, file_name, options = args
+    issues_list: list[dict[str, Any]] = []
+    valid = sum(int(_record_validation(res, file_name, issues_list, options)) for res in batch)
+    return len(batch), valid, issues_list
+
+
+def _validate_ndjson_chunk(
+    args: tuple[list[tuple[int, str]], str, _ValidationOptions],
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Picklable worker for validating a chunk of (line_no, line_str) tuples from an NDJSON file."""
+    chunk, file_name, options = args
+    total = len(chunk)
+    valid = 0
+    issues_list: list[dict[str, Any]] = []
+    for line_no, line_str in chunk:
+        try:
+            resource = loads_strict_json(line_str)
+        except (json.JSONDecodeError, ValueError) as exc:
+            issues_list.append({"file": file_name, "line": line_no, "error": str(exc)})
+            continue
+        valid += int(
+            _record_validation(
+                resource,
+                file_name,
+                issues_list,
+                options,
+                line_no=line_no,
+            )
+        )
+    return total, valid, issues_list
 
 
 def _validate_json_file(
@@ -128,6 +177,107 @@ def _validate_file(
     return 0, 0, []
 
 
+def _validate_json_file_parallel(
+    path: Path,
+    options: _ValidationOptions,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    issues_list: list[dict[str, Any]] = []
+    try:
+        data = loads_strict_json(path.read_text(encoding="utf-8"))
+    except _FILE_READ_ERRORS as exc:
+        issues_list.append({"file": path.name, "error": str(exc)})
+        return 0, 0, issues_list
+
+    resources = _iter_json_resources(data)
+    if len(resources) <= 1:
+        valid = sum(
+            int(_record_validation(res, path.name, issues_list, options)) for res in resources
+        )
+        return len(resources), valid, issues_list
+
+    workers = min(8, os.cpu_count() or 4)
+    chunk_size = max(1, (len(resources) + workers - 1) // workers)
+    chunks = [
+        (resources[i : i + chunk_size], path.name, options)
+        for i in range(0, len(resources), chunk_size)
+    ]
+    total_count = 0
+    valid_count = 0
+    all_issues: list[dict[str, Any]] = []
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for t, v, issues in pool.map(_validate_resource_batch, chunks):
+            total_count += t
+            valid_count += v
+            all_issues.extend(issues)
+    return total_count, valid_count, all_issues
+
+
+def _validate_ndjson_file_parallel(
+    path: Path,
+    options: _ValidationOptions,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    issues_list: list[dict[str, Any]] = []
+    items: list[tuple[int, str]] = []
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line_no, line in enumerate(handle, 1):
+                line_str = line.strip()
+                if line_str:
+                    items.append((line_no, line_str))
+    except (OSError, UnicodeDecodeError) as exc:
+        issues_list.append({"file": path.name, "error": str(exc)})
+        return 0, 0, issues_list
+
+    if len(items) <= 1:
+        total = len(items)
+        valid = 0
+        for line_no, line_str in items:
+            try:
+                resource = loads_strict_json(line_str)
+            except (json.JSONDecodeError, ValueError) as exc:
+                issues_list.append({"file": path.name, "line": line_no, "error": str(exc)})
+                continue
+            valid += int(
+                _record_validation(
+                    resource,
+                    path.name,
+                    issues_list,
+                    options,
+                    line_no=line_no,
+                )
+            )
+        return total, valid, issues_list
+
+    workers = min(8, os.cpu_count() or 4)
+    chunk_size = max(1, (len(items) + workers - 1) // workers)
+    chunks_ndjson = [
+        (items[i : i + chunk_size], path.name, options) for i in range(0, len(items), chunk_size)
+    ]
+    total_count = 0
+    valid_count = 0
+    all_issues: list[dict[str, Any]] = []
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for t, v, issues in pool.map(_validate_ndjson_chunk, chunks_ndjson):
+            total_count += t
+            valid_count += v
+            all_issues.extend(issues)
+    return total_count, valid_count, all_issues
+
+
+def _validate_file_parallel(
+    path_str: str,
+    options: _ValidationOptions,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Validate a single file using intra-file chunked parallelism if it has multiple items."""
+    path = Path(path_str)
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        return _validate_json_file_parallel(path, options)
+    if suffix == ".ndjson":
+        return _validate_ndjson_file_parallel(path, options)
+    return 0, 0, []
+
+
 def _collect_dataset_files(target_path: Path) -> list[str]:
     if target_path.is_file():
         return [str(target_path)]
@@ -140,16 +290,21 @@ def validate_dataset(
     parallel: bool = False,
     require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
+    ig_sources: Sequence[str | Path] | None = None,
 ) -> dict[str, Any]:
     """Validate a single file or all FHIR bundles / NDJSON files in a directory."""
     target_path = Path(target)
     if not target_path.exists():
         raise FileNotFoundError(f"Path not found: {target_path}")
 
+    compiled_map = load_compiled_ig_profiles(ig_sources) if ig_sources else None
+
     files = _collect_dataset_files(target_path)
     options = _ValidationOptions(
         require_canadian_profile=require_canadian_profile,
-        profile_urls=profile_urls,
+        profile_urls=tuple(profile_urls) if profile_urls else None,
+        ig_sources=tuple(str(s) for s in ig_sources) if ig_sources else None,
+        compiled_profiles=compiled_map,
     )
     total_resources = 0
     valid_resources = 0
@@ -163,6 +318,8 @@ def validate_dataset(
                 total_resources += total_count
                 valid_resources += valid_count
                 all_issues.extend(issues)
+    elif parallel and len(files) == 1:
+        total_resources, valid_resources, all_issues = _validate_file_parallel(files[0], options)
     else:
         for file_path in files:
             total_count, valid_count, issues = _validate_file(file_path, options)

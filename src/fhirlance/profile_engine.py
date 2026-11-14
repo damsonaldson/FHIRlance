@@ -182,7 +182,11 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
                 parts=tuple(sl["path"].split(".")[1:]),
                 min_count=sl["min"],
                 matchers=tuple(
-                    SliceMatcher(tuple(sub.split(".")) if sub else (), kind, exp)
+                    SliceMatcher(
+                        tuple(seg.split(":")[0] for seg in sub.split(".") if seg) if sub else (),
+                        kind,
+                        exp,
+                    )
                     for sub, (kind, exp) in sl["matchers"].items()
                 ),
             )

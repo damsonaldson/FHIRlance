@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
 from fhirlance.base import FHIRBaseModel
 from fhirlance.canadian import validate_canadian_rules
+from fhirlance.ig_loader import load_compiled_ig_profiles
 from fhirlance.invariants import check_fhirpath_invariants
 from fhirlance.primitive_extensions import (
     has_primitive_extension_error,
     strip_and_validate_primitive_extensions,
 )
-from fhirlance.profile_engine import validate_single_profile
+from fhirlance.profile_engine import COMPILED_PROFILES, validate_single_profile
 from fhirlance.resources import RESOURCE_MODELS
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
+    from fhirlance.profile_engine import CompiledProfile
 
 _MAX_RECURSION_DEPTH = 16
 
@@ -58,6 +65,7 @@ def _validate_nested_resources(
     rtype: str,
     *,
     require_canadian_profile: bool,
+    ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None,
     depth: int,
 ) -> list[str]:
     issues: list[str] = []
@@ -67,6 +75,7 @@ def _validate_nested_resources(
             sub_issues = validate_resource(
                 sub,
                 require_canadian_profile=False,
+                ig_sources=ig_sources,
                 _depth=depth + 1,
             )
             issues.extend(f"contained[{idx}]: {msg}" for msg in sub_issues)
@@ -77,10 +86,21 @@ def _validate_nested_resources(
                 sub_issues = validate_resource(
                     entry["resource"],
                     require_canadian_profile=require_canadian_profile,
+                    ig_sources=ig_sources,
                     _depth=depth + 1,
                 )
                 issues.extend(f"entry[{idx}].resource: {msg}" for msg in sub_issues)
     return issues
+
+
+def _resolve_compiled_map(
+    ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None,
+) -> dict[str, CompiledProfile] | None:
+    if isinstance(ig_sources, dict):
+        return ig_sources
+    if ig_sources:
+        return load_compiled_ig_profiles(ig_sources)
+    return None
 
 
 def validate_resource(
@@ -88,6 +108,7 @@ def validate_resource(
     *,
     require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
+    ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None = None,
     _depth: int = 0,
 ) -> list[str]:
     """Validate any FHIR R4 resource structurally, recursively, and against IG profiles."""
@@ -111,15 +132,20 @@ def validate_resource(
     if require_canadian_profile:
         issues.extend(validate_canadian_rules(resource, rtype, declared_profiles))
 
+    compiled_map = _resolve_compiled_map(ig_sources)
+    profiles_dict = compiled_map if compiled_map is not None else COMPILED_PROFILES
     effective_profiles = list(dict.fromkeys([*declared_profiles, *(profile_urls or ())]))
     for prof_url in effective_profiles:
-        issues.extend(validate_single_profile(resource, rtype, prof_url))
+        issues.extend(
+            validate_single_profile(resource, rtype, prof_url, compiled_profiles=profiles_dict)
+        )
 
     issues.extend(
         _validate_nested_resources(
             resource,
             rtype,
             require_canadian_profile=require_canadian_profile,
+            ig_sources=compiled_map,
             depth=_depth,
         )
     )
