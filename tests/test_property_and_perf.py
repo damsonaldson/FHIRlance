@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -74,3 +77,43 @@ def test_rust_hot_path_guard_and_throughput() -> None:
         assert validate_resource(patient, require_canadian_profile=False) == []
     elapsed = time.perf_counter() - t0
     assert elapsed < 0.5, f"Hot-path throughput regression: 200 patients took {elapsed:.3f}s"
+
+
+def _load_benchmark_script() -> Any:
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "benchmark_performance.py"
+    spec = importlib.util.spec_from_file_location("benchmark_performance", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_benchmark_performance_script_and_docs_sync() -> None:
+    """Verify build-time benchmark script generates valid metrics and keeps docs synced."""
+    mod = _load_benchmark_script()
+
+    assert mod.BENCHMARK_JSON_PATH.exists()
+    recorded = json.loads(mod.BENCHMARK_JSON_PATH.read_text(encoding="utf-8"))
+    assert recorded["corpus_size"] == 325
+    assert recorded["r4_resource_types"] == 146
+    assert recorded["compiled_ig_profiles"] == 183
+    assert recorded["standard_mode"]["speedup_vs_hl7"] > 100.0
+    assert recorded["operation_outcome_mode"]["speedup_vs_hl7"] > 100.0
+    assert recorded["hl7_baseline_mode"]["elapsed_ms"] > 1000.0
+
+    for doc_path in (mod.README_PATH, mod.EQUIV_DOC_PATH):
+        text = doc_path.read_text(encoding="utf-8")
+        assert mod.START_MARKER in text
+        assert mod.END_MARKER in text
+        assert "FHIRlance — Standard Mode" in text
+        assert "FHIRlance — FHIR Output (`OperationOutcome`) Mode" in text
+        assert "Official HL7 Baseline Validator" in text
+
+    live_report = mod.run_benchmarks(run_hl7_live=False)
+    md = mod.render_markdown_section(live_report)
+    assert mod.START_MARKER in md
+    assert mod.END_MARKER in md
+    assert "validate_to_operation_outcome" in md
+    assert "validator_cli.jar" in md
