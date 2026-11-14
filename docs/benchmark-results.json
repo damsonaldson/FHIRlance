@@ -1,0 +1,32 @@
+{
+  "release_version": "0.1.0",
+  "recorded_at_utc": "2026-11-14 17:45 UTC",
+  "python_version": "3.13.7",
+  "pydantic_version": "2.14.3",
+  "platform_info": "Windows 11 (AMD64)",
+  "corpus_size": 325,
+  "r4_resource_types": 146,
+  "compiled_ig_profiles": 183,
+  "master_suite_items": 2697,
+  "master_suite_scenarios": 8380,
+  "standard_mode": {
+    "elapsed_ms": 11.67,
+    "per_resource_us": 35.91,
+    "resources_per_sec": 27847.3,
+    "speedup_vs_hl7": 3010.1
+  },
+  "operation_outcome_mode": {
+    "elapsed_ms": 12.7,
+    "per_resource_us": 39.08,
+    "resources_per_sec": 25590.0,
+    "speedup_vs_hl7": 2766.1
+  },
+  "hl7_baseline_mode": {
+    "elapsed_ms": 35130.0,
+    "per_resource_us": 108092.31,
+    "resources_per_sec": 9.25,
+    "speedup_vs_hl7": 1.0
+  },
+  "ndjson_1k_standard_ms": 60.35,
+  "ndjson_1k_operation_outcome_ms": 73.05
+}
