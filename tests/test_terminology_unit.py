@@ -765,8 +765,7 @@ def test_validate_standalone_codings() -> None:
         TxOptions("local"),
     )
     assert len(res_ucum_err.errors) == 1
-    assert "in grammar system" in res_ucum_err.errors[0]
-    assert "unitsofmeasure.org" in res_ucum_err.errors[0]
+    assert "code 'invalid / ucum' is not valid in grammar system" in res_ucum_err.errors[0]
 
     # Complete CodeSystems lookup
     complete_cs = {
