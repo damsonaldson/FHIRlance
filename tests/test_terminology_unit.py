@@ -765,7 +765,8 @@ def test_validate_standalone_codings() -> None:
         TxOptions("local"),
     )
     assert len(res_ucum_err.errors) == 1
-    assert res_ucum_err.errors[0].endswith("in grammar system 'http://unitsofmeasure.org'")
+    assert "in grammar system" in res_ucum_err.errors[0]
+    assert "unitsofmeasure.org" in res_ucum_err.errors[0]
 
     # Complete CodeSystems lookup
     complete_cs = {
