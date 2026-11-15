@@ -57,9 +57,16 @@ def _resolve_target_types(
     targets: set[str] = set()
     for type_entry in el_types:
         if type_entry.get("code") == "Reference":
-            for tp in type_entry.get("targetProfile") or ():
+            raw_targets = type_entry.get("targetProfile")
+            if not isinstance(raw_targets, list):
+                continue
+            for tp in raw_targets:
                 clean = str(tp).split("|", maxsplit=1)[0]
-                resolved = sd_type_by_url.get(clean) or clean.rstrip("/").rsplit("/", 1)[-1]
+                resolved = sd_type_by_url.get(clean)
+                if not resolved:
+                    slug = clean.rstrip("/").rsplit("/", 1)[-1]
+                    if slug and slug[0].isupper() and "-" not in slug:
+                        resolved = slug
                 if resolved:
                     targets.add(resolved)
     return sorted(targets)
@@ -67,7 +74,6 @@ def _resolve_target_types(
 
 def _extract_binding_spec(
     el: dict[str, Any],
-    value_sets: Mapping[str, list[str]],
     vs_specs: Mapping[str, dict[str, Any]] | None,
 ) -> dict[str, Any] | None:
     binding = el.get("binding")
@@ -79,14 +85,8 @@ def _extract_binding_spec(
         return None
     vs_url = str(raw_vs).split("|", maxsplit=1)[0]
     spec: dict[str, Any] = {"strength": strength, "value_set": vs_url}
-    if vs_specs and vs_url in vs_specs:
+    if vs_specs is not None and vs_url in vs_specs:
         spec["vs_spec"] = vs_specs[vs_url]
-    elif strength == "required" and vs_url in value_sets:
-        spec["vs_spec"] = {
-            "codes": value_sets[vs_url],
-            "system_codes": {},
-            "external_systems": [],
-        }
     return spec
 
 
@@ -114,7 +114,7 @@ def _apply_value_element(
     if target_types:
         node["value_target_types"] = target_types
 
-    binding_spec = _extract_binding_spec(el, ctx.value_sets, ctx.vs_specs)
+    binding_spec = _extract_binding_spec(el, ctx.vs_specs)
     if binding_spec is not None:
         node["value_binding"] = binding_spec
 
