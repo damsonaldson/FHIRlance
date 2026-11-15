@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from fhirlance.base import FHIRBaseModel
-from fhirlance.ig_loader import load_compiled_ig_profiles
+from fhirlance.extensions import COMPILED_EXTENSIONS, CompiledExtension, validate_extensions
+from fhirlance.ig_loader import load_compiled_ig_bundle
 from fhirlance.invariants import check_fhirpath_invariants
 from fhirlance.primitive_extensions import (
     has_primitive_extension_error,
@@ -143,6 +144,7 @@ def _validate_nested_resources(
     depth: int = int(kwargs.get("depth", 0))
     tx_options = kwargs.get("tx")
     warnings_out: list[str] | None = kwargs.get("_warnings_out")
+    compiled_extensions = kwargs.get("_compiled_extensions")
     issues: list[str] = []
     contained = resource.get("contained")
     if isinstance(contained, list):
@@ -154,6 +156,7 @@ def _validate_nested_resources(
                 _depth=depth + 1,
                 tx=tx_options,
                 _warnings_out=sub_warnings,
+                _compiled_extensions=compiled_extensions,
             )
             issues.extend(f"contained[{idx}]: {msg}" for msg in sub_issues)
             if warnings_out is not None and sub_warnings:
@@ -169,6 +172,7 @@ def _validate_nested_resources(
                     _depth=depth + 1,
                     tx=tx_options,
                     _warnings_out=sub_warnings,
+                    _compiled_extensions=compiled_extensions,
                 )
                 issues.extend(f"entry[{idx}].resource: {msg}" for msg in sub_issues)
                 if warnings_out is not None and sub_warnings:
@@ -176,14 +180,16 @@ def _validate_nested_resources(
     return issues
 
 
-def _resolve_compiled_map(
+def _resolve_compiled_maps(
     ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None,
-) -> dict[str, CompiledProfile] | None:
+    ext_override: dict[str, CompiledExtension] | None,
+) -> tuple[dict[str, CompiledProfile] | None, dict[str, CompiledExtension]]:
     if isinstance(ig_sources, dict):
-        return ig_sources
+        return ig_sources, ext_override if ext_override is not None else COMPILED_EXTENSIONS
     if ig_sources:
-        return load_compiled_ig_profiles(ig_sources)
-    return None
+        prof_map, ext_map = load_compiled_ig_bundle(ig_sources)
+        return prof_map, ext_override if ext_override is not None else ext_map
+    return None, ext_override if ext_override is not None else COMPILED_EXTENSIONS
 
 
 def validate_resource(
@@ -222,10 +228,21 @@ def validate_resource(
 
     declared_profiles = _extract_declared_profiles(resource)
 
-    compiled_map = _resolve_compiled_map(ig_sources)
+    compiled_map, ext_dict = _resolve_compiled_maps(ig_sources, kwargs.get("_compiled_extensions"))
     profiles_dict = compiled_map if compiled_map is not None else COMPILED_PROFILES
     effective_profiles = list(dict.fromkeys([*declared_profiles, *(profile_urls or ())]))
     profile_bound_paths = _collect_profile_binding_paths(effective_profiles, profiles_dict)
+
+    issues.extend(
+        validate_extensions(
+            resource,
+            model_cls,
+            rtype,
+            compiled_extensions=ext_dict,
+            tx=tx_options,
+            _warnings_out=_warnings_out,
+        )
+    )
 
     if tx_options.mode != "off":
         _validate_standalone_and_base_bindings(
@@ -257,6 +274,7 @@ def validate_resource(
             depth=depth,
             tx=tx_options,
             _warnings_out=_warnings_out,
+            _compiled_extensions=ext_dict,
         )
     )
     return issues

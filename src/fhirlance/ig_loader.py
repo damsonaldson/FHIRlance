@@ -9,6 +9,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
+from fhirlance.extensions import (
+    _RAW_BUILTIN_EXTENSIONS,
+    COMPILED_EXTENSIONS,
+    CompiledExtension,
+    compile_extensions,
+)
 from fhirlance.profile_engine import COMPILED_PROFILES, CompiledProfile, compile_profiles
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
@@ -18,7 +25,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "clear_ig_cache",
+    "load_compiled_ig_bundle",
+    "load_compiled_ig_extensions",
     "load_compiled_ig_profiles",
+    "load_raw_ig_extensions",
     "load_raw_ig_profiles",
     "register_ig",
 ]
@@ -678,20 +688,116 @@ def _fingerprint_source(path: Path) -> tuple[str, int, int]:
 
 
 _BASE_COMPILED_PROFILES: dict[str, CompiledProfile] = dict(COMPILED_PROFILES)
+_BASE_COMPILED_EXTENSIONS: dict[str, CompiledExtension] = dict(COMPILED_EXTENSIONS)
 _COMPILED_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledProfile]] = {}
+_COMPILED_EXT_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledExtension]] = {}
+
+
+def _load_ig_sds(
+    sources: Sequence[str | Path],
+) -> tuple[
+    dict[str, list[str]],
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    dict[str, str],
+]:
+    container = _IGResources()
+    for src in sources:
+        path = _resolve_source_path(src)
+        _load_source(path, container)
+
+    code_systems = _extract_code_systems(container.code_systems)
+    vs_specs: dict[str, dict[str, Any]] = {}
+    value_sets = _extract_value_sets(container.value_sets, code_systems, vs_specs)
+
+    all_sds: dict[str, dict[str, Any]] = {}
+    sd_type_by_url: dict[str, str] = {}
+    for sd in container.structure_definitions:
+        url = sd.get("url")
+        if url:
+            all_sds[url] = sd
+            clean_url = url.split("|", 1)[0]
+            all_sds[clean_url] = sd
+            sd_type = sd.get("type")
+            if sd_type:
+                sd_type_by_url[url] = sd_type
+                sd_type_by_url[clean_url] = sd_type
+    return value_sets, vs_specs, all_sds, sd_type_by_url
+
+
+def load_raw_ig_extensions(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
+    """Load Extension StructureDefinitions from IG sources and resolve inheritance."""
+    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(sources)
+    raw_exts: dict[str, dict[str, Any]] = {}
+    for url, sd in all_sds.items():
+        if sd.get("type") == "Extension" and sd.get("derivation") == "constraint":
+            raw_exts[url] = extract_extension_spec(sd, sd_type_by_url, value_sets, vs_specs)
+    return resolve_all_extensions(raw_exts, _RAW_BUILTIN_EXTENSIONS)
+
+
+def _extract_profiles_and_extensions(
+    sources: Sequence[str | Path],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(sources)
+    raw_profiles: dict[str, dict[str, Any]] = {}
+    raw_exts: dict[str, dict[str, Any]] = {}
+    for url, sd in all_sds.items():
+        if sd.get("derivation") != "constraint":
+            continue
+        if sd.get("type") == "Extension":
+            raw_exts[url] = extract_extension_spec(sd, sd_type_by_url, value_sets, vs_specs)
+        elif sd.get("kind") in ("resource", "complex-type"):
+            raw_profiles[url] = _extract_profile_spec(
+                sd, sd_type_by_url, (value_sets, vs_specs), all_sds
+            )
+    return _resolve_all_profiles(raw_profiles), resolve_all_extensions(
+        raw_exts, _RAW_BUILTIN_EXTENSIONS
+    )
+
+
+def load_compiled_ig_bundle(
+    sources: Sequence[str | Path],
+) -> tuple[dict[str, CompiledProfile], dict[str, CompiledExtension]]:
+    """Load and compile both IG profiles and Extension StructureDefinitions in one pass."""
+    resolved_sources = [_resolve_source_path(s) for s in sources]
+    cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
+    if cache_key in _COMPILED_CACHE and cache_key in _COMPILED_EXT_CACHE:
+        return dict(_COMPILED_CACHE[cache_key]), dict(_COMPILED_EXT_CACHE[cache_key])
+
+    raw_profiles, raw_exts = _extract_profiles_and_extensions(sources)
+    merged_profiles = dict(COMPILED_PROFILES)
+    merged_profiles.update(compile_profiles(raw_profiles))
+    _COMPILED_CACHE[cache_key] = merged_profiles
+
+    merged_exts = dict(COMPILED_EXTENSIONS)
+    merged_exts.update(compile_extensions(raw_exts))
+    _COMPILED_EXT_CACHE[cache_key] = merged_exts
+    return dict(merged_profiles), dict(merged_exts)
+
+
+def load_compiled_ig_extensions(
+    sources: Sequence[str | Path],
+) -> dict[str, CompiledExtension]:
+    """Load, compile, and merge IG Extension StructureDefinitions with built-ins."""
+    _, exts = load_compiled_ig_bundle(sources)
+    return exts
 
 
 def clear_ig_cache() -> None:
-    """Clear the compiled IG profiles cache and reset COMPILED_PROFILES."""
+    """Clear the compiled IG profiles/extensions cache and reset globals."""
     _COMPILED_CACHE.clear()
+    _COMPILED_EXT_CACHE.clear()
     COMPILED_PROFILES.clear()
     COMPILED_PROFILES.update(_BASE_COMPILED_PROFILES)
+    COMPILED_EXTENSIONS.clear()
+    COMPILED_EXTENSIONS.update(_BASE_COMPILED_EXTENSIONS)
 
 
 def register_ig(sources: Sequence[str | Path]) -> dict[str, CompiledProfile]:
-    """Compile IG sources and register them globally in COMPILED_PROFILES."""
-    compiled = load_compiled_ig_profiles(sources)
+    """Compile IG sources and register profiles and extensions globally."""
+    compiled, compiled_exts = load_compiled_ig_bundle(sources)
     COMPILED_PROFILES.update(compiled)
+    COMPILED_EXTENSIONS.update(compiled_exts)
     return dict(COMPILED_PROFILES)
 
 
@@ -699,14 +805,5 @@ def load_compiled_ig_profiles(
     sources: Sequence[str | Path],
 ) -> dict[str, CompiledProfile]:
     """Load, compile, and merge IG profiles with built-in COMPILED_PROFILES."""
-    resolved_sources = [_resolve_source_path(s) for s in sources]
-    cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
-    if cache_key in _COMPILED_CACHE:
-        return dict(_COMPILED_CACHE[cache_key])
-
-    raw_profiles = load_raw_ig_profiles(sources)
-    compiled_new = compile_profiles(raw_profiles)
-    merged = dict(COMPILED_PROFILES)
-    merged.update(compiled_new)
-    _COMPILED_CACHE[cache_key] = merged
-    return dict(merged)
+    profiles, _ = load_compiled_ig_bundle(sources)
+    return profiles
