@@ -14,7 +14,12 @@ from fhirlance.primitive_extensions import (
     has_primitive_extension_error,
     strip_and_validate_primitive_extensions,
 )
-from fhirlance.profile_engine import COMPILED_PROFILES, resolve_nodes, validate_single_profile
+from fhirlance.profile_engine import (
+    COMPILED_PROFILES,
+    extract_relative_ref,
+    resolve_nodes,
+    validate_single_profile,
+)
 from fhirlance.profiles import (
     BASE_RESOURCE_BINDINGS,
     COMPLETE_CODE_SYSTEMS,
@@ -148,6 +153,9 @@ def _build_bundle_index(resource: dict[str, Any]) -> dict[str, dict[str, Any]] |
         full_url = entry.get("fullUrl")
         if isinstance(full_url, str) and full_url:
             index[full_url] = entry_res
+            rel_ref = extract_relative_ref(full_url)
+            if rel_ref is not None:
+                index.setdefault(rel_ref, entry_res)
         e_rtype = entry_res.get("resourceType")
         e_rid = entry_res.get("id")
         if isinstance(e_rtype, str) and e_rtype and isinstance(e_rid, str) and e_rid:
@@ -167,6 +175,7 @@ def _validate_nested_resources(
     warnings_out: list[str] | None = kwargs.get("_warnings_out")
     compiled_extensions = kwargs.get("_compiled_extensions")
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index")
+    skip_nested_entries = bool(kwargs.get("_skip_nested_entries", False))
     issues: list[str] = []
     contained = resource.get("contained")
     if isinstance(contained, list):
@@ -185,7 +194,7 @@ def _validate_nested_resources(
             if warnings_out is not None and sub_warnings:
                 warnings_out.extend(f"contained[{idx}]: {msg}" for msg in sub_warnings)
 
-    if rtype == "Bundle" and isinstance(resource.get("entry"), list):
+    if not skip_nested_entries and rtype == "Bundle" and isinstance(resource.get("entry"), list):
         for idx, entry in enumerate(resource["entry"]):
             if isinstance(entry, dict) and entry.get("resource") is not None:
                 sub_warnings = [] if warnings_out is not None else None
@@ -281,8 +290,12 @@ def validate_resource(
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
         "bundle_index"
     )
-    if bundle_index is None and rtype == "Bundle":
-        bundle_index = _build_bundle_index(resource)
+    if rtype == "Bundle":
+        inner_index = _build_bundle_index(resource)
+        if inner_index is not None:
+            bundle_index = (
+                {**bundle_index, **inner_index} if bundle_index is not None else inner_index
+            )
 
     for prof_url in effective_profiles:
         issues.extend(
@@ -291,6 +304,7 @@ def validate_resource(
                 rtype,
                 prof_url,
                 compiled_profiles=profiles_dict,
+                compiled_map=compiled_map,
                 tx=tx_options,
                 _warnings_out=_warnings_out,
                 bundle_index=bundle_index,
@@ -307,6 +321,7 @@ def validate_resource(
             _warnings_out=_warnings_out,
             _compiled_extensions=ext_dict,
             _bundle_index=bundle_index,
+            _skip_nested_entries=bool(kwargs.get("_skip_nested_entries", False)),
         )
     )
     return issues

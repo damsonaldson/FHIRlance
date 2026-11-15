@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import repeat
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fhirlance.ig_loader import load_compiled_ig_profiles
-from fhirlance.resource_validator import validate_resource
+from fhirlance.profile_engine import COMPILED_PROFILES
+from fhirlance.resource_validator import _build_bundle_index, validate_resource
 from fhirlance.terminology import TxOptions, parse_tx_options
 
 if TYPE_CHECKING:
@@ -29,6 +30,8 @@ class _ValidationOptions:
     ig_sources: tuple[str, ...] | None = None
     compiled_profiles: dict[str, CompiledProfile] | None = None
     tx_options: TxOptions = field(default_factory=TxOptions)
+    bundle_index: dict[str, dict[str, Any]] | None = None
+    skip_nested_entries: bool = False
 
 
 def _reject_bad_json_constant(val: str) -> Any:
@@ -59,6 +62,8 @@ def _record_validation(
         ig_sources=effective_ig,
         tx=options.tx_options,
         _warnings_out=warnings,
+        _bundle_index=options.bundle_index,
+        _skip_nested_entries=options.skip_nested_entries,
     )
     res_id = resource.get("id") if isinstance(resource, dict) else None
     res_type = resource.get("resourceType") if isinstance(resource, dict) else None
@@ -138,6 +143,42 @@ def _validate_ndjson_chunk(
     return total, valid, issues_list
 
 
+def _bundle_applicable_profile_urls(
+    options: _ValidationOptions,
+) -> tuple[str, ...] | None:
+    if not options.profile_urls:
+        return None
+    effective_map = (
+        options.compiled_profiles if options.compiled_profiles is not None else COMPILED_PROFILES
+    )
+    return tuple(
+        url
+        for url in options.profile_urls
+        if (prof := effective_map.get(url) or effective_map.get(url.split("|", 1)[0])) is not None
+        and prof.base_type == "Bundle"
+    )
+
+
+def _prepare_bundle_validation(
+    data: Any,
+    file_name: str,
+    issues_list: list[dict[str, Any]],
+    options: _ValidationOptions,
+) -> tuple[int, _ValidationOptions]:
+    if not isinstance(data, dict) or data.get("resourceType") != "Bundle":
+        return 0, options
+    bundle_index = _build_bundle_index(data)
+    bundle_opts = replace(options, bundle_index=bundle_index)
+    bundle_profile_urls = _bundle_applicable_profile_urls(options)
+    bundle_valid = _record_validation(
+        data,
+        file_name,
+        issues_list,
+        replace(bundle_opts, skip_nested_entries=True, profile_urls=bundle_profile_urls),
+    )
+    return (0 if bundle_valid else 1), bundle_opts
+
+
 def _validate_json_file(
     path: Path,
     options: _ValidationOptions,
@@ -149,9 +190,12 @@ def _validate_json_file(
         issues_list.append({"file": path.name, "error": str(exc)})
         return 0, 0, issues_list
 
+    extra_total, bundle_opts = _prepare_bundle_validation(data, path.name, issues_list, options)
     resources = _iter_json_resources(data)
-    valid = sum(int(_record_validation(res, path.name, issues_list, options)) for res in resources)
-    return len(resources), valid, issues_list
+    valid = sum(
+        int(_record_validation(res, path.name, issues_list, bundle_opts)) for res in resources
+    )
+    return len(resources) + extra_total, valid, issues_list
 
 
 def _validate_ndjson_file(
@@ -212,22 +256,23 @@ def _validate_json_file_parallel(
         issues_list.append({"file": path.name, "error": str(exc)})
         return 0, 0, issues_list
 
+    extra_total, bundle_opts = _prepare_bundle_validation(data, path.name, issues_list, options)
     resources = _iter_json_resources(data)
     if len(resources) <= 1:
         valid = sum(
-            int(_record_validation(res, path.name, issues_list, options)) for res in resources
+            int(_record_validation(res, path.name, issues_list, bundle_opts)) for res in resources
         )
-        return len(resources), valid, issues_list
+        return len(resources) + extra_total, valid, issues_list
 
     workers = min(8, os.cpu_count() or 4)
     chunk_size = max(1, (len(resources) + workers - 1) // workers)
     chunks = [
-        (resources[i : i + chunk_size], path.name, options)
+        (resources[i : i + chunk_size], path.name, bundle_opts)
         for i in range(0, len(resources), chunk_size)
     ]
-    total_count = 0
+    total_count = extra_total
     valid_count = 0
-    all_issues: list[dict[str, Any]] = []
+    all_issues: list[dict[str, Any]] = list(issues_list)
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for t, v, issues in pool.map(_validate_resource_batch, chunks):
             total_count += t
