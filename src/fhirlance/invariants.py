@@ -121,6 +121,10 @@ def _check_bundle_entry(
     seen_keys: set[tuple[str, str | None]],
 ) -> list[str]:
     issues: list[str] = []
+    if entry.get("search") is not None and bundle_type != "searchset":
+        issues.append(
+            f"Invariant[bdl-2] entry[{idx}]: entry.search only allowed in searchset bundles"
+        )
     if entry.get("request") is not None and bundle_type not in _BUNDLE_REQUEST_TYPES:
         issues.append(
             f"Invariant[bdl-3] entry[{idx}]: "
@@ -131,12 +135,57 @@ def _check_bundle_entry(
             f"Invariant[bdl-4] entry[{idx}]: "
             "entry.response only allowed in response/history bundles"
         )
+    if (
+        entry.get("resource") is None
+        and entry.get("request") is None
+        and entry.get("response") is None
+    ):
+        issues.append(
+            f"Invariant[bdl-5] entry[{idx}]: "
+            "entry must have at least one of resource, request, or response"
+        )
     full_url = entry.get("fullUrl")
-    if bundle_type in _BUNDLE_UNIQUE_FULLURL_TYPES and isinstance(full_url, str):
-        key = (full_url, _entry_version_id(entry))
-        if key in seen_keys:
-            issues.append(f"Invariant[bdl-7] entry[{idx}]: duplicate fullUrl '{full_url}'")
-        seen_keys.add(key)
+    if isinstance(full_url, str):
+        if "/_history/" in full_url:
+            issues.append(
+                f"Invariant[bdl-8] entry[{idx}]: fullUrl '{full_url}' must not contain '/_history/'"
+            )
+        if bundle_type in _BUNDLE_UNIQUE_FULLURL_TYPES:
+            key = (full_url, _entry_version_id(entry))
+            if key in seen_keys:
+                issues.append(f"Invariant[bdl-7] entry[{idx}]: duplicate fullUrl '{full_url}'")
+            seen_keys.add(key)
+    return issues
+
+
+def _first_entry_resource_type(resource: dict[str, Any]) -> str | None:
+    entries = resource.get("entry")
+    if not isinstance(entries, list) or not entries:
+        return None
+    first = entries[0]
+    if not isinstance(first, dict):
+        return None
+    first_res = first.get("resource")
+    if not isinstance(first_res, dict):
+        return None
+    rtype = first_res.get("resourceType")
+    return rtype if isinstance(rtype, str) else None
+
+
+def _check_bundle_type_invariants(resource: dict[str, Any], bundle_type: Any) -> list[str]:
+    issues: list[str] = []
+    if bundle_type == "document":
+        ident = resource.get("identifier")
+        if not isinstance(ident, dict) or not ident.get("system") or not ident.get("value"):
+            issues.append(
+                "Invariant[bdl-9]: document Bundle must have identifier.system and identifier.value"
+            )
+        if not resource.get("timestamp"):
+            issues.append("Invariant[bdl-10]: document Bundle must have timestamp")
+        if _first_entry_resource_type(resource) != "Composition":
+            issues.append("Invariant[bdl-11]: document Bundle first entry must be a Composition")
+    elif bundle_type == "message" and _first_entry_resource_type(resource) != "MessageHeader":
+        issues.append("Invariant[bdl-12]: message Bundle first entry must be a MessageHeader")
     return issues
 
 
@@ -147,6 +196,7 @@ def _check_bundle_invariants(resource: dict[str, Any]) -> list[str]:
         issues.append(
             f"Invariant[bdl-1]: Bundle.total only allowed on searchset/history, not '{bundle_type}'"
         )
+    issues.extend(_check_bundle_type_invariants(resource, bundle_type))
 
     seen_keys: set[tuple[str, str | None]] = set()
     for idx, entry in enumerate(resource.get("entry") or []):

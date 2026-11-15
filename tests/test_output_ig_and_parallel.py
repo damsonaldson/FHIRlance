@@ -753,7 +753,7 @@ class TestIntraFileParallelism:
 
         empty_bundle = tmp_path / "empty_bundle.json"
         empty_bundle.write_text(
-            json.dumps({"resourceType": "Bundle", "type": "collection", "entry": []}),
+            json.dumps({"resourceType": "Bundle", "type": "collection"}),
             encoding="utf-8",
         )
         assert validate_dataset(empty_bundle, parallel=True)["total_resources"] == 0

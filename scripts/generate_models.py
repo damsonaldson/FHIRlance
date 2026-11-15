@@ -134,6 +134,8 @@ class _ProfileAccumulator:
     pattern: dict[str, Any] = field(default_factory=dict)
     type_narrowing: dict[str, list[str]] = field(default_factory=dict)
     target_types: dict[str, list[str]] = field(default_factory=dict)
+    target_profiles: dict[str, list[str]] = field(default_factory=dict)
+    target_aggregations: dict[str, list[str]] = field(default_factory=dict)
     bindings: dict[str, list[str]] = field(default_factory=dict)
     binding_specs: dict[str, dict[str, Any]] = field(default_factory=dict)
     slices: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -693,6 +695,37 @@ def _record_slice_element(
         entry["matchers"][rel_sub] = ("pattern", pattern)
 
 
+def _record_reference_type(
+    type_entry: dict[str, Any],
+    path: str,
+    sd_type_by_url: dict[str, str],
+    acc: _ProfileAccumulator,
+) -> None:
+    raw_tps = type_entry.get("targetProfile") or []
+    if raw_tps:
+        allowed = sorted(
+            {
+                sd_type_by_url.get(tp.split("|")[0], tp.rstrip("/").rsplit("/", 1)[-1])
+                for tp in raw_tps
+            }
+        )
+        if allowed:
+            acc.target_types[path] = allowed
+        profiles = sorted(
+            {
+                cleaned
+                for tp in raw_tps
+                if isinstance(tp, str) and (cleaned := tp.split("|", 1)[0].strip())
+            }
+        )
+        if profiles:
+            acc.target_profiles[path] = profiles
+    raw_aggs = type_entry.get("aggregation") or []
+    aggs = sorted({a.strip() for a in raw_aggs if isinstance(a, str) and a.strip()})
+    if aggs:
+        acc.target_aggregations[path] = aggs
+
+
 def _record_element_types(
     el: dict[str, Any],
     path: str,
@@ -703,15 +736,8 @@ def _record_element_types(
     if path.endswith(_CHOICE_SUFFIX) and el_types:
         acc.type_narrowing[path] = [t["code"] for t in el_types if t.get("code")]
     for type_entry in el_types:
-        if type_entry.get("code") == "Reference" and type_entry.get("targetProfile"):
-            allowed = sorted(
-                {
-                    sd_type_by_url.get(tp.split("|")[0], tp.rstrip("/").rsplit("/", 1)[-1])
-                    for tp in type_entry["targetProfile"]
-                }
-            )
-            if allowed:
-                acc.target_types[path] = allowed
+        if type_entry.get("code") == "Reference":
+            _record_reference_type(type_entry, path, sd_type_by_url, acc)
 
 
 def _record_element_binding(
@@ -793,6 +819,8 @@ def _extract_profile_spec(
         "pattern": acc.pattern,
         "type_narrowing": acc.type_narrowing,
         "target_types": acc.target_types,
+        "target_profiles": acc.target_profiles,
+        "target_aggregations": acc.target_aggregations,
         "bindings": acc.bindings,
         "binding_specs": acc.binding_specs,
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
@@ -852,6 +880,18 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
                 spec.get("slice_groups", []),
             ),
         }
+        merged_tp = {
+            **(parent.get("target_profiles", {}) if parent else {}),
+            **spec.get("target_profiles", {}),
+        }
+        if merged_tp:
+            merged["target_profiles"] = merged_tp
+        merged_ta = {
+            **(parent.get("target_aggregations", {}) if parent else {}),
+            **spec.get("target_aggregations", {}),
+        }
+        if merged_ta:
+            merged["target_aggregations"] = merged_ta
         resolved[url] = merged
         return merged
 

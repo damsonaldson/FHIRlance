@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
+from urllib.parse import urlsplit
 
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
@@ -183,6 +184,8 @@ class CompiledProfile:
     slices: tuple[CompiledSlice, ...]
     binding_specs: tuple[CompiledBindingRule, ...] = ()
     slice_groups: tuple[CompiledSliceGroup, ...] = ()
+    target_profiles: tuple[AllowedValuesRule, ...] = ()
+    target_aggregations: tuple[AllowedValuesRule, ...] = ()
 
 
 def pattern_matches(actual: Any, pattern: Any) -> bool:
@@ -287,6 +290,22 @@ def _extract_ref_resource_type(ref_str: str) -> str | None:
     for segment in parts[:-1]:
         if segment in RESOURCE_MODELS:
             return segment
+    return None
+
+
+_MIN_REF_PATH_PARTS = 2
+
+
+def extract_relative_ref(url: str) -> str | None:
+    """Extract 'ResourceType/id' from an http(s)://.../{ResourceType}/{id} URL."""
+    if not url.startswith(("http://", "https://")):
+        return None
+    parts = urlsplit(url).path.rstrip("/").split("/")
+    if len(parts) < _MIN_REF_PATH_PARTS:
+        return None
+    rtype, rid = parts[-2], parts[-1]
+    if rtype in RESOURCE_MODELS and rid:
+        return f"{rtype}/{rid}"
     return None
 
 
@@ -470,6 +489,14 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
         slice_groups=tuple(
             _compile_slice_group(sg, is_sub_group=False) for sg in spec.get("slice_groups", ())
         ),
+        target_profiles=tuple(
+            AllowedValuesRule(p, tuple(p.split(".")[1:]), frozenset(profiles))
+            for p, profiles in spec.get("target_profiles", {}).items()
+        ),
+        target_aggregations=tuple(
+            AllowedValuesRule(p, tuple(p.split(".")[1:]), frozenset(aggs))
+            for p, aggs in spec.get("target_aggregations", {}).items()
+        ),
     )
 
 
@@ -573,19 +600,37 @@ def _check_type_narrowing(
     return issues
 
 
+def _check_single_ref_type(
+    ref_obj: dict[str, Any], prof_url: str, rule: AllowedValuesRule
+) -> list[str]:
+    issues: list[str] = []
+    raw_ref = ref_obj.get("reference")
+    if isinstance(raw_ref, str):
+        ref_rt = _extract_ref_resource_type(raw_ref)
+        if ref_rt is not None and ref_rt not in rule.allowed:
+            issues.append(
+                f"Profile[{prof_url}]: '{rule.path}' reference target "
+                f"'{ref_rt}' not in {sorted(rule.allowed)}"
+            )
+    raw_type = ref_obj.get("type")
+    if isinstance(raw_type, str) and raw_type:
+        explicit_rt = raw_type.rsplit("/", 1)[-1] if "/" in raw_type else raw_type
+        if explicit_rt not in rule.allowed:
+            issues.append(
+                f"Profile[{prof_url}]: '{rule.path}' Reference.type "
+                f"'{explicit_rt}' not in {sorted(rule.allowed)}"
+            )
+    return issues
+
+
 def _check_target_types(
     resource: dict[str, Any], prof_url: str, rules: tuple[AllowedValuesRule, ...]
 ) -> list[str]:
     issues: list[str] = []
     for rule in rules:
         for ref_obj in resolve_nodes(resource, rule.parts):
-            if isinstance(ref_obj, dict) and isinstance(ref_obj.get("reference"), str):
-                ref_rt = _extract_ref_resource_type(ref_obj["reference"])
-                if ref_rt is not None and ref_rt not in rule.allowed:
-                    issues.append(
-                        f"Profile[{prof_url}]: '{rule.path}' reference target "
-                        f"'{ref_rt}' not in {sorted(rule.allowed)}"
-                    )
+            if isinstance(ref_obj, dict):
+                issues.extend(_check_single_ref_type(ref_obj, prof_url, rule))
     return issues
 
 
@@ -656,6 +701,19 @@ class _SliceEvalContext:
     tx_options: TxOptions
     bundle_index: dict[str, dict[str, Any]] | None
     visited_profiles: frozenset[str]
+    visited_targets: frozenset[tuple[int, str]] = frozenset()
+
+
+def _resolve_contained_reference(
+    root_resource: dict[str, Any], target_id: str
+) -> dict[str, Any] | None:
+    contained = root_resource.get("contained")
+    if not isinstance(contained, list):
+        return None
+    for res in contained:
+        if isinstance(res, dict) and res.get("id") == target_id:
+            return res
+    return None
 
 
 def _resolve_reference(
@@ -663,28 +721,121 @@ def _resolve_reference(
     root_resource: dict[str, Any],
     bundle_index: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any] | None:
-    if isinstance(node, dict):
-        if "resourceType" in node and "reference" not in node:
-            return node
-        ref = node.get("reference")
-    elif isinstance(node, str):
-        ref = node
-    else:
-        return None
-
+    if isinstance(node, dict) and "resourceType" in node and "reference" not in node:
+        return node
+    ref = node.get("reference") if isinstance(node, dict) else node
     if not isinstance(ref, str) or not ref:
         return None
-
     if ref.startswith("#"):
-        target_id = ref[1:]
-        contained = root_resource.get("contained")
-        if isinstance(contained, list):
-            for res in contained:
-                if isinstance(res, dict) and res.get("id") == target_id:
-                    return res
+        return _resolve_contained_reference(root_resource, ref[1:])
+    if bundle_index is None:
         return None
+    found = bundle_index.get(ref)
+    if found is not None:
+        return found
+    rel_ref = extract_relative_ref(ref)
+    return bundle_index.get(rel_ref) if rel_ref is not None else None
 
-    return bundle_index.get(ref) if bundle_index is not None else None
+
+def _check_single_ref_aggregation(
+    ref_obj: dict[str, Any], prof_url: str, rule: AllowedValuesRule, ctx: _SliceEvalContext
+) -> str | None:
+    ref = ref_obj.get("reference")
+    if not isinstance(ref, str) or not ref:
+        return None
+    if ref.startswith("#"):
+        return (
+            None
+            if "contained" in rule.allowed
+            else f"Profile[{prof_url}]: '{rule.path}' reference '{ref}' uses "
+            f"'contained' aggregation, allowed {sorted(rule.allowed)}"
+        )
+    if "referenced" in rule.allowed:
+        return None
+    if "bundled" not in rule.allowed:
+        return (
+            f"Profile[{prof_url}]: '{rule.path}' reference '{ref}' must be contained, "
+            f"allowed {sorted(rule.allowed)}"
+        )
+    if (
+        ctx.bundle_index is not None
+        and _resolve_reference(ref_obj, ctx.root_resource, ctx.bundle_index) is not None
+    ):
+        return None
+    return (
+        f"Profile[{prof_url}]: '{rule.path}' reference '{ref}' must resolve in Bundle "
+        "('bundled' aggregation)"
+    )
+
+
+def _check_target_aggregations(
+    resource: dict[str, Any],
+    prof_url: str,
+    rules: tuple[AllowedValuesRule, ...],
+    ctx: _SliceEvalContext,
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        for ref_obj in resolve_nodes(resource, rule.parts):
+            if isinstance(ref_obj, dict):
+                err = _check_single_ref_aggregation(ref_obj, prof_url, rule, ctx)
+                if err is not None:
+                    issues.append(err)
+    return issues
+
+
+def _target_conforms_to_profile(
+    target: dict[str, Any], tp_url: str, ctx: _SliceEvalContext
+) -> bool:
+    tp_key = tp_url.split("|", 1)[0].strip()
+    key = (id(target), tp_key)
+    if key in ctx.visited_targets:
+        return True
+    spec_p = ctx.compiled_profiles.get(tp_key)
+    if spec_p is None:
+        if tp_key.startswith("http://hl7.org/fhir/StructureDefinition/"):
+            expected = tp_key.rsplit("/", 1)[-1]
+            if expected in ("Resource", "DomainResource"):
+                return True
+            actual_rt = target.get("resourceType")
+            return actual_rt == expected
+        return True
+    target_rtype = target.get("resourceType") or spec_p.base_type
+    if not isinstance(target_rtype, str) or not target_rtype:
+        return False
+    issues = validate_single_profile(
+        target,
+        target_rtype,
+        tp_key,
+        compiled_profiles=ctx.compiled_profiles,
+        tx=ctx.tx_options,
+        bundle_index=ctx.bundle_index,
+        _visited_profiles=frozenset({tp_key}),
+        _visited_targets=ctx.visited_targets | {key},
+    )
+    return not issues
+
+
+def _check_target_profiles(
+    resource: dict[str, Any],
+    prof_url: str,
+    rules: tuple[AllowedValuesRule, ...],
+    ctx: _SliceEvalContext,
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        for ref_obj in resolve_nodes(resource, rule.parts):
+            if not isinstance(ref_obj, dict):
+                continue
+            target = _resolve_reference(ref_obj, ctx.root_resource, ctx.bundle_index)
+            if target is None:
+                continue
+            if not any(_target_conforms_to_profile(target, tp, ctx) for tp in sorted(rule.allowed)):
+                issues.append(
+                    f"Profile[{prof_url}]: '{rule.path}' target does not conform to any "
+                    f"targetProfile in {sorted(rule.allowed)}"
+                )
+    return issues
 
 
 _PY_TO_FHIR_TYPE: dict[type[Any], str] = {
@@ -1049,7 +1200,9 @@ def validate_single_profile(
     **kwargs: Any,
 ) -> list[str]:
     """Validate a resource against a single compiled IG StructureDefinition constraint set."""
-    spec = compiled_profiles.get(prof_url)
+    compiled_map: dict[str, CompiledProfile] | None = kwargs.get("compiled_map")
+    effective_profiles = compiled_map if compiled_map is not None else compiled_profiles
+    spec = effective_profiles.get(prof_url)
     if spec is None:
         return []
 
@@ -1066,18 +1219,23 @@ def validate_single_profile(
     )
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("bundle_index")
     visited_profiles: frozenset[str] = kwargs.get("_visited_profiles", frozenset({prof_url}))
+    visited_targets: frozenset[tuple[int, str]] = kwargs.get("_visited_targets", frozenset()) | {
+        (id(resource), prof_url)
+    }
 
-    if spec.slice_groups:
-        ctx = _SliceEvalContext(
-            root_resource=resource,
-            compiled_profiles=compiled_profiles,
-            tx_options=tx_options,
-            bundle_index=bundle_index,
-            visited_profiles=visited_profiles,
-        )
-        slice_issues = _check_slice_groups(resource, prof_url, spec.slice_groups, ctx)
-    else:
-        slice_issues = _check_slices(resource, prof_url, spec.slices)
+    ctx = _SliceEvalContext(
+        root_resource=resource,
+        compiled_profiles=effective_profiles,
+        tx_options=tx_options,
+        bundle_index=bundle_index,
+        visited_profiles=visited_profiles,
+        visited_targets=visited_targets,
+    )
+    slice_issues = (
+        _check_slice_groups(resource, prof_url, spec.slice_groups, ctx)
+        if spec.slice_groups
+        else _check_slices(resource, prof_url, spec.slices)
+    )
 
     return [
         *_check_required(resource, prof_url, spec.required),
@@ -1087,6 +1245,8 @@ def validate_single_profile(
         *_check_pattern(resource, prof_url, spec.pattern),
         *_check_type_narrowing(resource, prof_url, spec.type_narrowing),
         *_check_target_types(resource, prof_url, spec.target_types),
+        *_check_target_aggregations(resource, prof_url, spec.target_aggregations, ctx),
+        *_check_target_profiles(resource, prof_url, spec.target_profiles, ctx),
         *_check_bindings(
             resource,
             prof_url,

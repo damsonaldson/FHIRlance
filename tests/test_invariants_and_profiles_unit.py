@@ -314,8 +314,8 @@ def test_primitive_extension_and_base_helpers() -> None:
     # Bundle with entry lacking resource (branch 85->84 in resource_validator.py)
     bundle_no_res = {
         "resourceType": "Bundle",
-        "type": "collection",
-        "entry": [{"fullUrl": "urn:uuid:1"}],
+        "type": "transaction",
+        "entry": [{"fullUrl": "urn:uuid:1", "request": {"method": "GET", "url": "Patient"}}],
     }
     assert validate_resource(bundle_no_res) == []
 
