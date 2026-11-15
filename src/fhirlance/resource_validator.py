@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -23,6 +25,7 @@ from fhirlance.profile_engine import (
 from fhirlance.profiles import (
     BASE_RESOURCE_BINDINGS,
     COMPLETE_CODE_SYSTEMS,
+    COMPLEX_TYPE_BINDINGS,
     VALUE_SET_SPECS,
 )
 from fhirlance.resources import RESOURCE_MODELS
@@ -34,7 +37,7 @@ from fhirlance.terminology import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
     from pathlib import Path
 
     from fhirlance.profile_engine import CompiledProfile
@@ -89,37 +92,142 @@ def _collect_profile_binding_paths(
     return bound
 
 
+@dataclass(frozen=True, slots=True)
+class _ComplexFieldStep:
+    json_key: str
+    child_model: type[FHIRBaseModel]
+
+
+@dataclass(frozen=True, slots=True)
+class _BindingValidationCtx:
+    tx_options: TxOptions
+    issues: list[str]
+    warnings: list[str] | None
+    skip_paths: set[str] | None
+
+
+def _unwrap_model_type(annotation: Any) -> type[FHIRBaseModel] | None:
+    if isinstance(annotation, type) and issubclass(annotation, FHIRBaseModel):
+        return annotation
+    for arg in getattr(annotation, "__args__", ()):
+        found = _unwrap_model_type(arg)
+        if found is not None:
+            return found
+    return None
+
+
+@cache
+def _can_reach_complex_binding(model_cls: type[FHIRBaseModel]) -> bool:
+    stack: list[type[FHIRBaseModel]] = [model_cls]
+    seen: set[type[FHIRBaseModel]] = set()
+    while stack:
+        curr = stack.pop()
+        if curr in seen:
+            continue
+        seen.add(curr)
+        if curr.__name__ in COMPLEX_TYPE_BINDINGS:
+            return True
+        for field_name, field_info in curr.model_fields.items():
+            if field_name in ("extension", "modifierExtension"):
+                continue
+            child = _unwrap_model_type(field_info.annotation)
+            if child is not None and child not in seen:
+                stack.append(child)
+    return False
+
+
+@cache
+def _complex_binding_plan(model_cls: type[FHIRBaseModel]) -> tuple[_ComplexFieldStep, ...]:
+    steps: list[_ComplexFieldStep] = []
+    for field_name, field_info in model_cls.model_fields.items():
+        if field_name in ("extension", "modifierExtension"):
+            continue
+        child_model = _unwrap_model_type(field_info.annotation)
+        if child_model is None or not _can_reach_complex_binding(child_model):
+            continue
+        steps.append(
+            _ComplexFieldStep(
+                json_key=field_info.alias or field_name,
+                child_model=child_model,
+            )
+        )
+    return tuple(steps)
+
+
+def _apply_binding_values(
+    val: Any,
+    full_path: str,
+    b_info: dict[str, str],
+    ctx: _BindingValidationCtx,
+) -> None:
+    vs_url = b_info["value_set"]
+    res = validate_binding_value(
+        val,
+        full_path,
+        vs_url,
+        b_info["strength"],
+        ctx.tx_options,
+        vs_spec=VALUE_SET_SPECS.get(vs_url),
+        complete_systems=COMPLETE_CODE_SYSTEMS,
+    )
+    ctx.issues.extend(res.errors)
+    if ctx.warnings is not None and res.warnings:
+        ctx.warnings.extend(res.warnings)
+
+
+def _check_bindings_for_node(
+    node: dict[str, Any],
+    bindings: dict[str, dict[str, str]],
+    prefix: str,
+    ctx: _BindingValidationCtx,
+) -> None:
+    for rel_path, b_info in bindings.items():
+        full_path = f"{prefix}.{rel_path}"
+        if ctx.skip_paths and full_path in ctx.skip_paths:
+            continue
+        parts = tuple(p for p in rel_path.split(".") if p)
+        for val in resolve_nodes(node, parts):
+            _apply_binding_values(val, full_path, b_info, ctx)
+
+
+def _iter_child_dicts(child: Any) -> Iterator[dict[str, Any]]:
+    if isinstance(child, dict):
+        if not isinstance(child.get("resourceType"), str):
+            yield child
+        return
+    if isinstance(child, list):
+        for item in child:
+            if isinstance(item, dict) and not isinstance(item.get("resourceType"), str):
+                yield item
+
+
+def _walk_complex_bindings(
+    node: dict[str, Any],
+    model_cls: type[FHIRBaseModel],
+    current_path: str,
+    ctx: _BindingValidationCtx,
+) -> None:
+    type_bindings = COMPLEX_TYPE_BINDINGS.get(model_cls.__name__)
+    if type_bindings:
+        _check_bindings_for_node(node, type_bindings, current_path, ctx)
+    for step in _complex_binding_plan(model_cls):
+        child = node.get(step.json_key)
+        if child is None:
+            continue
+        child_path = f"{current_path}.{step.json_key}"
+        for sub in _iter_child_dicts(child):
+            _walk_complex_bindings(sub, step.child_model, child_path, ctx)
+
+
 def _validate_base_bindings(
     resource: dict[str, Any],
     rtype: str,
-    tx_options: TxOptions,
-    issues: list[str],
-    **kwargs: Any,
+    ctx: _BindingValidationCtx,
 ) -> None:
     base_bindings = BASE_RESOURCE_BINDINGS.get(rtype)
     if not base_bindings:
         return
-    warnings: list[str] | None = kwargs.get("warnings")
-    skip_paths: set[str] | None = kwargs.get("skip_paths")
-    for rel_path, b_info in base_bindings.items():
-        full_path = f"{rtype}.{rel_path}"
-        if skip_paths and full_path in skip_paths:
-            continue
-        parts = tuple(p for p in rel_path.split(".") if p)
-        for val in resolve_nodes(resource, parts):
-            vs_url = b_info["value_set"]
-            res = validate_binding_value(
-                val,
-                full_path,
-                vs_url,
-                b_info["strength"],
-                tx_options,
-                vs_spec=VALUE_SET_SPECS.get(vs_url),
-                complete_systems=COMPLETE_CODE_SYSTEMS,
-            )
-            issues.extend(res.errors)
-            if warnings is not None and res.warnings:
-                warnings.extend(res.warnings)
+    _check_bindings_for_node(resource, base_bindings, rtype, ctx)
 
 
 def _validate_standalone_and_base_bindings(
@@ -136,7 +244,16 @@ def _validate_standalone_and_base_bindings(
     warnings: list[str] | None = kwargs.get("warnings")
     if warnings is not None and standalone_res.warnings:
         warnings.extend(standalone_res.warnings)
-    _validate_base_bindings(resource, rtype, tx_options, issues, **kwargs)
+    ctx = _BindingValidationCtx(
+        tx_options=tx_options,
+        issues=issues,
+        warnings=warnings,
+        skip_paths=kwargs.get("skip_paths"),
+    )
+    _validate_base_bindings(resource, rtype, ctx)
+    model_cls: type[FHIRBaseModel] | None = kwargs.get("model_cls") or RESOURCE_MODELS.get(rtype)
+    if model_cls is not None:
+        _walk_complex_bindings(resource, model_cls, rtype, ctx)
 
 
 def _build_bundle_index(resource: dict[str, Any]) -> dict[str, dict[str, Any]] | None:
@@ -285,6 +402,7 @@ def validate_resource(
             issues,
             warnings=_warnings_out,
             skip_paths=profile_bound_paths,
+            model_cls=model_cls,
         )
 
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
