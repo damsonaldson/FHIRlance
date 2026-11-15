@@ -2,6 +2,10 @@
 
 ## 1. Git, Commit & Pull Request Management
 - **Agent-Managed VCS & PRs**: The agent manages all git branches, commits, pull requests, Dependabot updates, and merges for `damsonaldson/FHIRlance`.
+- **Autonomous Post-Change Workflow (Review → Commit → PR)**: After completing any change and passing the local quality gate, **do not wait for manual user review**. Automatically:
+  1. Spin up a `critical-reviewer` subagent to audit the working-tree diff pre-commit.
+  2. Fix any valid findings (and re-run the local quality gate if code/tests changed).
+  3. Commit on a branch off `main` and open a Pull Request so CI (including `Automated AI Code Review`) reviews it.
 - **Commit Style**: Use Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`).
 - **Pre-Commit / Pre-Merge Local Quality Gate**: Before creating a commit or merging a PR, verify that all local checks pass cleanly using `.venv\Scripts\python.exe`:
   1. `ruff check .`
