@@ -314,16 +314,18 @@ def _measure_pytest_suite() -> SuiteMetrics:
             f"Offline pytest suite failed (exit {proc.returncode}):\n{output[-1500:]}"
         )
 
-    collected_m = re.search(r"collected\s+(\d+)\s+items", output)
     passed_m = re.search(r"(\d+)\s+passed", output)
+    deselected_m = re.search(r"(\d+)\s+deselected", output)
     cov_m = re.search(r"Total coverage:\s*([\d.]+)%", output)
     time_m = re.search(r"in\s+([\d.]+)s\b", output)
-    if not (collected_m and passed_m and cov_m and time_m):
+    if not (passed_m and cov_m and time_m):
         raise RuntimeError(f"Could not parse pytest suite metrics from output:\n{output[-1000:]}")
 
+    offline_items = int(passed_m.group(1))
+    deselected_items = int(deselected_m.group(1)) if deselected_m else 0
     return SuiteMetrics(
-        total_items=int(collected_m.group(1)),
-        offline_items=int(passed_m.group(1)),
+        total_items=offline_items + deselected_items,
+        offline_items=offline_items,
         coverage_pct=round(float(cov_m.group(1)), 2),
         offline_elapsed_s=round(float(time_m.group(1)), 2),
     )
@@ -331,14 +333,14 @@ def _measure_pytest_suite() -> SuiteMetrics:
 
 def run_benchmarks(
     run_hl7_live: bool = False,
-    skip_pytest: bool = False,
+    include_pytest: bool = False,
 ) -> BenchmarkReport:
     """Execute benchmarks and return a structured `BenchmarkReport`."""
     corpus = _load_master_325_corpus()
     hl7_s = _measure_or_load_hl7_baseline(corpus, run_live=run_hl7_live)
     std_metrics, oo_metrics = _measure_python_modes(corpus, hl7_elapsed_s=hl7_s)
     ndjson_std_ms, ndjson_oo_ms = _measure_ndjson_1k(corpus)
-    suite = _load_previous_suite_metrics() if skip_pytest else _measure_pytest_suite()
+    suite = _measure_pytest_suite() if include_pytest else _load_previous_suite_metrics()
 
     count = len(corpus)
     hl7_metrics = ModeMetrics(
@@ -465,14 +467,20 @@ def main(argv: list[str] | None = None) -> int:
         help="Re-run official HL7 validator_cli.jar live against the 325-resource corpus.",
     )
     parser.add_argument(
+        "--measure-pytest",
+        action="store_true",
+        help="Run the offline pytest suite with coverage to refresh suite metrics.",
+    )
+    parser.add_argument(
         "--skip-pytest",
         action="store_true",
         help="Reuse previously recorded pytest suite counts/coverage instead of running pytest.",
     )
     args = parser.parse_args(argv)
+    include_pytest = (args.update_docs or args.measure_pytest) and not args.skip_pytest
     report = run_benchmarks(
         run_hl7_live=args.run_hl7_live,
-        skip_pytest=args.skip_pytest,
+        include_pytest=include_pytest,
     )
     if args.update_docs:
         update_documentation(report)
