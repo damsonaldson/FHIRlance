@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 R4_PKG = Path.home() / ".fhir" / "packages" / "hl7.fhir.r4.core#4.0.1" / "package"
+THO_PKG = Path.home() / ".fhir" / "packages" / "hl7.terminology.r4#6.2.0" / "package"
 IG_PKGS = [
     R4_PKG,
     Path.home() / ".fhir" / "packages" / "hl7.fhir.ca.baseline#1.2.0" / "package",
@@ -17,6 +18,7 @@ IG_PKGS = [
     Path.home() / ".fhir" / "packages" / "hl7.fhir.uv.ips#1.0.0" / "package",
     Path.home() / ".fhir" / "packages" / "hl7.fhir.us.core.r4#8.0.1" / "package",
 ]
+TERMINOLOGY_PKGS = [*IG_PKGS, THO_PKG]
 OUT_DIR = Path(__file__).resolve().parents[1] / "src" / "fhirlance"
 
 PYTHON_KEYWORDS = set(keyword.kwlist) | {"None", "True", "False"}
@@ -992,8 +994,12 @@ def _write_resources(
 
 def main() -> None:
     """Regenerate types.py, resources.py, and profiles.py from cached HL7 FHIR packages."""
-    complete_cs, hierarchy_map = _load_complete_code_systems(IG_PKGS)
-    vs_specs = _load_all_value_sets(IG_PKGS, complete_cs, hierarchy_map)
+    r4_cs, r4_hierarchy = _load_complete_code_systems(IG_PKGS)
+    r4_vs_specs = _load_all_value_sets(IG_PKGS, r4_cs, r4_hierarchy)
+    r4_vs_codes = {u: s.codes for u, s in r4_vs_specs.items()}
+
+    complete_cs, hierarchy_map = _load_complete_code_systems(TERMINOLOGY_PKGS)
+    vs_specs = _load_all_value_sets(TERMINOLOGY_PKGS, complete_cs, hierarchy_map)
     value_set_codes = {u: s.codes for u, s in vs_specs.items()}
 
     sds = [
@@ -1008,7 +1014,7 @@ def main() -> None:
         and s.get("derivation") == "specialization"
     ]
     known_types = {s["id"] for s in complex_sds} | {"Element", "BackboneElement"}
-    _write_complex_types(complex_sds, value_set_codes, known_types)
+    _write_complex_types(complex_sds, r4_vs_codes, known_types)
 
     resource_sds = [
         s
@@ -1017,7 +1023,7 @@ def main() -> None:
         and not s.get("abstract")
         and s.get("derivation") == "specialization"
     ]
-    res_names = _write_resources(resource_sds, value_set_codes, known_types)
+    res_names = _write_resources(resource_sds, r4_vs_codes, known_types)
     base_bindings = _extract_base_resource_bindings(R4_PKG)
 
     profiles_content = _generate_all_ig_profiles(

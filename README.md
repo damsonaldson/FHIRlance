@@ -7,7 +7,7 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 
 ## Documentation
 - **[CLI, Python API & Architecture Reference](docs/usage-and-architecture.md)** — Full CLI flags, output formats, Python API, module breakdown, and dev workflow.
-- **[Terminology Validation Engine & TX Reference](docs/terminology.md)** — Offline grammars (UCUM, BCP-47, MIME, ISO-3166), 1,059 complete CodeSystems, 1,442 ValueSets, `--tx` modes, and L1/SQLite caching.
+- **[Terminology Validation Engine & TX Reference](docs/terminology.md)** — Offline grammars (UCUM, BCP-47, MIME, ISO-3166), 1,161 complete CodeSystems, 3,297 ValueSets, `--tx` modes, and L1/SQLite caching.
 - **[Proof of Functional Equivalence & Test Suite](docs/equivalence-and-testing.md)** — HL7 `validator_cli.jar` equivalence matrix and test catalog (`2,697` items / `8,380+` scenarios).
 - **[Build & CI/CD Architecture](docs/ci-and-build.md)** — Ahead-of-time schema compilation, security gates, and cross-platform CI pipeline.
 - **[Architecture & Product Roadmap](docs/roadmap.md)** — Multi-phase roadmap (`v0.1.0`–`v1.0.0`) and HAPI FHIR / Smile CDR integration design.
@@ -15,7 +15,7 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 ## Coverage (TL;DR)
 - **Full FHIR R4 Base Spec**: All **146 resources** and **39 complex datatypes** (`659` generated Pydantic v2 models, `8,350` fields, `186` `[x]` choice groups, `_primitive` extensions, `ext-1`, core FHIRPath invariants, and recursive `Bundle` / `contained[]` validation).
 - **Multi-IG Profile Engine**: **183 pre-compiled profiles** (`2,009` rules) across **HL7 R4 Core, CA-Baseline 1.2.0, Infoway CA Core 1.1.0, HL7 IPS 1.0.0, and HL7 US Core 8.0.1**, plus dynamic runtime `-ig` loading (`.tgz`, folders, Bundles, StructureDefinitions).
-- **Terminology Validation Engine**: Built-in offline grammar validators (UCUM, BCP-47, MIME, ISO-3166), complete CodeSystems (`1,059` systems), precompiled ValueSets (`1,442` ValueSets), `--tx` (`local`, `remote`, `off`), and `--strict-extensible` with two-tier in-memory / SQLite caching.
+- **Terminology Validation Engine**: Built-in offline grammar validators (UCUM, BCP-47, MIME, ISO-3166), complete CodeSystems (`1,161` systems incl. `hl7.terminology.r4`), precompiled ValueSets (`3,297` ValueSets), `--tx` (`local`, `remote`, `off`), and `--strict-extensible` with two-tier in-memory / SQLite caching.
 - **Standard Output Formats**: Text, JSON, self-validating FHIR R4 `OperationOutcome`, **SARIF v2.1.0**, and **JUnit XML**.
 
 ## Performance & Benchmarks

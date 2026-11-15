@@ -68,7 +68,7 @@ FHIRlance avoids parsing multi-megabyte FHIR StructureDefinition JSON files at r
 2. **Generated Artifacts (Committed to `src/fhirlance/`)**:
    - `types.py`: All **39 FHIR R4 complex datatypes** (`Coding`, `CodeableConcept`, `Identifier`, `Period`, `Reference`, etc.).
    - `resources.py`: All **146 FHIR R4 base resources** (`Patient`, `Observation`, `Bundle`, etc.) subclasses of `DomainResourceBase` / `FHIRBaseModel` (`extra="forbid"`, strict R4 regex primitives).
-   - `profiles.py`: Pre-compiled Implementation Guide profile constraints with resolved `baseDefinition` inheritance chains (cardinality, `max=0` forbidden elements, `fixed[x]`, `pattern[x]`, `[x]` type narrowing, `Reference.targetProfile`, `binding_specs` preserving parent `required` strength, and slicing definitions), plus precompiled terminology tables: **1,059 `COMPLETE_CODE_SYSTEMS`**, **1,442 `VALUE_SET_SPECS`**, and **146 `BASE_RESOURCE_BINDINGS`**.
+   - `profiles.py`: Pre-compiled Implementation Guide profile constraints with resolved `baseDefinition` inheritance chains (cardinality, `max=0` forbidden elements, `fixed[x]`, `pattern[x]`, `[x]` type narrowing, `Reference.targetProfile`, `binding_specs` preserving parent `required` strength, and slicing definitions), plus precompiled terminology tables: **1,161 `COMPLETE_CODE_SYSTEMS`** (incl. `hl7.terminology.r4#6.2.0`), **3,297 `VALUE_SET_SPECS`**, and **146 `BASE_RESOURCE_BINDINGS`**.
 
 > [!IMPORTANT]
 > **Engineering Guardrails**:

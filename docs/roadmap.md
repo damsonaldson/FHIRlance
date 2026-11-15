@@ -1,31 +1,27 @@
-# FHIRlance Roadmap: Superseding the HL7 IG Validator & HAPI / Smile CDR Validation Plane
+# FHIRlance Roadmap: Footprint-Prioritized Validation & HAPI / Smile CDR Integration
 
 > [!IMPORTANT]
-> **Baseline Advantage**: FHIRlance already validates all 146 FHIR R4 resource types and 39 complex datatypes at **~27,800 resources/sec (`~36–39 µs/resource`)** in-process (`pydantic-core` Rust hot-path) vs. **~35.1s (`108 ms/resource`)** for `validator_cli.jar` (**~2,766x–3,010x faster**). To supersede `validator_cli.jar` and `FhirInstanceValidator` across both standalone pipelines and **HAPI FHIR / Smile CDR** servers, this roadmap closes the remaining semantic validation gaps while providing zero-JVM-overhead integration surfaces.
+> **Baseline Advantage**: FHIRlance already validates all 146 FHIR R4 resource types, 39 complex datatypes, 183 IG profiles, and 1,161 CodeSystems / 3,297 ValueSets at **~40–80 µs/resource** in-process (`pydantic-core` Rust hot-path) vs. **~20–35s (`108 ms/resource`)** for `validator_cli.jar`.
+> **Prioritization Principle**: Features are ordered by **real-world FHIR community footprint** — validating the **most widely used structures first** (core clinical resources, extensions, slicing, `Bundle` references, and common IG constraints) and **less used / long-tail structures last** (`Questionnaire` `que-*`, `CapabilityStatement`, `MedicinalProduct*`, `ConceptMap`, `R4B`/`R5`).
 
 ```mermaid
 flowchart LR
-    P0["Phase 0: Critical Correctness<br/>& Slicing Fixes"] --> P1["Phase 1: Full Profile,<br/>Slicing & Extension Engine"]
-    P1 --> P2["Phase 2: Dynamic IG Loader (-ig)<br/>& Local Terminology Engine"]
-    P2 --> P3["Phase 3: Compiled FHIRPath<br/>& Bundle Graph Integrity"]
-    P3 --> P4["Phase 4: Enterprise Formats<br/>& fhirlance serve Daemon"]
-    P4 --> P5["Phase 5: HAPI FHIR / Smile CDR<br/>Raw-Byte Interceptor & Edge Filter"]
-    P5 --> P6["Phase 6: libfhirlance Rust C-ABI<br/>& Java 21+ Panama FFI"]
+    T1["Tier 1 (Highest Footprint)<br/>Extensions, Full Slicing,<br/>Bundle Refs & Datatype Bindings"] --> T2["Tier 2 (High Footprint)<br/>Compiled FHIRPath, Element Bounds,<br/>Transitive IGs & Versioned TX"]
+    T2 --> T3["Tier 3 (Medium Footprint)<br/>fhirlance serve UDS Daemon,<br/>HAPI/Smile Interceptor & mmap"]
+    T3 --> T4["Tier 4 (Long-Tail & FFI)<br/>Niche Resources, R4B/R5,<br/>libfhirlance Rust C-ABI & Panama"]
 ```
 
 ---
 
-## Summary Milestone Matrix
+## Summary Milestone Matrix (Ordered by FHIR Community Footprint)
 
-| Phase | Target | Status | Milestone | Primary Integration Surface | Target Latency / Resource |
-| :--- | :---: | :---: | :--- | :--- | ---: |
-| **Phase 0** | `v0.1.x` | **Done (`v0.1.0`)** | Core Correctness, Colon Sub-Slice Resolution & Terminology Bindings | [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`dataset.py`](../src/fhirlance/dataset.py), [`terminology.py`](../src/fhirlance/terminology.py) | **`~36 µs`** |
-| **Phase 1** | `v0.2.0` | **Planned** | Complete Slicing (`type`/`profile`/`exists`), Extension `StructureDefinition`s & JHN Checksums | [`generate_models.py`](../scripts/generate_models.py), [`canadian.py`](../src/fhirlance/canadian.py) | **`~40 µs`** |
-| **Phase 2** | `v0.2.0` | **Done (`v0.1.0`)** | Dynamic `-ig` Package Loader & Local/SQLite Terminology Engine ([`terminology.md`](terminology.md)) | [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) | **`~45 µs`** (local `-tx`) |
-| **Phase 3** | `v0.3.0` | **Planned** | Compiled FHIRPath AST Engine, Bundle Graph Resolution & R4B/R5 Targets | [`invariants.py`](../src/fhirlance/invariants.py), [`resource_validator.py`](../src/fhirlance/resource_validator.py) | **`~50 µs`** |
-| **Phase 4** | `v0.3.0` | **Partial (`v0.1.0`)** | `OperationOutcome` / SARIF / JUnit *(Done)* + Persistent `fhirlance serve` `$validate` Daemon | Unix Domain Socket (`/run/fhirlance.sock`) & HTTP `POST /$validate` | **`~150–250 µs`** over UDS |
-| **Phase 5** | `v0.4.0` | **Planned** | **HAPI FHIR / Smile CDR Raw-Byte Interceptor** & Envoy / NGINX Edge Filter | `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` UDS Sidecar | **`< 0.3 ms`** inside HAPI / Smile |
-| **Phase 6** | `v1.0.0` | **Long-Term** | **Native Rust Shared Library (`libfhirlance`) + Java 21+ Panama FFI** & 100k+ res/s Streaming | In-process off-heap JVM `MemorySegment` (`java.lang.foreign.Linker`) | **`~20–35 µs`** in-process JVM |
+| Tier / Phase | Target | Status | Milestone (Most-Used Structures First) | Primary Surface |
+| :--- | :---: | :---: | :--- | :--- |
+| **Baseline (`v0.1.0`)** | `v0.1.0` | **Done** | 146 R4 Resources, 39 Datatypes, 183 Profiles, Dynamic `-ig`, Local/SQLite TX (`hl7.terminology.r4` + 5 IGs), `OperationOutcome`/SARIF/JUnit | [`resources.py`](../src/fhirlance/resources.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`terminology.py`](../src/fhirlance/terminology.py) |
+| **Tier 1 (`v0.2.0`)** | `v0.2.0` | **Next (#1)** | **Highest-Footprint Structures**: Extension `StructureDefinition`s, Full Slicing (`type`/`profile`/`exists`, slice `max`, `closed`/`ordered`), `Bundle` Reference/`targetProfile` Graph & Outer `Bundle` Dataset Check, Complex Datatype Bindings (`Identifier.type`, `ContactPoint`, `Address`) | [`generate_models.py`](../scripts/generate_models.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`resource_validator.py`](../src/fhirlance/resource_validator.py) |
+| **Tier 2 (`v0.3.0`)** | `v0.3.0` | **Planned** | **High-Footprint Conformance**: General FHIRPath AST Compiler (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, Transitive `package.json` IG Dependencies, Versioned Canonicals (`url\|version`), `--best-practice` (`dom-6`), `--enforce-must-support`, `unknown-profile` | [`invariants.py`](../src/fhirlance/invariants.py), [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) |
+| **Tier 3 (`v0.4.0`)** | `v0.4.0` | **Planned** | **Server & Enterprise Scale**: `fhirlance serve` UDS/HTTP `$validate` Sidecar, **HAPI FHIR / Smile CDR Raw-Byte Interceptor**, Envoy/NGINX Edge Filter, `mmap` Multi-GB NDJSON Streaming | Unix Domain Socket (`/run/fhirlance.sock`), Java HAPI Interceptor |
+| **Tier 4 (`v1.0.0`)** | `v1.0.0` | **Long-Term** | **Long-Tail Structures & Native FFI**: Niche Resources (`que-*`, `CapabilityStatement`, `TestScript`, `ConceptMap`, `MedicinalProduct*`), `R4B`/`R5` Targets, **`libfhirlance` Rust C-ABI + Java 21+ Panama FFI** | `java.lang.foreign.Linker` off-heap `MemorySegment` |
 
 ---
 
@@ -34,159 +30,74 @@ flowchart LR
 | Capability Dimension | Current State in FHIRlance | Remaining Gap vs. `validator_cli.jar` |
 | :--- | :--- | :--- |
 | **Base R4 Structural** | 146 resources + 39 datatypes in [`resources.py`](../src/fhirlance/resources.py) & [`types.py`](../src/fhirlance/types.py) | **Complete** (`extra="forbid"`, strict primitives, `[x]` exclusivity, `_primitive` extensions). |
-| **Profile Engine** | 183 compiled profiles in [`profiles.py`](../src/fhirlance/profiles.py) & [`profile_engine.py`](../src/fhirlance/profile_engine.py) + runtime `-ig` in [`ig_loader.py`](../src/fhirlance/ig_loader.py) | Unknown profile URLs are silently ignored; `maxLength`, `minValue`/`maxValue`, `mustSupport`, and `type.profile` are dropped. |
-| **Slicing** | `fixed` and `pattern` discriminators with `:sliceName` path stripping ([`profile_engine.py`](../src/fhirlance/profile_engine.py)) | Slice `max` cardinality is dropped; `type`/`profile`/`exists` discriminators & `closed`/`ordered` slicing unsupported. |
-| **Terminology** | 1,059 complete CodeSystems, 1,442 ValueSets, offline grammars (UCUM, BCP-47, BCP-13, ISO-3166), L1/L2 SQLite cache, `--tx`, and `--strict-extensible` ([`terminology.md`](terminology.md)) | **Complete (`v0.1.0`)** (see [Terminology Reference](terminology.md)). |
-| **Extensions** | Generic `ext-1` only ([`base.py`](../src/fhirlance/base.py)) | Compile Extension `StructureDefinition`s (`value[x]` types, sub-extension slices, `context`, and `modifierExtension` rules). |
-| **FHIRPath Invariants** | 10 compiled invariant checks in [`invariants.py`](../src/fhirlance/invariants.py) | Add general FHIRPath-to-Python compiler for `dom-1..6`, `ref-1`, `que-*`, and IG differential `ElementDefinition.constraint` expressions. |
-| **Bundles & References** | Entry & `contained[]` recursion in [`resource_validator.py`](../src/fhirlance/resource_validator.py) | Validate outer `Bundle` in dataset runner; add `#contained` and `urn:uuid:` `fullUrl` graph resolution for `targetProfile` conformance. |
-| **Output & Server Ecosystem** | Self-validating FHIR R4 `OperationOutcome`, SARIF v2.1.0, JUnit XML, JSON & text ([`formatters.py`](../src/fhirlance/formatters.py)); intra-file multiprocessing ([`dataset.py`](../src/fhirlance/dataset.py)) | Add `fhirlance serve` persistent UDS/HTTP daemon, HAPI FHIR / Smile CDR raw-byte interceptor, and Rust C-ABI / Panama FFI binding. |
+| **Terminology** | **1,161** complete CodeSystems (incl. `hl7.terminology.r4#6.2.0` UTG), **3,297** ValueSets, offline grammars (UCUM, BCP-47, BCP-13, ISO-3166), L1/L2 SQLite cache, `--tx`, `--strict-extensible` ([`terminology.md`](terminology.md)) | Complex datatype element bindings (`Identifier.type`, `ContactPoint`, `Address`), versioned canonicals (`url\|version`), `CodeSystem.supplements`, `exists`/`generalizes`/`child-of` filters, `ConceptMap`/`$translate`, and `--best-practice` (`preferred` bindings). |
+| **Extensions** | Generic `ext-1` invariant only ([`base.py`](../src/fhirlance/base.py)) | Compile Extension `StructureDefinition`s (`context`, `value[x]` types/bindings, sub-extension slices, `modifierExtension` `isModifier` checks, unknown modifier rejection). |
+| **Slicing** | `fixed` and `pattern` discriminators with `:sliceName` path stripping ([`profile_engine.py`](../src/fhirlance/profile_engine.py)) | Slice `max` cardinality, `type`/`profile`/`exists` discriminators, `closed`/`openAtEnd`/`ordered` rules, and multi-level nested sub-slicing. |
+| **Profile Engine** | 183 compiled profiles in [`profiles.py`](../src/fhirlance/profiles.py) + runtime `-ig` in [`ig_loader.py`](../src/fhirlance/ig_loader.py) | Transitive `package.json` IG `dependencies` auto-resolution, `fhirlance pkg install`, `unknown-profile` warning/error, `maxLength`, `minValue`/`maxValue`, `type.profile`, and `--enforce-must-support`. |
+| **Bundles & References** | Entry & `contained[]` recursion in [`resource_validator.py`](../src/fhirlance/resource_validator.py) | Validate outer `Bundle` in `dataset.py`; resolve `#contained` & `entry[].fullUrl` (`urn:uuid:...`, `ResourceType/id`) for `Reference.type`, `targetProfile`, and `aggregation`. |
+| **FHIRPath Invariants** | 10 compiled invariant checks in [`invariants.py`](../src/fhirlance/invariants.py) | General FHIRPath-to-Python compiler for `dom-1..6`, `ref-1`, `bdl-1..12`, `obs-*`, `pat-*`, `que-*`, and arbitrary IG `ElementDefinition.constraint` rules. |
+| **Output & Server Ecosystem** | `OperationOutcome`, SARIF v2.1.0, JUnit XML, JSON & text ([`formatters.py`](../src/fhirlance/formatters.py)); intra-file multiprocessing ([`dataset.py`](../src/fhirlance/dataset.py)) | `fhirlance serve` UDS/HTTP daemon, HAPI FHIR / Smile CDR raw-byte interceptor, `mmap` streaming, and Rust C-ABI / Panama FFI. |
 
 ---
 
-## Phase 0: Immediate Correctness & Reliability Fixes (P0 Bugs)
+## Tier 1: Highest-Footprint Core Structures (`v0.2.0` — Priority #1)
 
-> [!CAUTION]
-> Auditing [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`dataset.py`](../src/fhirlance/dataset.py), and [`generate_models.py`](../scripts/generate_models.py) surfaced **6 high-impact correctness gaps** where invalid resources can silently pass or valid profiled resources can fail.
+These structures appear in **>80% of real-world FHIR payloads** (US Core, IPS, CA-Baseline, Ontario MI/eReferral `Patient`, `Observation`, `DiagnosticReport`, `Condition`, `ServiceRequest`, `Bundle`).
 
-1. **Fix `CodeableConcept` & `Coding` Terminology Binding Bypass** *(Delivered in `v0.1.0`)*
-   - `_check_bindings` previously checked `if isinstance(val, str)`, skipping `CodeableConcept` (e.g., `Condition.clinicalStatus`, `Observation.code`) and `Coding` elements.
-   - **Fix**: Route through `validate_binding_value()` in [`terminology.py`](../src/fhirlance/terminology.py) to inspect `str`, `Coding.code` (+ `system`), and `CodeableConcept.coding[].code`.
-2. **Load Multi-IG ValueSets & CodeSystems in Codegen** *(Delivered in `v0.1.0`)*
-   - Expand `CodeSystem` and `ValueSet` resources across all `IG_PKGS` (`compose.include.concept`, `compose.include.system`, and `compose.include.valueSet` imports).
-3. **Fix Sub-Slice Path Resolution Bug (e.g., Blood Pressure `coding:SBPCode`)** *(Delivered in `v0.1.0`)*
-   - Strip `:SliceName` qualifiers from segment keys in `CompiledSlice.matchers` and `ig_loader.py`.
-4. **Enforce Outer `Bundle` Validation in Dataset Runner** ([`dataset.py`](../src/fhirlance/dataset.py))
-   - Validate the outer `Bundle` resource (`bdl-1`, `bdl-3`, `bdl-4`, `bdl-7`, and Bundle profiles) when unwrapping `Bundle.entry[].resource`.
-5. **Fix Empty-List `min >= 1` Bypass & Slice `max` Cardinality Drop** ([`profile_engine.py`](../src/fhirlance/profile_engine.py))
-   - Reject empty lists `[]` in `_check_child_present`, and preserve/enforce `max_count: int | None` in `CompiledSlice`.
-6. **Flag Unknown Declared / Requested Profiles** ([`profile_engine.py`](../src/fhirlance/profile_engine.py))
-   - Emit a configurable warning/error issue (`unknown-profile`) when a `meta.profile` or `--profile` URL is unknown.
-
----
-
-## Phase 1: Complete Slicing, Extension & Element Constraint Engine (`v0.2.0`)
-
-To achieve 100% structural/profile parity with `validator_cli.jar` on US Core, IPS, and CA-Baseline:
-
-1. **Full Slicing Semantics** ([`profile_engine.py`](../src/fhirlance/profile_engine.py))
-   - Support all 5 FHIR discriminator types: `value` (`fixed[x]`), `pattern` (`pattern[x]`), `type` (`$this` / polymorphic type check), `profile` (`validate_single_profile` match), and `exists` (presence/absence of path).
-   - Enforce slicing rules: `closed` (reject elements matching no defined slice), `openAtEnd` (unmatched elements must appear after matched slices), and `ordered: true` (slices must appear in declared order).
-2. **First-Class Extension `StructureDefinition` Validation** ([`generate_models.py`](../scripts/generate_models.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py))
-   - Extract all `StructureDefinition`s where `type == "Extension"` across R4 Core, US Core, IPS, CA-Baseline, and PS-CA.
-   - Validate extension `context` (allowed host paths/resources), `value[x]` allowed types and bindings, and complex extension sub-slices (`extension:ombCategory`, `extension:text`, etc.).
-   - Enforce `modifierExtension` rules: verify `isModifier == True` on the definition and flag unknown modifier extensions.
-3. **Remaining `ElementDefinition` Constraints**
-   - Extract and enforce `maxLength`, `minValue[x]` / `maxValue[x]`, `type.profile` (profiled datatypes like `SimpleQuantity` or `Money`), and optional `--enforce-must-support` validation.
-4. **Canadian JHN Checksum & Identifier Formatting** ([`canadian.py`](../src/fhirlance/canadian.py))
-   - Add province-specific JHN format and Luhn/Mod-10 checksum verification (Ontario OHIP 10-digit, BC PHN 10-digit Mod-11, Alberta 9-digit, Quebec RAMQ 4-alpha + 8-digit, Nova Scotia 10-digit, etc.).
-
----
-
-## Phase 2: Dynamic IG Package Manager & Local Terminology Engine (`v0.2.0`)
-
-1. **Dynamic `-ig` Loader & Package Cache Resolver** *(Core delivered in [`ig_loader.py`](../src/fhirlance/ig_loader.py))*
-   - Supports `--ig <package#version | path/to/package.tgz | path/to/dir | path/to/file.json>` on the CLI and Python API with in-memory `(st_mtime_ns, st_size)` fingerprinting.
-   - Next: persistent disk cache in `~/.cache/fhirlance/` and `fhirlance pkg install <id>#<version>` to fetch directly from `packages.fhir.org` without Java or Node.
-2. **Embedded Zero-Latency Terminology Engine** *(Delivered in `v0.1.0`; see [Terminology Reference](terminology.md))*
-   - Built-in offline grammar validators for **UCUM** (`http://unitsofmeasure.org`), **BCP-47** (`urn:ietf:bcp:47`), **BCP-13 MIME**, and **ISO-3166** country/subdivision codes.
-   - Two-tier terminology client (`TxClient`): L1 in-memory LRU cache + L2 SQLite WAL-mode persistent cache (`~/.fhir/fhirlance-tx-cache.sqlite`) with optional remote `$validate-code` fallback.
-   - Complete CodeSystem tables (`COMPLETE_CODE_SYSTEMS`) and ValueSet expansion tables (`VALUE_SET_SPECS`) precompiled across R4 Core and all 5 IGs.
-   - Integrated `--tx` (`local` [default], `remote`, `off`) and `--strict-extensible` options wired into `profile_engine.py`, `resource_validator.py`, `dataset.py`, `formatters.py`, and `cli.py`.
-
----
-
-## Phase 3: Compiled FHIRPath Engine, Bundle Graph Integrity & R4B/R5 (`v0.3.0`)
-
-1. **FHIRPath-to-Python Bytecode Compiler**
-   - Build a lightweight **FHIRPath AST compiler** that compiles standard R4 + IG `ElementDefinition.constraint.expression` strings directly into fast Python callables at codegen/IG-load time.
-   - Cover 100% of R4 base invariants (`dom-1..6`, `ele-1`, `ext-1`, `ref-1`, `bdl-1..12`, `obs-*`, `que-*`, `med-*`, `us-core-*`, `ips-*`).
-2. **Bundle Graph & Reference Resolution Engine**
+1. **First-Class Extension `StructureDefinition` Validation** *(Highest Footprint)*
+   - Extract all `StructureDefinition`s where `type == "Extension"` across built-in IGs (`generate_models.py`) and runtime `-ig` packages (`ig_loader.py`).
+   - Validate extension `context` (allowed host resources/paths), `value[x]` allowed types and ValueSet bindings, and complex extension sub-slices (e.g., `us-core-race`, `us-core-ethnicity`, `data-absent-reason`, provincial extensions).
+   - Enforce `modifierExtension` rules: verify `isModifier == True` on known definitions and reject unknown `modifierExtension` URLs.
+2. **Complete Slicing Semantics & Slice `max` Cardinality**
+   - Support all 5 FHIR discriminator types: `value` (`fixed[x]`), `pattern` (`pattern[x]`), `type` (`$this` / polymorphic type), `profile` (`validate_single_profile` match), and `exists` (presence/absence of sub-element).
+   - Preserve and enforce `max_count: int | None` in `CompiledSlice`, plus `closed` (reject unmatched items), `openAtEnd` (unmatched items after matched slices), `ordered: true`, and multi-level nested sub-slicing (`Observation.component`, `Patient.identifier`, `DiagnosticReport.category`).
+3. **Bundle Reference Graph, `targetProfile` & Outer `Bundle` Validation**
+   - Validate the outer `Bundle` resource (`bdl-1..7`, Bundle profiles) when `dataset.py` unwraps `Bundle.entry[].resource`.
    - Build a per-Bundle symbol table indexing `entry[].fullUrl` (`urn:uuid:...`, `urn:oid:...`, `ResourceType/id`, absolute URLs) and `contained[].id` (`#id`).
-   - Resolve intra-Bundle and contained references to their target JSON objects and verify **`targetProfile` conformance** (e.g., verifying that `Observation.subject` inside a Bundle conforms to `ca-baseline-patient` or `us-core-patient`).
-   - Enforce `type.aggregation` rules (`contained`, `referenced`, `bundled`) and contained resource invariants (`dom-2`, `dom-3`, `dom-4`).
-3. **Multi-Version FHIR Support (`R4B` & `R5`)**
+   - Resolve intra-Bundle and `#contained` references to verify `Reference.type`, **`targetProfile` conformance** (e.g., `DiagnosticReport.result` → `Observation`, `Observation.subject` → `Patient`), and `type.aggregation` (`contained`, `referenced`, `bundled`).
+4. **Complex Datatype Element Bindings**
+   - Extract and enforce ValueSet bindings declared on the 39 complex datatype `StructureDefinition`s themselves (e.g., `Identifier.type`, `ContactPoint.system`/`use`, `HumanName.use`, `Address.use`/`type`/`country`), closing gaps such as `ServiceRequest.requisition.type` (`Identifier.type`).
+
+---
+
+## Tier 2: High-Footprint Conformance, FHIRPath & IG Ecosystem (`v0.3.0`)
+
+1. **General FHIRPath-to-Python Constraint Compiler**
+   - Compile standard R4 and IG `ElementDefinition.constraint.expression` strings directly into fast Python callables at codegen/IG-load time (`dom-1..6`, `ele-1`, `ref-1`, `bdl-1..12`, `obs-*`, `pat-*`, `con-*`, `med-*`, `us-core-*`, `ips-*`).
+   - Add opt-in `--best-practice` flag for non-blocking HL7 best-practice recommendations (`dom-6` narrative, `Observation.performer`, `preferred` ValueSet bindings).
+2. **Remaining `ElementDefinition` Constraints**
+   - Extract and enforce `maxLength`, `minValue[x]` / `maxValue[x]`, `type.profile` (profiled datatypes such as `SimpleQuantity`, `Money`, `Age`, `Duration`), empty-list `min >= 1` edge cases, and optional `--enforce-must-support`.
+3. **Transitive IG & Terminology Completeness**
+   - Automatically resolve transitive `package.json` `dependencies` in `ig_loader.py` and `generate_models.py`, plus persistent disk caching in `~/.cache/fhirlance/` and `fhirlance pkg install <id>#<version>` (fetching from `packages.fhir.org` / Simplifier).
+   - Support versioned canonicals (`url|version`) in `VALUE_SET_SPECS` / `COMPLETE_CODE_SYSTEMS`, `CodeSystem.supplements`, `ValueSet.compose.include.filter` (`exists`, `generalizes`, `child-of`), and configurable `unknown-profile` warnings/errors.
+4. **Canadian JHN Checksum Verification** ([`canadian.py`](../src/fhirlance/canadian.py))
+   - Province-specific JHN format and Luhn/Mod-10/Mod-11 checksums (Ontario OHIP, BC PHN, Alberta, Quebec RAMQ, Nova Scotia, etc.).
+
+---
+
+## Tier 3: Server Sidecar, HAPI / Smile CDR & Enterprise Scale (`v0.4.0`)
+
+1. **`fhirlance serve` — Persistent `$validate` Sidecar Daemon**
+   - **Unix Domain Sockets** (`fhirlance serve --uds /run/fhirlance.sock`) and HTTP (`--host 127.0.0.1 --port 8080`) with pre-forked workers (`--workers N`).
+   - Exposes `POST /$validate`, `POST /{resourceType}/$validate`, `POST /$validate-batch`, `GET /healthz`, `GET /igs`, `HTTP 204 No Content` / `HTTP 422` fast paths, `validate_resource_detailed()`, and `--watch`.
+2. **HAPI FHIR / Smile CDR Raw-Byte Interceptor & Edge Filter**
+   - Hooks `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` (and Smile CDR `CHANNEL_IMPORT`) to stream raw UTF-8 request bytes over UDS to `fhirlance serve` before Jackson/DOM parsing or `FhirInstanceValidator` runs (`< 0.3 ms`).
+   - Reference Envoy / NGINX edge filter configs and Kubernetes sidecar / Docker Compose manifests.
+3. **Memory-Mapped (`mmap`) Streaming NDJSON**
+   - Byte-offset chunking for multi-gigabyte `.ndjson` files with `--stream` $O(1)$-memory output.
+
+---
+
+## Tier 4: Long-Tail Structures, Multi-Version & Native FFI (`v1.0.0`)
+
+Lower-frequency R4 resources and long-term platform targets:
+
+1. **Long-Tail / Specialized FHIR R4 Resources & Terminologies**
+   - `Questionnaire` / `QuestionnaireResponse` (`que-*` invariants and `enableWhen` / `answerOption` checks), `CapabilityStatement` / `OperationDefinition` / `SearchParameter`, `ConceptMap` (`$translate`), `TestScript`, `StructureMap`, `GraphDefinition`, `Subscription`, `MolecularSequence`, `MedicinalProduct*`, and `VerificationResult`.
+2. **Multi-Version FHIR Support (`R4B` & `R5`)**
    - Parameterize [`generate_models.py`](../scripts/generate_models.py) to emit versioned schema modules (`fhirlance.r4`, `fhirlance.r4b`, `fhirlance.r5`).
-
----
-
-## Phase 4: Enterprise Formats & Persistent `$validate` Daemon (`v0.3.0`)
-
-1. **Standard FHIR `OperationOutcome` & CI Formats** *(Delivered in `v0.1.0` — [`formatters.py`](../src/fhirlance/formatters.py))*
-   - `--format operation-outcome` (`validate_to_operation_outcome`), `--format sarif` (SARIF v2.1.0), and `--format junit` (JUnit XML).
-2. **`fhirlance serve` — Persistent `$validate` Sidecar Daemon**
-   - Supports **Unix Domain Sockets** (`fhirlance serve --uds /run/fhirlance.sock`) for zero-network-stack pod-local IPC alongside HTTP (`--host 127.0.0.1 --port 8080`) and pre-forked workers (`--workers N`).
-   - Exposes `POST /$validate`, `POST /{resourceType}/$validate`, `POST /$validate-batch` (NDJSON / Bundle streaming), `GET /healthz`, and `GET /igs`.
-   - Supports fast pass-through headers (`HTTP 204 No Content` when valid, `HTTP 422 Unprocessable Entity` with `application/fhir+json` `OperationOutcome` when invalid) to eliminate response serialization overhead on the happy path.
-   - Target latency: **`~150–250 µs` per resource** over local UDS.
-3. **Structured Issue Taxonomy & Watch Mode**
-   - Provide `validate_resource_detailed()` returning structured `ValidationIssue` dataclasses (`error`, `warning`, `information`, FHIRPath location) and `fhirlance --watch <dir>` for interactive IG authoring.
-
----
-
-## Phase 5: HAPI FHIR & Smile CDR High-Speed Integration (`v0.4.0`)
-
-### Why HAPI FHIR & Smile CDR Need an External Fast Path
-
-The default validator inside HAPI FHIR and Smile CDR (`RequestValidatingInterceptor` backed by `FhirInstanceValidator` / `org.hl7.fhir.core`) executes three expensive operations on the JVM heap for every incoming request:
-1. **Full POJO Deserialization**: Parses raw UTF-8 JSON bytes into HAPI `IBaseResource` Java objects via Jackson/Gson.
-2. **DOM Re-Parsing**: Converts or re-parses the resource into `org.hl7.fhir.r5.elementmodel.Element` trees for `InstanceValidator`.
-3. **Interpretive Profile Traversal**: Evaluates `StructureDefinition` snapshots and FHIRPath expressions interpretively across thousands of short-lived Java allocations, driving JVM garbage collection spikes and **`10–100+ ms` per-resource latency**.
-
-> [!WARNING]
-> **Anti-Patterns to Avoid When Integrating FHIRlance with Java / HAPI**:
-> - **Never spawn the `fhirlance` CLI per HTTP request** (`ProcessBuilder`): Python interpreter startup and module import (`~150–300 ms`) erase FHIRlance's `39 µs` validation speed.
-> - **Never run FHIRlance inside an embedded JVM Python interpreter** (Jython, GraalPy, or Jep): `pydantic-core` is a native Rust extension, and sharing process space or GIL locks with JVM request threads degrades throughput and stability.
-> - **Never deserialize into `IBaseResource` just to re-serialize to JSON for validation**: Intercept the raw request byte stream before HAPI's parser runs.
-
-### Architecture: Raw-Byte HAPI Interceptor + UDS Sidecar
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as FHIR Client
-    participant HAPI as HAPI FHIR / Smile CDR<br/>(Raw-Byte Interceptor)
-    participant Sidecar as fhirlance serve Sidecar<br/>(/run/fhirlance.sock)
-    participant DAO as HAPI JPA / Storage Engine
-
-    Client->>HAPI: POST /Patient (Raw UTF-8 JSON bytes)
-    Note over HAPI: Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED<br/>(Before Jackson/IParser & FhirInstanceValidator)
-    HAPI->>Sidecar: Stream raw JSON bytes + profile URLs over UDS
-    alt Resource is Invalid (~39 µs in Rust + ~80 µs UDS)
-        Sidecar-->>HAPI: 422 Unprocessable Entity + OperationOutcome JSON
-        HAPI-->>Client: 422 Unprocessable Entity (Zero JVM POJO parse!)
-    else Resource is Valid
-        Sidecar-->>HAPI: 204 No Content
-        HAPI->>DAO: Parse once & persist resource (HAPI validator bypassed)
-        DAO-->>HAPI: 201 Created
-        HAPI-->>Client: 201 Created
-    end
-```
-
-### Phase 5 Deliverables
-1. **HAPI FHIR / Smile CDR Raw-Byte Interceptor (`fhirlance-hapi-interceptor`)**:
-   - Hooks `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` (and Smile CDR `CHANNEL_IMPORT`) to read the incoming `HttpServletRequest` byte buffer before HAPI's `IParser` or `RequestValidatingInterceptor` executes.
-   - Streams raw UTF-8 JSON bytes over JDK 16+ native `UnixDomainSocketAddress` (`java.nio.channels.SocketChannel`) to `/run/fhirlance.sock`.
-   - Short-circuits invalid requests by throwing `UnprocessableEntityException` populated with the `OperationOutcome` returned by FHIRlance, completely eliminating `FhirInstanceValidator` CPU and GC overhead.
-   - Registers a drop-in `@Operation(name = "$validate")` provider that delegates `$validate` operations directly to the sidecar.
-2. **Envoy / NGINX Edge Validation Filter**:
-   - Reference configuration for offloading `POST`, `PUT`, and `$validate` validation at the reverse-proxy layer so invalid traffic never reaches the JVM thread pool.
-3. **Kubernetes Sidecar & Docker Compose Templates**:
-   - Production Helm/Compose templates sharing an in-memory `emptyDir: { medium: Memory }` volume for `/run/fhirlance.sock`.
-
----
-
-## Phase 6: Native Rust Shared Library (`libfhirlance`), Java Panama FFI & 100k+ res/s (`v1.0.0`)
-
-For ultra-low-latency JVM environments that want in-process execution with zero sidecar processes and zero IPC overhead, alongside extreme batch throughput:
-
-1. **Standalone Rust Validation Crate (`libfhirlance`)**:
-   - Extend [`generate_models.py`](../scripts/generate_models.py) to emit a pure-Rust validation crate (`serde` + compiled `StructureDefinition` constraint tables + invariant evaluators) compiled to a C-ABI shared library (`libfhirlance.so` / `.dylib` / `.dll`) and Python wheel (`PyO3`).
-2. **Java 21+ Project Panama Binding (`java.lang.foreign`)**:
-   - Provide a zero-dependency Java 21+ wrapper using the Foreign Function & Memory API (`Linker.nativeLinker()`, `MemorySegment`) to pass off-heap UTF-8 request buffers directly to `libfhirlance` inside the HAPI/Smile JVM process at **`~20–35 µs` per resource** with zero JVM garbage collection impact.
-3. **Direct Rust `jiter` / `mmap` Streaming & Zero-Exclusion Live Equivalence**:
-   - Memory-mapped (`mmap`) byte-offset chunking for multi-gigabyte `.ndjson` files with `--stream` O(1) memory output and direct `model_validate_json` byte validation.
-   - Zero-exclusion live `validator_cli.jar` equivalence gate across all 146 R4 resources and all 5 IGs including terminology and reference resolution.
+3. **Native Rust Shared Library (`libfhirlance`) + Java 21+ Project Panama FFI**
+   - Pure-Rust C-ABI shared library (`libfhirlance.so`/`.dylib`/`.dll`) + `PyO3` wheel and `java.lang.foreign.Linker` off-heap `MemorySegment` binding (`~20–35 µs` inside the JVM) with a zero-exclusion live `validator_cli.jar` equivalence gate.
 
 ---
 
