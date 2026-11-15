@@ -240,14 +240,14 @@ It compares:
 3. **Official HL7 Baseline Validator (`validator_cli.jar`)** (`-version 4.0.1 -tx n/a -ig hl7.fhir.uv.ips#1.0.0 -ig hl7.fhir.us.core.r4#8.0.1 -output outcome.json`) against the **exact same 325-resource dataset**.
 
 <!-- PERFORMANCE_BENCHMARK_START -->
-**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-14 20:46 UTC`
+**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,697` pytest items (`8,380+` scenarios, `99.62%` coverage) | **Updated**: `2026-11-15 13:13 UTC`
 
 #### 1. Master Equivalence Dataset (`325` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
 
 | Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |
 | :--- | ---: | ---: | ---: | ---: |
-| **FHIRlance — Standard Mode** | **`25.87 ms`** | **`79.6 µs`** | **`12,564 /s`** | **`1,358.0x`** |
-| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`29.93 ms`** | **`92.1 µs`** | **`10,859 /s`** | **`1,173.8x`** |
+| **FHIRlance — Standard Mode** | **`36.69 ms`** | **`112.9 µs`** | **`8,859 /s`** | **`957.6x`** |
+| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`40.13 ms`** | **`123.5 µs`** | **`8,099 /s`** | **`875.4x`** |
 | **Official HL7 Baseline Validator** | `35.13 s` | `108.1 ms` | `9.25 /s` | `1.0x` |
 
 <sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` · HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>
@@ -256,8 +256,8 @@ It compares:
 
 | Workload | Volume | Elapsed | Throughput |
 | :--- | ---: | ---: | ---: |
-| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`114.70 ms`** | **`8,718 /s`** |
-| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`116.09 ms`** | **`8,614 /s`** |
+| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`145.86 ms`** | **`6,856 /s`** |
+| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`148.59 ms`** | **`6,730 /s`** |
 | **Offline Pytest Suite** (`not hl7_live`) | `2,686` items (`8,380+` cases) | `~12.5 s` | **`~670 cases/s`** |
 <!-- PERFORMANCE_BENCHMARK_END -->
 
