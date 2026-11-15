@@ -13,7 +13,7 @@ For other topics, see:
 ## 1. CLI Reference (`fhirlance`)
 
 ```text
-usage: fhirlance [-h] [--no-canadian] [--profile PROFILE] [-ig IG_SOURCES]
+usage: fhirlance [-h] [--profile PROFILE] [-ig IG_SOURCES]
                  [--parallel]
                  [--format {text,json,operation-outcome,sarif,junit}]
                  [--operation-outcome] [--json] [-o OUTPUT_PATH]
@@ -26,7 +26,6 @@ usage: fhirlance [-h] [--no-canadian] [--profile PROFILE] [-ig IG_SOURCES]
 | :--- | :---: | :--- | :--- |
 | `target` | No | *(Required)* | Path to a FHIR `.json` file (single resource or `Bundle`), `.ndjson` file, or directory containing `.json` / `.ndjson` files. |
 | `-h`, `--help` | No | — | Display CLI usage help and exit. |
-| `--no-canadian` | No | `False` | Disable Canadian localization checks (`meta.profile` presence, provincial/territorial JHN NamingSystem checks, `A1A 1A1` postal code FSA validation, and US-extension restrictions). |
 | `--profile <URL>` | **Yes** | `None` | Additional `StructureDefinition` canonical URL to validate resources against (evaluated alongside any profiles declared in `resource.meta.profile`). |
 | `-ig <SOURCE>`, `--ig <SOURCE>` | **Yes** | `None` | Load custom FHIR Implementation Guide(s) at runtime from an NPM tarball (`.tgz` / `.tar.gz`), unpacked directory, `Bundle` / `StructureDefinition` `.json` file, or `~/.fhir/packages` specifier (`<pkg>#<version>` or `<pkg>`). |
 | `-tx <MODE>`, `--tx <MODE>` | No | `local` | Terminology validation mode: `local` (offline grammars + complete CodeSystems + precompiled ValueSets), `remote` or `<URL>` (two-tier cache with remote Tx server fallback), or `off` (aliases: `-term`, `--term`). |
@@ -58,31 +57,31 @@ usage: fhirlance [-h] [--no-canadian] [--profile PROFILE] [-ig IG_SOURCES]
 ### 1.4 CLI Examples
 
 ```bash
-# 1. Validate a directory of FHIR Bundles/NDJSON with base R4 + IG profiles (disable Canadian rules) and multiprocessing
-fhirlance path/to/data --no-canadian --parallel
+# 1. Validate a directory of FHIR Bundles/NDJSON with base R4 + IG profiles and multiprocessing
+fhirlance path/to/data --parallel
 
 # 2. Emit a standard FHIR R4 OperationOutcome JSON resource to a file
-fhirlance path/to/patient.json --no-canadian --operation-outcome -o outcome.json
+fhirlance path/to/patient.json --operation-outcome -o outcome.json
 
 # 3. Validate terminology: offline local (default), remote fallback, or strict extensible
-fhirlance path/to/data --no-canadian --tx local
-fhirlance path/to/data --no-canadian --tx remote --strict-extensible
-fhirlance path/to/data --no-canadian --tx https://tx.fhir.org/r4
+fhirlance path/to/data --tx local
+fhirlance path/to/data --tx remote --strict-extensible
+fhirlance path/to/data --tx https://tx.fhir.org/r4
 
 # 4. Validate against explicit StructureDefinition profile URLs (repeatable)
-fhirlance path/to/observations.ndjson --no-canadian \
+fhirlance path/to/observations.ndjson \
   --profile http://hl7.org/fhir/StructureDefinition/vitalsigns \
   --profile http://hl7.org/fhir/StructureDefinition/heartrate
 
 # 5. Load custom runtime Implementation Guides (.tgz tarball, folder, or cached package)
-fhirlance path/to/data --no-canadian \
+fhirlance path/to/data \
   -ig path/to/custom-ig.tgz \
   -ig hl7.fhir.uv.ips#1.0.0 \
   --format operation-outcome -o ips-outcome.json
 
 # 6. Generate SARIF v2.1.0 or JUnit XML reports for CI pipelines
-fhirlance path/to/data --no-canadian --format sarif -o results.sarif.json
-fhirlance path/to/data --no-canadian --format junit -o junit-report.xml
+fhirlance path/to/data --format sarif -o results.sarif.json
+fhirlance path/to/data --format junit -o junit-report.xml
 ```
 
 ---
@@ -105,7 +104,6 @@ from fhirlance import (
 # 1. Validate a single resource dictionary -> list[str] (with optional terminology options)
 issues = validate_resource(
     resource_dict,
-    require_canadian_profile=False,
     profile_urls=["http://hl7.org/fhir/StructureDefinition/vitalsigns"],
     ig_sources=["path/to/custom-ig.tgz"],
     tx="local",  # "local", "remote", "off", or TxOptions(mode="local", strict_extensible=True)
@@ -114,7 +112,6 @@ issues = validate_resource(
 # 2. Validate a single resource directly into a FHIR R4 OperationOutcome dict
 outcome = validate_to_operation_outcome(
     resource_dict,
-    require_canadian_profile=False,
     tx="local",
 )
 
@@ -122,7 +119,6 @@ outcome = validate_to_operation_outcome(
 report = validate_dataset(
     "path/to/bundles_or_ndjson",
     parallel=True,
-    require_canadian_profile=False,
     profile_urls=["http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"],
     ig_sources=["path/to/custom-ig.tgz"],
     tx="local",
@@ -157,7 +153,6 @@ register_ig("path/to/custom-ig.tgz")
 | [`ig_loader.py`](../src/fhirlance/ig_loader.py) | Runtime Implementation Guide loader supporting `.tgz` tarballs, unpacked directories, `Bundle`s, `StructureDefinition`s, and `~/.fhir/packages` semver resolution with `baseDefinition` inheritance merging. |
 | [`invariants.py`](../src/fhirlance/invariants.py) | Core FHIRPath invariant dispatchers (`txt-1`, `pat-1`, `obs-6`, `obs-7`, `con-4`, `bdl-1`, `bdl-3`, `bdl-4`, `bdl-7`). |
 | [`primitive_extensions.py`](../src/fhirlance/primitive_extensions.py) | Lazy `_primitive` JSON extension fallback invoked only when `extra="forbid"` encounters a `_field` companion property. |
-| [`canadian.py`](../src/fhirlance/canadian.py) | Pan-Canadian profile and patient localization rules (13 provincial/territorial JHN NamingSystems, `A1A 1A1` postal code FSA validation, and US-extension bans). |
 | [`formatters.py`](../src/fhirlance/formatters.py) | Self-validating FHIR R4 `OperationOutcome`, OASIS SARIF v2.1.0, JUnit XML, JSON, and human-readable text report formatters. |
 | [`resource_validator.py`](../src/fhirlance/resource_validator.py) | Single-resource validation orchestrator and depth-guarded (`max_depth=16`) recursive `Bundle.entry[].resource` and `DomainResource.contained[]` validator. |
 | [`terminology.py`](../src/fhirlance/terminology.py) | Offline grammar validation (UCUM, BCP-47, MIME, ISO-3166), local complete CodeSystems, ValueSet binding validation, and two-tier L1 in-memory / L2 SQLite remote caching client. |

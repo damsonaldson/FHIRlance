@@ -1,4 +1,4 @@
-"""Unit tests for FHIRPath invariants, Canadian localization, profile engine, and edge branches."""
+"""Unit tests for FHIRPath invariants, profile engine, and edge branches."""
 
 from __future__ import annotations
 
@@ -12,13 +12,6 @@ import pytest
 import fhirlance.ig_loader as igl
 from fhirlance import validate_dataset, validate_resource
 from fhirlance.base import _check_int_not_bool, validate_extension_item, validate_primitive_ext_obj
-from fhirlance.canadian import (
-    CA_BASELINE_PROFILES,
-    PROVINCIAL_JHN_SYSTEMS,
-    PS_CA_PROFILES,
-    validate_canadian_patient,
-    validate_canadian_rules,
-)
 from fhirlance.cli import _format_text_lines
 from fhirlance.cli import main as cli_main
 from fhirlance.dataset import _validate_ndjson_file_parallel, _ValidationOptions
@@ -64,39 +57,6 @@ _BUNDLE_TYPES: tuple[str, ...] = (
     "collection",
 )
 
-_POSTAL_CODE_CASES: list[tuple[str, bool]] = [
-    ("A1A 1A1", True),
-    ("B2Y 1A1", True),
-    ("C1A 1A1", True),
-    ("E1C 1A1", True),
-    ("G1A 1A1", True),
-    ("H2X 1Y4", True),
-    ("J1H 1A1", True),
-    ("K1A 0A6", True),
-    ("L5B 2C9", True),
-    ("M5V 3L9", True),
-    ("N2L 3G1", True),
-    ("P3A 1A1", True),
-    ("R3C 0V8", True),
-    ("S7K 1J5", True),
-    ("T2P 1J9", True),
-    ("V6B 1A1", True),
-    ("X1A 1A1", True),
-    ("Y1A 1A1", True),
-    # Invalid first letters (D, F, I, O, Q, U, W, Z) or bad formatting
-    ("D1A 1A1", False),
-    ("F1A 1A1", False),
-    ("I1A 1A1", False),
-    ("O1A 1A1", False),
-    ("Q1A 1A1", False),
-    ("U1A 1A1", False),
-    ("W1A 1A1", False),
-    ("Z1A 1A1", False),
-    ("B2Y1A1", False),
-    ("b2y 1a1", False),
-    ("90210", False),
-]
-
 
 def test_all_fhirpath_invariants_unit() -> None:
     obs_bad_txt = {
@@ -105,19 +65,13 @@ def test_all_fhirpath_invariants_unit() -> None:
         "code": {"text": "HR"},
         "text": {"status": "generated", "div": "<span>not wrapped</span>"},
     }
-    assert any(
-        "Invariant[txt-1]" in i
-        for i in validate_resource(obs_bad_txt, require_canadian_profile=False)
-    )
+    assert any("Invariant[txt-1]" in i for i in validate_resource(obs_bad_txt))
 
     pat_bad_contact = {
         "resourceType": "Patient",
         "contact": ["not-a-dict", {"gender": "female"}],
     }
-    assert any(
-        "Invariant[pat-1]" in i
-        for i in validate_resource(pat_bad_contact, require_canadian_profile=False)
-    )
+    assert any("Invariant[pat-1]" in i for i in validate_resource(pat_bad_contact))
 
     obs_no_comp_code = {
         "resourceType": "Observation",
@@ -126,7 +80,7 @@ def test_all_fhirpath_invariants_unit() -> None:
         "valueInteger": 72,
         "component": [{"code": {"text": "comp"}, "valueInteger": 1}],
     }
-    assert validate_resource(obs_no_comp_code, require_canadian_profile=False) == []
+    assert validate_resource(obs_no_comp_code) == []
 
     bundle_bad = {
         "resourceType": "Bundle",
@@ -146,7 +100,7 @@ def test_all_fhirpath_invariants_unit() -> None:
             },
         ],
     }
-    issues = validate_resource(bundle_bad, require_canadian_profile=False)
+    issues = validate_resource(bundle_bad)
     assert any("Invariant[bdl-1]" in i for i in issues)
     assert any("Invariant[bdl-3]" in i for i in issues)
     assert any("Invariant[bdl-4]" in i for i in issues)
@@ -167,7 +121,7 @@ def test_obs6_and_obs7_across_all_11_value_fields(val_field: str) -> None:
         "dataAbsentReason": {"text": "unknown"},
         "component": [{"code": {"coding": [{"system": "http://loinc.org", "code": "8867-4"}]}}],
     }
-    issues = validate_resource(obs, require_canadian_profile=False)
+    issues = validate_resource(obs)
     assert any("Invariant[obs-6]" in i for i in issues)
     assert any("Invariant[obs-7]" in i for i in issues)
 
@@ -180,9 +134,7 @@ def test_con4_across_all_5_abatement_fields(abatement_field: str) -> None:
         "subject": {"reference": "Patient/1"},
         abatement_field: "2026-01-01",
     }
-    assert any(
-        "Invariant[con-4]" in i for i in validate_resource(cond_bad, require_canadian_profile=False)
-    )
+    assert any("Invariant[con-4]" in i for i in validate_resource(cond_bad))
 
     cond_ok = {
         **cond_bad,
@@ -195,18 +147,14 @@ def test_con4_across_all_5_abatement_fields(abatement_field: str) -> None:
             ]
         },
     }
-    assert not any(
-        "Invariant[con-4]" in i for i in validate_resource(cond_ok, require_canadian_profile=False)
-    )
+    assert not any("Invariant[con-4]" in i for i in validate_resource(cond_ok))
 
 
 @pytest.mark.parametrize("contact_field", _PATIENT_CONTACT_FIELDS)
 def test_pat1_satisfied_by_each_contact_field(contact_field: str) -> None:
     """pat-1 passes when any one of name, telecom, address, or organization is present."""
     pat = {"resourceType": "Patient", "contact": [{contact_field: {"id": "c1"}}]}
-    assert not any(
-        "Invariant[pat-1]" in i for i in validate_resource(pat, require_canadian_profile=False)
-    )
+    assert not any("Invariant[pat-1]" in i for i in validate_resource(pat))
 
 
 @pytest.mark.parametrize("bundle_type", _BUNDLE_TYPES)
@@ -229,7 +177,7 @@ def test_bundle_invariants_across_all_9_bundle_types(bundle_type: str) -> None:
             },
         ],
     }
-    issues = validate_resource(bundle, require_canadian_profile=False)
+    issues = validate_resource(bundle)
     assert any("Invariant[bdl-1]" in i for i in issues) == (
         bundle_type not in {"searchset", "history"}
     )
@@ -241,47 +189,6 @@ def test_bundle_invariants_across_all_9_bundle_types(bundle_type: str) -> None:
     )
     assert any("Invariant[bdl-7]" in i for i in issues) == (
         bundle_type in {"document", "collection"}
-    )
-
-
-@pytest.mark.parametrize(("prov", "jhn_system"), sorted(PROVINCIAL_JHN_SYSTEMS.items()))
-def test_canadian_patient_all_13_provincial_jhn_systems(prov: str, jhn_system: str) -> None:
-    """Every one of the 13 Canadian provincial/territorial JHN NamingSystems is accepted."""
-    patient = {
-        "resourceType": "Patient",
-        "identifier": [{"system": jhn_system, "value": "123456789"}],
-        "address": [{"country": "CA", "state": prov, "postalCode": "A1A 1A1"}],
-    }
-    assert validate_canadian_patient(patient) == []
-
-
-@pytest.mark.parametrize(("postal_code", "expected_valid"), _POSTAL_CODE_CASES)
-def test_canadian_postal_code_matrix(postal_code: str, expected_valid: bool) -> None:
-    """Verify Canadian postal code regex across all valid and invalid FSA first letters."""
-    patient = {
-        "resourceType": "Patient",
-        "identifier": [{"system": PROVINCIAL_JHN_SYSTEMS["NS"], "value": "123"}],
-        "address": [{"country": "CA", "state": "NS", "postalCode": postal_code}],
-    }
-    issues = validate_canadian_patient(patient)
-    assert (len(issues) == 0) == expected_valid
-
-
-@pytest.mark.parametrize(
-    ("rtype_key", "prof_url"),
-    [*CA_BASELINE_PROFILES.items(), *PS_CA_PROFILES.items()],
-)
-def test_canadian_profile_presence_across_all_baseline_and_ps_ca_profiles(
-    rtype_key: str,
-    prof_url: str,
-) -> None:
-    """All CA-Baseline and PS-CA profiles satisfy Canadian meta.profile presence checks."""
-    rtype = rtype_key.split("-", maxsplit=1)[0]
-    res = {"resourceType": rtype, "id": "r1"}
-    assert validate_canadian_rules(res, rtype, [prof_url]) == (
-        ["Patient missing Canadian Jurisdictional Health Number (JHN) identifier"]
-        if rtype == "Patient"
-        else []
     )
 
 
@@ -377,18 +284,13 @@ def test_profile_engine_all_rule_types_and_helpers() -> None:
 
 
 def test_primitive_extension_and_base_helpers() -> None:
-    assert (
-        validate_resource(
-            {"resourceType": "Patient", "birthDate": "1990"}, require_canadian_profile=False
-        )
-        == []
-    )
+    assert validate_resource({"resourceType": "Patient", "birthDate": "1990"}) == []
     bad_patient = {
         "resourceType": "Patient",
         "birthDate": "not-a-date",
         "multipleBirthInteger": True,
     }
-    issues = validate_resource(bad_patient, require_canadian_profile=False)
+    issues = validate_resource(bad_patient)
     assert any("birthDate" in i for i in issues)
     assert any("multipleBirthInteger" in i for i in issues)
 
@@ -415,7 +317,7 @@ def test_primitive_extension_and_base_helpers() -> None:
         "type": "collection",
         "entry": [{"fullUrl": "urn:uuid:1"}],
     }
-    assert validate_resource(bundle_no_res, require_canadian_profile=False) == []
+    assert validate_resource(bundle_no_res) == []
 
 
 def test_uncovered_branches_across_cli_dataset_and_formatters(tmp_path: Path) -> None:
@@ -616,7 +518,6 @@ def test_dataset_edge_cases_and_cli_options(
         cli_main(
             [
                 str(bundle_file),
-                "--no-canadian",
                 "--profile",
                 "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient",
             ]
@@ -625,14 +526,14 @@ def test_dataset_edge_cases_and_cli_options(
     )
     assert "issues" in capsys.readouterr().out or True
 
-    dir_report = validate_dataset(tmp_path, require_canadian_profile=False)
+    dir_report = validate_dataset(tmp_path)
     assert dir_report["total_resources"] == 2
     assert dir_report["valid_resources"] == 2
     error_files = {item["file"] for item in dir_report["issues"]}
     assert {"broken.json", "bad_encoding.ndjson"}.issubset(error_files)
 
 
-def test_canadian_non_dict_and_remaining_branches() -> None:
+def test_remaining_edge_branches() -> None:
     with pytest.raises(ValueError, match="Expected integer, got boolean"):
         _check_int_not_bool(True)
     with pytest.raises(ValueError, match="non-empty list"):
@@ -640,15 +541,6 @@ def test_canadian_non_dict_and_remaining_branches() -> None:
     with pytest.raises(ValueError, match="model_type"):
         Extension.model_validate("not-a-dict")
 
-    issues = validate_canadian_patient(
-        {
-            "resourceType": "Patient",
-            "identifier": ["bad-ident"],
-            "address": ["bad-addr"],
-            "extension": ["bad-ext"],
-        }
-    )
-    assert any("JHN" in i for i in issues)
     assert _coding_signatures("not-a-dict") == set()
     assert validate_resource({"resourceType": "NoSuchResource"}) == [
         "Unknown FHIR R4 resourceType: 'NoSuchResource'"
@@ -661,4 +553,4 @@ def test_canadian_non_dict_and_remaining_branches() -> None:
         "valueInteger": 120,
         "component": [{"code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]}}],
     }
-    assert validate_resource(obs_diff_comp, require_canadian_profile=False) == []
+    assert validate_resource(obs_diff_comp) == []

@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from fhirlance.base import FHIRBaseModel
-from fhirlance.canadian import validate_canadian_rules
 from fhirlance.ig_loader import load_compiled_ig_profiles
 from fhirlance.invariants import check_fhirpath_invariants
 from fhirlance.primitive_extensions import (
@@ -138,7 +137,6 @@ def _validate_nested_resources(
     resource: dict[str, Any],
     rtype: str,
     *,
-    require_canadian_profile: bool,
     ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None,
     **kwargs: Any,
 ) -> list[str]:
@@ -152,7 +150,6 @@ def _validate_nested_resources(
             sub_warnings: list[str] | None = [] if warnings_out is not None else None
             sub_issues = validate_resource(
                 sub,
-                require_canadian_profile=False,
                 ig_sources=ig_sources,
                 _depth=depth + 1,
                 tx=tx_options,
@@ -168,7 +165,6 @@ def _validate_nested_resources(
                 sub_warnings = [] if warnings_out is not None else None
                 sub_issues = validate_resource(
                     entry["resource"],
-                    require_canadian_profile=require_canadian_profile,
                     ig_sources=ig_sources,
                     _depth=depth + 1,
                     tx=tx_options,
@@ -193,7 +189,6 @@ def _resolve_compiled_map(
 def validate_resource(
     resource: Any,
     *,
-    require_canadian_profile: bool = True,
     profile_urls: list[str] | tuple[str, ...] | None = None,
     ig_sources: Sequence[str | Path] | dict[str, CompiledProfile] | None = None,
     **kwargs: Any,
@@ -226,8 +221,6 @@ def validate_resource(
     issues.extend(check_fhirpath_invariants(resource, rtype))
 
     declared_profiles = _extract_declared_profiles(resource)
-    if require_canadian_profile:
-        issues.extend(validate_canadian_rules(resource, rtype, declared_profiles))
 
     compiled_map = _resolve_compiled_map(ig_sources)
     profiles_dict = compiled_map if compiled_map is not None else COMPILED_PROFILES
@@ -260,7 +253,6 @@ def validate_resource(
         _validate_nested_resources(
             resource,
             rtype,
-            require_canadian_profile=require_canadian_profile,
             ig_sources=compiled_map,
             depth=depth,
             tx=tx_options,

@@ -779,7 +779,6 @@ def test_dataset_validation_with_terminology_serial_and_parallel(tmp_path: Path)
     for parallel_mode in (False, True):
         report = validate_dataset(
             tmp_path,
-            require_canadian_profile=False,
             parallel=parallel_mode,
             threads=2 if parallel_mode else None,
             tx="local",
@@ -794,7 +793,6 @@ def test_dataset_validation_with_terminology_serial_and_parallel(tmp_path: Path)
         # Test tx="off" ignores terminology errors
         report_off = validate_dataset(
             tmp_path,
-            require_canadian_profile=False,
             parallel=parallel_mode,
             threads=2 if parallel_mode else None,
             tx="off",
@@ -806,7 +804,6 @@ def test_dataset_validation_with_terminology_serial_and_parallel(tmp_path: Path)
         # Test strict_extensible=True turns warning into error
         report_strict = validate_dataset(
             tmp_path,
-            require_canadian_profile=False,
             parallel=parallel_mode,
             threads=2 if parallel_mode else None,
             tx="local",
@@ -841,7 +838,7 @@ def test_dataset_ndjson_with_terminology_warnings_and_errors(tmp_path: Path) -> 
     ]
     ndjson_file.write_text("\n".join(lines), encoding="utf-8")
 
-    report = validate_dataset(ndjson_file, require_canadian_profile=False, tx="local")
+    report = validate_dataset(ndjson_file, tx="local")
     assert report["total_resources"] == 2
     assert report["valid_resources"] == 2
     assert len(report["warnings"]) == 1
@@ -876,18 +873,18 @@ def test_cli_flags_tx_off_and_local(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     )
 
     # 1. CLI with --tx off -> exits 0
-    monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), "--no-canadian", "--tx", "off"])
+    monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), "--tx", "off"])
     rc_off = cli_main()
     assert rc_off == 0
 
     # 2. CLI with --tx local -> exits 1
-    monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), "--no-canadian", "--tx", "local"])
+    monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), "--tx", "local"])
     rc_local = cli_main()
     assert rc_local == 1
 
     # 3. CLI with aliases -tx, --term, -term
     for flag in ("-tx", "--term", "-term"):
-        monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), "--no-canadian", flag, "off"])
+        monkeypatch.setattr("sys.argv", ["fhirlance", str(err_file), flag, "off"])
         assert cli_main() == 0
 
 
@@ -915,13 +912,11 @@ def test_cli_strict_extensible_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     )
 
     # Default tx=local does not fail on warnings
-    monkeypatch.setattr("sys.argv", ["fhirlance", str(warn_file), "--no-canadian"])
+    monkeypatch.setattr("sys.argv", ["fhirlance", str(warn_file)])
     assert cli_main() == 0
 
     # --strict-extensible treats warnings as errors -> exits 1
-    monkeypatch.setattr(
-        "sys.argv", ["fhirlance", str(warn_file), "--no-canadian", "--strict-extensible"]
-    )
+    monkeypatch.setattr("sys.argv", ["fhirlance", str(warn_file), "--strict-extensible"])
     assert cli_main() == 1
 
 
@@ -966,7 +961,7 @@ def test_formatters_operation_outcome_and_sarif_with_terminology() -> None:
             ]
         },
     }
-    val_oo = validate_to_operation_outcome(invalid_obs, require_canadian_profile=False, tx="local")
+    val_oo = validate_to_operation_outcome(invalid_obs, tx="local")
     assert any(iss.get("code") == "code-invalid" for iss in val_oo.get("issue", []))
 
     # dataset_to_operation_outcome
@@ -1231,7 +1226,6 @@ def test_deduplicate_base_binding_vs_active_profile_binding() -> None:
     issues = validate_resource(
         bad_obs,
         profile_urls=[vitals_url],
-        require_canadian_profile=False,
         tx="local",
     )
     status_errors = [i for i in issues if "invalid-status-xyz" in i]

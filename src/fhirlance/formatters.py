@@ -219,15 +219,6 @@ SARIF_RULES: list[dict[str, Any]] = [
         "defaultConfiguration": {"level": "error"},
     },
     {
-        "id": "FHIR004-Canadian",
-        "name": "CanadianLocalization",
-        "shortDescription": {"text": "Pan-Canadian baseline or CA-Core localization violation"},
-        "fullDescription": {
-            "text": "The resource fails Pan-Canadian baseline profile, JHN, or address rules."
-        },
-        "defaultConfiguration": {"level": "error"},
-    },
-    {
         "id": "FHIR005-ParseError",
         "name": "FileParseError",
         "shortDescription": {"text": "JSON syntax or file encoding parse error"},
@@ -269,18 +260,9 @@ def _classify_issue_code(issue_str: str) -> str:
         or "could not validate code" in issue_str
     ):
         return "code-invalid"
-    if (
-        "missing required element" in issue_str
-        or "missing Canadian" in issue_str
-        or "no Canadian meta.profile" in issue_str
-    ):
+    if "missing required element" in issue_str:
         return "required"
-    if (
-        "Profile[" in issue_str
-        or "Address[" in issue_str
-        or "Canadian" in issue_str
-        or "US-only" in issue_str
-    ):
+    if "Profile[" in issue_str:
         return "value"
     return "invalid"
 
@@ -502,14 +484,6 @@ def dataset_to_operation_outcome(report: dict[str, Any]) -> dict[str, Any]:
 def _classify_sarif_rule_id(issue_str: str) -> str:
     if "Invariant[" in issue_str or "ext-1" in issue_str:
         return "FHIR002-Invariant"
-    if (
-        "no Canadian" in issue_str
-        or "missing Canadian" in issue_str
-        or "Canadian" in issue_str
-        or "Address[" in issue_str
-        or "US-only" in issue_str
-    ):
-        return "FHIR004-Canadian"
     if "Profile[" in issue_str or "not in required ValueSet" in issue_str:
         return "FHIR003-Profile"
     if (
@@ -767,7 +741,6 @@ def format_dataset_report(
 def validate_to_operation_outcome(
     resource: Any,
     *,
-    require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
     **kwargs: Any,
@@ -776,7 +749,6 @@ def validate_to_operation_outcome(
     warnings: list[str] = []
     issues = validate_resource(
         resource,
-        require_canadian_profile=require_canadian_profile,
         profile_urls=profile_urls,
         ig_sources=ig_sources,
         _warnings_out=warnings,

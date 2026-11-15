@@ -16,7 +16,6 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 - **Full FHIR R4 Base Spec**: All **146 resources** and **39 complex datatypes** (`659` generated Pydantic v2 models, `8,350` fields, `186` `[x]` choice groups, `_primitive` extensions, `ext-1`, core FHIRPath invariants, and recursive `Bundle` / `contained[]` validation).
 - **Multi-IG Profile Engine**: **183 pre-compiled profiles** (`2,009` rules) across **HL7 R4 Core, CA-Baseline 1.2.0, Infoway CA Core 1.1.0, HL7 IPS 1.0.0, and HL7 US Core 8.0.1**, plus dynamic runtime `-ig` loading (`.tgz`, folders, Bundles, StructureDefinitions).
 - **Terminology Validation Engine**: Built-in offline grammar validators (UCUM, BCP-47, MIME, ISO-3166), complete CodeSystems (`1,059` systems), precompiled ValueSets (`1,442` ValueSets), `--tx` (`local`, `remote`, `off`), and `--strict-extensible` with two-tier in-memory / SQLite caching.
-- **Canadian Localization**: Opt-in CA-Baseline / PS-CA `meta.profile`, all **13 provincial/territorial JHN systems**, `A1A 1A1` postal code FSA checks, and US-extension restrictions (`--no-canadian` to disable).
 - **Standard Output Formats**: Text, JSON, self-validating FHIR R4 `OperationOutcome`, **SARIF v2.1.0**, and **JUnit XML**.
 
 ## Performance & Benchmarks
@@ -57,22 +56,22 @@ Auto-updated on build via [`scripts/benchmark_performance.py`](scripts/benchmark
 pip install -e ".[dev]"
 
 # Validate a file or directory (parallel, base R4 + IG profiles, OperationOutcome output)
-fhirlance path/to/data --no-canadian --parallel --operation-outcome -o outcome.json
+fhirlance path/to/data --parallel --operation-outcome -o outcome.json
 
 # Validate with offline terminology engine (--tx local default) or remote server fallback
-fhirlance path/to/data --no-canadian --tx local --strict-extensible
+fhirlance path/to/data --tx local --strict-extensible
 
 # Validate with custom runtime IGs (.tgz, folder, or cached package) and explicit profiles
-fhirlance path/to/data --no-canadian -ig path/to/custom-ig.tgz --profile http://hl7.org/fhir/StructureDefinition/vitalsigns
+fhirlance path/to/data -ig path/to/custom-ig.tgz --profile http://hl7.org/fhir/StructureDefinition/vitalsigns
 ```
 
 ```python
 from fhirlance import validate_dataset, validate_resource, validate_to_operation_outcome
 
 # Validate with offline terminology checks (UCUM, BCP-47, complete CodeSystems & ValueSets)
-issues = validate_resource(resource_dict, require_canadian_profile=False, tx="local")
-outcome = validate_to_operation_outcome(resource_dict, require_canadian_profile=False, tx="local")
-report = validate_dataset("path/to/data", parallel=True, require_canadian_profile=False, tx="local")
+issues = validate_resource(resource_dict, tx="local")
+outcome = validate_to_operation_outcome(resource_dict, tx="local")
+report = validate_dataset("path/to/data", parallel=True, tx="local")
 ```
 
 - **Full CLI flags, exit codes, Python API & module guide**: **[CLI, Python API & Architecture Reference](docs/usage-and-architecture.md)**.

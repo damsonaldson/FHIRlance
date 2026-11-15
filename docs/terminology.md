@@ -262,25 +262,25 @@ In FHIR profiling, a child profile cannot weaken a parent profile's binding stre
 
 ```bash
 # 1. Standard offline validation (default local mode)
-fhirlance path/to/observations.ndjson --no-canadian
+fhirlance path/to/observations.ndjson
 
 # 2. Enable remote terminology server with two-tier SQLite caching
-fhirlance path/to/patient.json --no-canadian --tx remote
+fhirlance path/to/patient.json --tx remote
 
 # 3. Use a custom enterprise terminology server (e.g. Ontoserver or Smile CDR)
-fhirlance path/to/data --no-canadian --tx https://tx.example.org/r4
+fhirlance path/to/data --tx https://tx.example.org/r4
 
 # 4. Enforce strict extensible bindings (treat extensible warnings as blocking errors)
-fhirlance path/to/data --no-canadian --strict-extensible
+fhirlance path/to/data --strict-extensible
 
 # 5. Disable terminology checks entirely (pure structural/invariant validation)
-fhirlance path/to/data --no-canadian --tx off
+fhirlance path/to/data --tx off
 
 # 6. Emit compliant FHIR R4 OperationOutcome with terminology issue diagnostics
-fhirlance path/to/resource.json --no-canadian --operation-outcome -o outcome.json
+fhirlance path/to/resource.json --operation-outcome -o outcome.json
 
 # 7. Generate SARIF report for GitHub Code Scanning
-fhirlance path/to/data --no-canadian --format sarif -o results.sarif.json
+fhirlance path/to/data --format sarif -o results.sarif.json
 ```
 
 ### 6.2 Python API Examples
@@ -318,7 +318,6 @@ resource = {
 
 issues = validate_resource(
     resource,
-    require_canadian_profile=False,
     tx=tx_opts,
 )
 assert issues == []
@@ -333,7 +332,6 @@ from fhirlance import validate_dataset
 report = validate_dataset(
     "path/to/resources",
     parallel=True,
-    require_canadian_profile=False,
     tx="local",
     strict_extensible=False,
 )
