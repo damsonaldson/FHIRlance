@@ -22,6 +22,7 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -69,6 +70,16 @@ class ModeMetrics:
 
 
 @dataclass(frozen=True, slots=True)
+class SuiteMetrics:
+    """Test suite item counts, coverage, and offline execution timing."""
+
+    total_items: int
+    offline_items: int
+    coverage_pct: float
+    offline_elapsed_s: float
+
+
+@dataclass(frozen=True, slots=True)
 class BenchmarkReport:
     """Complete build-time benchmark report persisted to docs/benchmark-results.json."""
 
@@ -81,7 +92,9 @@ class BenchmarkReport:
     r4_resource_types: int
     compiled_ig_profiles: int
     master_suite_items: int
-    master_suite_scenarios: int
+    offline_suite_items: int
+    coverage_pct: float
+    offline_suite_elapsed_s: float
     standard_mode: ModeMetrics
     operation_outcome_mode: ModeMetrics
     hl7_baseline_mode: ModeMetrics
@@ -255,12 +268,79 @@ def _measure_or_load_hl7_baseline(corpus: list[dict[str, Any]], run_live: bool) 
     return DEFAULT_HL7_ELAPSED_S
 
 
-def run_benchmarks(run_hl7_live: bool = False) -> BenchmarkReport:
+def _load_previous_suite_metrics() -> SuiteMetrics:
+    """Load previously recorded suite metrics from `docs/benchmark-results.json`."""
+    if BENCHMARK_JSON_PATH.exists():
+        try:
+            prev = json.loads(BENCHMARK_JSON_PATH.read_text(encoding="utf-8"))
+            return SuiteMetrics(
+                total_items=int(prev["master_suite_items"]),
+                offline_items=int(prev["offline_suite_items"]),
+                coverage_pct=float(prev["coverage_pct"]),
+                offline_elapsed_s=float(prev["offline_suite_elapsed_s"]),
+            )
+        except (KeyError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+    return SuiteMetrics(
+        total_items=2713,
+        offline_items=2703,
+        coverage_pct=96.89,
+        offline_elapsed_s=22.24,
+    )
+
+
+def _measure_pytest_suite() -> SuiteMetrics:
+    """Run the offline pytest suite with coverage and parse dynamic metrics."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-m",
+        "not hl7_live",
+        "--cov",
+        "--cov-report=term-missing",
+        "-q",
+    ]
+    proc = subprocess.run(  # noqa: S603
+        cmd,
+        cwd=ROOT_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = f"{proc.stdout}\n{proc.stderr}"
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Offline pytest suite failed (exit {proc.returncode}):\n{output[-1500:]}"
+        )
+
+    passed_m = re.search(r"(\d+)\s+passed", output)
+    deselected_m = re.search(r"(\d+)\s+deselected", output)
+    cov_m = re.search(r"Total coverage:\s*([\d.]+)%", output)
+    time_m = re.search(r"in\s+([\d.]+)s\b", output)
+    if not (passed_m and cov_m and time_m):
+        raise RuntimeError(f"Could not parse pytest suite metrics from output:\n{output[-1000:]}")
+
+    offline_items = int(passed_m.group(1))
+    deselected_items = int(deselected_m.group(1)) if deselected_m else 0
+    return SuiteMetrics(
+        total_items=offline_items + deselected_items,
+        offline_items=offline_items,
+        coverage_pct=round(float(cov_m.group(1)), 2),
+        offline_elapsed_s=round(float(time_m.group(1)), 2),
+    )
+
+
+def run_benchmarks(
+    run_hl7_live: bool = False,
+    include_pytest: bool = False,
+) -> BenchmarkReport:
     """Execute benchmarks and return a structured `BenchmarkReport`."""
     corpus = _load_master_325_corpus()
     hl7_s = _measure_or_load_hl7_baseline(corpus, run_live=run_hl7_live)
     std_metrics, oo_metrics = _measure_python_modes(corpus, hl7_elapsed_s=hl7_s)
     ndjson_std_ms, ndjson_oo_ms = _measure_ndjson_1k(corpus)
+    suite = _measure_pytest_suite() if include_pytest else _load_previous_suite_metrics()
 
     count = len(corpus)
     hl7_metrics = ModeMetrics(
@@ -278,8 +358,10 @@ def run_benchmarks(run_hl7_live: bool = False) -> BenchmarkReport:
         corpus_size=count,
         r4_resource_types=len(RESOURCE_MODELS),
         compiled_ig_profiles=len(COMPILED_PROFILES),
-        master_suite_items=2697,
-        master_suite_scenarios=8380,
+        master_suite_items=suite.total_items,
+        offline_suite_items=suite.offline_items,
+        coverage_pct=suite.coverage_pct,
+        offline_suite_elapsed_s=suite.offline_elapsed_s,
         standard_mode=std_metrics,
         operation_outcome_mode=oo_metrics,
         hl7_baseline_mode=hl7_metrics,
@@ -297,7 +379,10 @@ def render_markdown_section(report: BenchmarkReport) -> str:
     hl7_ms_per_res = hl7.per_resource_us / 1000.0
     nd_std_tput = round(1000.0 / (report.ndjson_1k_standard_ms / 1000.0), 0)
     nd_oo_tput = round(1000.0 / (report.ndjson_1k_operation_outcome_ms / 1000.0), 0)
-    offline_items = report.master_suite_items - 11
+    offline_tput = round(
+        report.offline_suite_items / max(report.offline_suite_elapsed_s, 0.01),
+        1,
+    )
 
     lines = [
         START_MARKER,
@@ -305,7 +390,7 @@ def render_markdown_section(report: BenchmarkReport) -> str:
         f"**Python**: `{report.python_version}` | "
         f"**Pydantic**: `v{report.pydantic_version}` (Rust `pydantic-core`) | "
         f"**Master Suite**: `{report.master_suite_items:,}` pytest items "
-        f"(`{report.master_suite_scenarios:,}+` scenarios, `99.62%` coverage) | "
+        f"(`{report.offline_suite_items:,}` offline, `{report.coverage_pct:.2f}%` coverage) | "
         f"**Updated**: `{report.recorded_at_utc}`",
         "",
         f"#### 1. Master Equivalence Dataset (`{report.corpus_size}` Resources, "
@@ -337,8 +422,8 @@ def render_markdown_section(report: BenchmarkReport) -> str:
         f"`1,000` res | **`{report.ndjson_1k_operation_outcome_ms:.2f} ms`** | "
         f"**`{nd_oo_tput:,.0f} /s`** |",
         "| **Offline Pytest Suite** (`not hl7_live`) | "
-        f"`{offline_items:,}` items (`{report.master_suite_scenarios:,}+` cases) | "
-        "`~12.5 s` | **`~670 cases/s`** |",
+        f"`{report.offline_suite_items:,}` items (`{report.coverage_pct:.2f}%` cov) | "
+        f"`{report.offline_suite_elapsed_s:.2f} s` | **`{offline_tput:,.1f} items/s`** |",
         END_MARKER,
     ]
     return "\n".join(lines)
@@ -381,8 +466,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Re-run official HL7 validator_cli.jar live against the 325-resource corpus.",
     )
+    parser.add_argument(
+        "--measure-pytest",
+        action="store_true",
+        help="Run the offline pytest suite with coverage to refresh suite metrics.",
+    )
+    parser.add_argument(
+        "--skip-pytest",
+        action="store_true",
+        help="Reuse previously recorded pytest suite counts/coverage instead of running pytest.",
+    )
     args = parser.parse_args(argv)
-    report = run_benchmarks(run_hl7_live=args.run_hl7_live)
+    include_pytest = (args.update_docs or args.measure_pytest) and not args.skip_pytest
+    report = run_benchmarks(
+        run_hl7_live=args.run_hl7_live,
+        include_pytest=include_pytest,
+    )
     if args.update_docs:
         update_documentation(report)
     print(render_markdown_section(report))
