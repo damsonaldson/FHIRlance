@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
+
 R4_PKG = Path.home() / ".fhir" / "packages" / "hl7.fhir.r4.core#4.0.1" / "package"
 THO_PKG = Path.home() / ".fhir" / "packages" / "hl7.terminology.r4#6.2.0" / "package"
 IG_PKGS = [
@@ -893,17 +895,22 @@ def _generate_all_ig_profiles(
     """Extract constraint specs and compile terminology across configured IG packages."""
     sd_type_by_url = _collect_sd_types(ig_pkgs)
     profiles: dict[str, dict[str, Any]] = {}
+    extensions: dict[str, dict[str, Any]] = {}
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
         for path in _glob_json(pkg, "StructureDefinition-"):
             sd = json.loads(path.read_text(encoding="utf-8"))
             url = sd.get("url")
-            if not url or sd.get("kind") != "resource" or sd.get("derivation") != "constraint":
+            if not url or sd.get("derivation") != "constraint":
                 continue
-            profiles[url] = _extract_profile_spec(sd, sd_type_by_url, value_sets)
+            if sd.get("type") == "Extension":
+                extensions[url] = extract_extension_spec(sd, sd_type_by_url, value_sets)
+            elif sd.get("kind") == "resource":
+                profiles[url] = _extract_profile_spec(sd, sd_type_by_url, value_sets)
 
     resolved = _resolve_all_profiles(profiles)
+    resolved_extensions = resolve_all_extensions(extensions)
     header = (
         '"""Profile constraints and terminology tables compiled '
         'from R4 Core and IG packages."""\n\n'
@@ -917,7 +924,8 @@ def _generate_all_ig_profiles(
         + f"COMPLETE_CODE_SYSTEMS: dict[str, list[str]] = {cs_table!r}\n\n"
         + f"VALUE_SET_SPECS: dict[str, dict[str, Any]] = {vs_table!r}\n\n"
         + f"BASE_RESOURCE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {bb_table!r}\n\n"
-        + f"PROFILE_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved!r}\n"
+        + f"PROFILE_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved!r}\n\n"
+        + f"EXTENSION_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved_extensions!r}\n"
     )
 
 

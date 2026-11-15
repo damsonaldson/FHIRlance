@@ -13,11 +13,13 @@ from fhirlance.formatters import (
 )
 from fhirlance.ig_loader import (
     clear_ig_cache,
+    load_compiled_ig_extensions,
     load_compiled_ig_profiles,
+    load_raw_ig_extensions,
     load_raw_ig_profiles,
     register_ig,
 )
-from fhirlance.profiles import PROFILE_CONSTRAINTS
+from fhirlance.profiles import EXTENSION_CONSTRAINTS, PROFILE_CONSTRAINTS
 from fhirlance.resource_validator import validate_resource
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.terminology import (
@@ -34,6 +36,7 @@ from fhirlance.validator import validate_dataset_structural
 __version__ = "0.1.0"
 
 __all__ = [
+    "EXTENSION_CONSTRAINTS",
     "PROFILE_CONSTRAINTS",
     "RESOURCE_MODELS",
     "SUPPORTED_OUTPUT_FORMATS",
@@ -49,7 +52,9 @@ __all__ = [
     "dataset_to_sarif",
     "format_dataset_report",
     "issues_to_operation_outcome",
+    "load_compiled_ig_extensions",
     "load_compiled_ig_profiles",
+    "load_raw_ig_extensions",
     "load_raw_ig_profiles",
     "loads_strict_json",
     "parse_tx_options",
