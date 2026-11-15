@@ -134,6 +134,27 @@ def _validate_standalone_and_base_bindings(
     _validate_base_bindings(resource, rtype, tx_options, issues, **kwargs)
 
 
+def _build_bundle_index(resource: dict[str, Any]) -> dict[str, dict[str, Any]] | None:
+    entries = resource.get("entry")
+    if not isinstance(entries, list):
+        return None
+    index: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        entry_res = entry.get("resource")
+        if not isinstance(entry_res, dict):
+            continue
+        full_url = entry.get("fullUrl")
+        if isinstance(full_url, str) and full_url:
+            index[full_url] = entry_res
+        e_rtype = entry_res.get("resourceType")
+        e_rid = entry_res.get("id")
+        if isinstance(e_rtype, str) and e_rtype and isinstance(e_rid, str) and e_rid:
+            index[f"{e_rtype}/{e_rid}"] = entry_res
+    return index or None
+
+
 def _validate_nested_resources(
     resource: dict[str, Any],
     rtype: str,
@@ -145,6 +166,7 @@ def _validate_nested_resources(
     tx_options = kwargs.get("tx")
     warnings_out: list[str] | None = kwargs.get("_warnings_out")
     compiled_extensions = kwargs.get("_compiled_extensions")
+    bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index")
     issues: list[str] = []
     contained = resource.get("contained")
     if isinstance(contained, list):
@@ -157,6 +179,7 @@ def _validate_nested_resources(
                 tx=tx_options,
                 _warnings_out=sub_warnings,
                 _compiled_extensions=compiled_extensions,
+                _bundle_index=bundle_index,
             )
             issues.extend(f"contained[{idx}]: {msg}" for msg in sub_issues)
             if warnings_out is not None and sub_warnings:
@@ -173,6 +196,7 @@ def _validate_nested_resources(
                     tx=tx_options,
                     _warnings_out=sub_warnings,
                     _compiled_extensions=compiled_extensions,
+                    _bundle_index=bundle_index,
                 )
                 issues.extend(f"entry[{idx}].resource: {msg}" for msg in sub_issues)
                 if warnings_out is not None and sub_warnings:
@@ -254,6 +278,12 @@ def validate_resource(
             skip_paths=profile_bound_paths,
         )
 
+    bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
+        "bundle_index"
+    )
+    if bundle_index is None and rtype == "Bundle":
+        bundle_index = _build_bundle_index(resource)
+
     for prof_url in effective_profiles:
         issues.extend(
             validate_single_profile(
@@ -263,6 +293,7 @@ def validate_resource(
                 compiled_profiles=profiles_dict,
                 tx=tx_options,
                 _warnings_out=_warnings_out,
+                bundle_index=bundle_index,
             )
         )
 
@@ -275,6 +306,7 @@ def validate_resource(
             tx=tx_options,
             _warnings_out=_warnings_out,
             _compiled_extensions=ext_dict,
+            _bundle_index=bundle_index,
         )
     )
     return issues

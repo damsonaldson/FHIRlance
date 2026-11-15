@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
+from fhirlance.slicing_spec import extract_slice_groups, merge_slice_groups
 
 R4_PKG = Path.home() / ".fhir" / "packages" / "hl7.fhir.r4.core#4.0.1" / "package"
 THO_PKG = Path.home() / ".fhir" / "packages" / "hl7.terminology.r4#6.2.0" / "package"
@@ -770,10 +771,12 @@ def _extract_profile_spec(
     value_sets: dict[str, list[str]],
 ) -> dict[str, Any]:
     acc = _ProfileAccumulator()
-    for el in sd.get("differential", {}).get("element", []):
+    diff_elements = sd.get("differential", {}).get("element", [])
+    for el in diff_elements:
         _record_differential_element(el, sd_type_by_url, value_sets, acc)
 
-    for el in sd.get("snapshot", {}).get("element", []):
+    snap_elements = sd.get("snapshot", {}).get("element", [])
+    for el in snap_elements:
         sp = el.get("path", "")
         if sp.endswith(_CHOICE_SUFFIX) and ":" not in el.get("id", ""):
             stypes = [t["code"] for t in el.get("type", []) if t.get("code")]
@@ -793,6 +796,9 @@ def _extract_profile_spec(
         "bindings": acc.bindings,
         "binding_specs": acc.binding_specs,
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
+        "slice_groups": extract_slice_groups(
+            diff_elements if diff_elements else snap_elements,
+        ),
     }
 
 
@@ -841,6 +847,10 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
                 spec.get("binding_specs", {}),
             ),
             "slices": [*(parent["slices"] if parent else []), *spec["slices"]],
+            "slice_groups": merge_slice_groups(
+                parent.get("slice_groups", []) if parent else [],
+                spec.get("slice_groups", []),
+            ),
         }
         resolved[url] = merged
         return merged

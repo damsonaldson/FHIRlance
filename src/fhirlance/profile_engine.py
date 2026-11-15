@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
@@ -63,14 +64,96 @@ class SliceMatcher:
     expected: Any
 
 
+_FHIR_PRIMITIVE_LOWER: dict[str, str] = {
+    "Boolean": "boolean",
+    "Integer": "integer",
+    "String": "string",
+    "Decimal": "decimal",
+    "Uri": "uri",
+    "Url": "url",
+    "Canonical": "canonical",
+    "Base64Binary": "base64Binary",
+    "Instant": "instant",
+    "Date": "date",
+    "DateTime": "dateTime",
+    "Time": "time",
+    "Code": "code",
+    "Oid": "oid",
+    "Id": "id",
+    "Markdown": "markdown",
+    "UnsignedInt": "unsignedInt",
+    "PositiveInt": "positiveInt",
+    "Uuid": "uuid",
+}
+_FHIR_PRIMITIVES: frozenset[str] = frozenset(_FHIR_PRIMITIVE_LOWER.values())
+_STR_FHIR_TYPES: frozenset[str] = frozenset(
+    {
+        "string",
+        "uri",
+        "url",
+        "canonical",
+        "base64Binary",
+        "instant",
+        "date",
+        "dateTime",
+        "time",
+        "code",
+        "oid",
+        "id",
+        "markdown",
+        "uuid",
+        "xhtml",
+    }
+)
+_INT_FHIR_TYPES: frozenset[str] = frozenset({"integer", "decimal", "unsignedInt", "positiveInt"})
+
+
 @dataclass(frozen=True, slots=True)
 class CompiledSlice:
-    """A minimum-cardinality slice rule with compiled matchers."""
+    """A minimum/maximum-cardinality slice rule with compiled matchers."""
 
     path: str
     parts: tuple[str, ...]
     min_count: int
     matchers: tuple[SliceMatcher, ...]
+    max_count: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SliceDiscriminator:
+    """A compiled FHIR StructureDefinition slicing discriminator."""
+
+    kind: str
+    path: str
+    sub_parts: tuple[str, ...]
+    resolve_target: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledSliceRule:
+    """A compiled slice definition within a slice group."""
+
+    slice_name: str
+    min_count: int
+    max_count: int | None
+    matchers: tuple[SliceMatcher, ...]
+    type_constraints: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]
+    profile_constraints: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...]
+    exists_constraints: tuple[tuple[tuple[str, ...], bool], ...]
+    sub_groups: tuple[CompiledSliceGroup, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledSliceGroup:
+    """A compiled FHIR slicing group with discriminators, rules, and slices."""
+
+    path: str
+    parts: tuple[str, ...]
+    is_choice: bool
+    rules: str
+    ordered: bool
+    discriminators: tuple[SliceDiscriminator, ...]
+    slices: tuple[CompiledSliceRule, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +182,7 @@ class CompiledProfile:
     bindings: tuple[AllowedValuesRule, ...]
     slices: tuple[CompiledSlice, ...]
     binding_specs: tuple[CompiledBindingRule, ...] = ()
+    slice_groups: tuple[CompiledSliceGroup, ...] = ()
 
 
 def pattern_matches(actual: Any, pattern: Any) -> bool:
@@ -112,6 +196,49 @@ def pattern_matches(actual: Any, pattern: Any) -> bool:
             return False
         return all(any(pattern_matches(item, pat) for item in actual) for pat in pattern)
     return bool(actual == pattern)
+
+
+def _resolve_choice_typed_nodes(
+    obj: dict[str, Any], stem: str, tail: list[str]
+) -> list[tuple[Any, str | None]]:
+    out: list[tuple[Any, str | None]] = []
+    for key, value in obj.items():
+        if not key.startswith(stem) or key.startswith("_") or value is None:
+            continue
+        suffix = key[len(stem) :]
+        if not suffix or not suffix[0].isupper():
+            continue
+        if tail:
+            out.extend(resolve_typed_nodes(value, tail))
+            continue
+        inferred = _FHIR_PRIMITIVE_LOWER.get(suffix, suffix)
+        if isinstance(value, list):
+            out.extend((item, inferred) for item in value if item is not None)
+        else:
+            out.append((value, inferred))
+    return out
+
+
+def resolve_typed_nodes(
+    obj: Any, parts: tuple[str, ...] | list[str]
+) -> list[tuple[Any, str | None]]:
+    """Resolve all values matching a dotted FHIR path, inferring [x] choice types."""
+    if isinstance(obj, list):
+        out: list[tuple[Any, str | None]] = []
+        for item in obj:
+            out.extend(resolve_typed_nodes(item, parts))
+        return out
+    if not parts:
+        return [(obj, None)] if obj is not None else []
+    if not isinstance(obj, dict):
+        return []
+
+    head, *tail = parts
+    if head.endswith(_CHOICE_SUFFIX):
+        return _resolve_choice_typed_nodes(obj, head[:-_CHOICE_SUFFIX_LEN], tail)
+
+    val = obj.get(head)
+    return resolve_typed_nodes(val, tail) if val is not None else []
 
 
 def resolve_nodes(obj: Any, parts: tuple[str, ...] | list[str]) -> list[Any]:
@@ -210,6 +337,82 @@ def _compile_binding_specs(
     return tuple(rules)
 
 
+def _parse_max_count(raw: Any) -> int | None:
+    if raw is None or raw == "*":
+        return None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str) and raw.isdigit():
+        return int(raw)
+    return None
+
+
+def _split_sub_parts(rel_sub: str) -> tuple[str, ...]:
+    if not rel_sub:
+        return ()
+    return tuple(seg.split(":")[0] for seg in rel_sub.split(".") if seg)
+
+
+def _compile_discriminator(raw: dict[str, str]) -> SliceDiscriminator:
+    kind = raw["type"]
+    path = raw.get("path") or "$this"
+    if path == "$this":
+        return SliceDiscriminator(kind=kind, path=path, sub_parts=(), resolve_target=False)
+    if path == "$this.resolve()":
+        return SliceDiscriminator(kind=kind, path=path, sub_parts=(), resolve_target=True)
+    resolve_target = path.endswith(".resolve()")
+    trimmed = path[: -len(".resolve()")] if resolve_target else path
+    sub_parts = tuple(seg for seg in trimmed.split(".") if seg and seg != "$this")
+    return SliceDiscriminator(
+        kind=kind,
+        path=path,
+        sub_parts=sub_parts,
+        resolve_target=resolve_target,
+    )
+
+
+def _compile_slice_rule(sl: dict[str, Any]) -> CompiledSliceRule:
+    return CompiledSliceRule(
+        slice_name=sl["slice_name"],
+        min_count=int(sl.get("min", 0)),
+        max_count=_parse_max_count(sl.get("max")),
+        matchers=tuple(
+            SliceMatcher(_split_sub_parts(sub), kind, exp)
+            for sub, (kind, exp) in sl.get("matchers", {}).items()
+        ),
+        type_constraints=tuple(
+            (_split_sub_parts(sub), tuple(codes))
+            for sub, codes in sl.get("type_constraints", {}).items()
+        ),
+        profile_constraints=tuple(
+            (_split_sub_parts(sub), tuple(urls))
+            for sub, urls in sl.get("profile_constraints", {}).items()
+        ),
+        exists_constraints=tuple(
+            (_split_sub_parts(sub), bool(flag))
+            for sub, flag in sl.get("exists_constraints", {}).items()
+        ),
+        sub_groups=tuple(
+            _compile_slice_group(sg, is_sub_group=True) for sg in sl.get("sub_groups", ())
+        ),
+    )
+
+
+def _compile_slice_group(raw: dict[str, Any], *, is_sub_group: bool = False) -> CompiledSliceGroup:
+    path = raw["path"]
+    segs = path.split(".") if is_sub_group else path.split(".")[1:]
+    parts = tuple(seg.split(":")[0] for seg in segs if seg)
+    return CompiledSliceGroup(
+        path=path,
+        parts=parts,
+        is_choice=bool(parts and parts[-1].endswith(_CHOICE_SUFFIX)),
+        rules=str(raw.get("rules", "open")),
+        ordered=bool(raw.get("ordered", False)),
+        discriminators=tuple(_compile_discriminator(d) for d in raw.get("discriminators", ())),
+        slices=tuple(_compile_slice_rule(sl) for sl in raw.get("slices", ())),
+    )
+
+
 def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
     base_type = spec.get("base_type")
     return CompiledProfile(
@@ -249,12 +452,13 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
                 min_count=sl["min"],
                 matchers=tuple(
                     SliceMatcher(
-                        tuple(seg.split(":")[0] for seg in sub.split(".") if seg) if sub else (),
+                        _split_sub_parts(sub),
                         kind,
                         exp,
                     )
                     for sub, (kind, exp) in sl["matchers"].items()
                 ),
+                max_count=_parse_max_count(sl.get("max")),
             )
             for sl in spec.get("slices", ())
         ),
@@ -262,6 +466,9 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
             base_type,
             spec.get("binding_specs", {}),
             spec.get("bindings", {}),
+        ),
+        slice_groups=tuple(
+            _compile_slice_group(sg, is_sub_group=False) for sg in spec.get("slice_groups", ())
         ),
     )
 
@@ -432,6 +639,405 @@ def _check_slices(
                 f"Profile[{prof_url}]: slice at '{sl.path}' requires at least "
                 f"{sl.min_count} matching item(s), found {matches}"
             )
+        if sl.max_count is not None and matches > sl.max_count:
+            issues.append(
+                f"Profile[{prof_url}]: slice at '{sl.path}' allows at most "
+                f"{sl.max_count} matching item(s), found {matches}"
+            )
+    return issues
+
+
+@dataclass(frozen=True, slots=True)
+class _SliceEvalContext:
+    """Shared context for slice group matching and recursive profile validation."""
+
+    root_resource: dict[str, Any]
+    compiled_profiles: dict[str, CompiledProfile]
+    tx_options: TxOptions
+    bundle_index: dict[str, dict[str, Any]] | None
+    visited_profiles: frozenset[str]
+
+
+def _resolve_reference(
+    node: Any,
+    root_resource: dict[str, Any],
+    bundle_index: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    if isinstance(node, dict):
+        if "resourceType" in node and "reference" not in node:
+            return node
+        ref = node.get("reference")
+    elif isinstance(node, str):
+        ref = node
+    else:
+        return None
+
+    if not isinstance(ref, str) or not ref:
+        return None
+
+    if ref.startswith("#"):
+        target_id = ref[1:]
+        contained = root_resource.get("contained")
+        if isinstance(contained, list):
+            for res in contained:
+                if isinstance(res, dict) and res.get("id") == target_id:
+                    return res
+        return None
+
+    return bundle_index.get(ref) if bundle_index is not None else None
+
+
+_PY_TO_FHIR_TYPE: dict[type[Any], str] = {
+    bool: "boolean",
+    int: "integer",
+    float: "decimal",
+    str: "string",
+}
+
+
+def _infer_node_type(val: Any, inferred_type: str | None) -> str | None:
+    if inferred_type is not None:
+        return inferred_type
+    if isinstance(val, dict) and isinstance(val.get("resourceType"), str):
+        return str(val["resourceType"])
+    return _PY_TO_FHIR_TYPE.get(type(val))
+
+
+def _type_matches(val: Any, inferred_type: str | None, allowed: tuple[str, ...]) -> bool:
+    if inferred_type is not None:
+        return inferred_type in allowed or (inferred_type == "integer" and "decimal" in allowed)
+    if isinstance(val, dict):
+        rt = val.get("resourceType")
+        if isinstance(rt, str):
+            return rt in allowed
+        return any(t not in RESOURCE_MODELS and t not in _FHIR_PRIMITIVES for t in allowed)
+    if isinstance(val, bool):
+        return "boolean" in allowed
+    if isinstance(val, int):
+        return any(t in _INT_FHIR_TYPES for t in allowed)
+    return (isinstance(val, float) and "decimal" in allowed) or (
+        isinstance(val, str) and any(t in _STR_FHIR_TYPES for t in allowed)
+    )
+
+
+def _node_conforms_to_profile(
+    target: dict[str, Any], prof_url: str, ctx: _SliceEvalContext
+) -> bool:
+    if prof_url in ctx.visited_profiles:
+        return True
+    spec_p = ctx.compiled_profiles.get(prof_url)
+    if spec_p is None:
+        if prof_url.startswith("http://hl7.org/fhir/StructureDefinition/"):
+            expected = prof_url.rsplit("/", 1)[-1]
+            actual_rt = target.get("resourceType")
+            return not isinstance(actual_rt, str) or actual_rt == expected
+        return True
+    target_rtype = target.get("resourceType") or spec_p.base_type
+    if not isinstance(target_rtype, str) or not target_rtype:
+        return False
+    issues = validate_single_profile(
+        target,
+        target_rtype,
+        prof_url,
+        compiled_profiles=ctx.compiled_profiles,
+        tx=ctx.tx_options,
+        bundle_index=ctx.bundle_index,
+        _visited_profiles=ctx.visited_profiles | {prof_url},
+    )
+    return not issues
+
+
+def _find_constraint(
+    constraints: tuple[tuple[tuple[str, ...], Any], ...],
+    sub_parts: tuple[str, ...],
+) -> Any | None:
+    for parts, value in constraints:
+        if parts == sub_parts:
+            return value
+    return None
+
+
+def _match_value_or_pattern_disc(
+    item: Any, sl: CompiledSliceRule, disc: SliceDiscriminator, ctx: _SliceEvalContext
+) -> bool:
+    exact = [m for m in sl.matchers if m.sub_parts == disc.sub_parts]
+    if not exact:
+        prefix_len = len(disc.sub_parts)
+        nested = [
+            m
+            for m in sl.matchers
+            if len(m.sub_parts) > prefix_len and m.sub_parts[:prefix_len] == disc.sub_parts
+        ]
+        return _slice_item_matches(item, tuple(nested)) if nested else False
+
+    nodes = [item] if not disc.sub_parts else resolve_nodes(item, disc.sub_parts)
+    if disc.resolve_target:
+        nodes = [
+            res
+            for n in nodes
+            if (res := _resolve_reference(n, ctx.root_resource, ctx.bundle_index)) is not None
+        ]
+    for m in exact:
+        prefer_fixed = (disc.kind == "value" and m.kind == "fixed") or (
+            disc.kind == "pattern" and m.kind != "pattern"
+        )
+        matched = (
+            any(v == m.expected for v in nodes)
+            if prefer_fixed
+            else any(pattern_matches(v, m.expected) for v in nodes)
+        )
+        if not matched:
+            return False
+    return True
+
+
+def _eval_type_constraint(
+    item: Any,
+    inferred_type: str | None,
+    sub_parts: tuple[str, ...],
+    allowed: tuple[str, ...],
+) -> bool:
+    if not sub_parts:
+        return _type_matches(item, inferred_type, allowed)
+    typed_nodes = resolve_typed_nodes(item, sub_parts)
+    return any(_type_matches(v, inf, allowed) for v, inf in typed_nodes)
+
+
+def _eval_profile_constraint(
+    item: Any,
+    sub_parts: tuple[str, ...],
+    req_profiles: tuple[str, ...],
+    ctx: _SliceEvalContext,
+    *,
+    resolve_target: bool = False,
+) -> bool:
+    raw_nodes = [item] if not sub_parts else resolve_nodes(item, sub_parts)
+    if resolve_target:
+        targets = [
+            res
+            for n in raw_nodes
+            if (res := _resolve_reference(n, ctx.root_resource, ctx.bundle_index)) is not None
+        ]
+    else:
+        targets = [n for n in raw_nodes if isinstance(n, dict)]
+    return any(all(_node_conforms_to_profile(t, p, ctx) for p in req_profiles) for t in targets)
+
+
+def _eval_exists_constraint(
+    item: Any,
+    sub_parts: tuple[str, ...],
+    expected: bool,
+) -> bool:
+    nodes = [item] if not sub_parts else resolve_nodes(item, sub_parts)
+    return any(v is not None for v in nodes) is bool(expected)
+
+
+def _match_type_disc(
+    item: Any,
+    inferred_type: str | None,
+    sl: CompiledSliceRule,
+    disc: SliceDiscriminator,
+    ctx: _SliceEvalContext,
+) -> bool:
+    allowed: tuple[str, ...] | None = _find_constraint(sl.type_constraints, disc.sub_parts)
+    if not allowed:
+        return False
+    if not disc.resolve_target:
+        return _eval_type_constraint(item, inferred_type, disc.sub_parts, allowed)
+    typed_nodes = (
+        [(item, inferred_type)] if not disc.sub_parts else resolve_typed_nodes(item, disc.sub_parts)
+    )
+    resolved = [_resolve_reference(v, ctx.root_resource, ctx.bundle_index) for v, _ in typed_nodes]
+    return any(_type_matches(r, None, allowed) for r in resolved if r is not None)
+
+
+def _match_profile_disc(
+    item: Any, sl: CompiledSliceRule, disc: SliceDiscriminator, ctx: _SliceEvalContext
+) -> bool:
+    req_profiles: tuple[str, ...] | None = _find_constraint(sl.profile_constraints, disc.sub_parts)
+    if not req_profiles:
+        return False
+    return _eval_profile_constraint(
+        item, disc.sub_parts, req_profiles, ctx, resolve_target=disc.resolve_target
+    )
+
+
+def _match_exists_disc(item: Any, sl: CompiledSliceRule, disc: SliceDiscriminator) -> bool:
+    expected = _find_constraint(sl.exists_constraints, disc.sub_parts)
+    if expected is None:
+        return False
+    return _eval_exists_constraint(item, disc.sub_parts, expected)
+
+
+def _item_matches_discriminator(
+    item: Any,
+    inferred_type: str | None,
+    sl: CompiledSliceRule,
+    disc: SliceDiscriminator,
+    ctx: _SliceEvalContext,
+) -> bool:
+    if disc.kind in {"value", "pattern"}:
+        return _match_value_or_pattern_disc(item, sl, disc, ctx)
+    if disc.kind == "type":
+        return _match_type_disc(item, inferred_type, sl, disc, ctx)
+    if disc.kind == "profile":
+        return _match_profile_disc(item, sl, disc, ctx)
+    if disc.kind == "exists":
+        return _match_exists_disc(item, sl, disc)
+    return False
+
+
+def _slice_constraints_satisfied(
+    item: Any,
+    inferred_type: str | None,
+    sl: CompiledSliceRule,
+    ctx: _SliceEvalContext,
+    skip_resolved: frozenset[tuple[str, tuple[str, ...]]] = frozenset(),
+) -> bool:
+    resolved_val_parts = {sp for kind, sp in skip_resolved if kind in {"value", "pattern"}}
+    active_matchers = (
+        tuple(m for m in sl.matchers if m.sub_parts not in resolved_val_parts)
+        if resolved_val_parts
+        else sl.matchers
+    )
+    if active_matchers and not _slice_item_matches(item, active_matchers):
+        return False
+    if not all(
+        _eval_type_constraint(item, inferred_type, sp, allowed)
+        for sp, allowed in sl.type_constraints
+        if ("type", sp) not in skip_resolved
+    ):
+        return False
+    if not all(
+        _eval_profile_constraint(item, sp, req_profiles, ctx)
+        for sp, req_profiles in sl.profile_constraints
+        if ("profile", sp) not in skip_resolved
+    ):
+        return False
+    return all(
+        _eval_exists_constraint(item, sp, expected)
+        for sp, expected in sl.exists_constraints
+        if ("exists", sp) not in skip_resolved
+    )
+
+
+def _item_matches_no_disc(
+    item: Any,
+    inferred_type: str | None,
+    sl: CompiledSliceRule,
+    ctx: _SliceEvalContext,
+) -> bool:
+    has_any = sl.matchers or sl.type_constraints or sl.profile_constraints or sl.exists_constraints
+    if not has_any:
+        return False
+    return _slice_constraints_satisfied(item, inferred_type, sl, ctx)
+
+
+def _item_matches_slice(
+    item: Any,
+    inferred_type: str | None,
+    sl: CompiledSliceRule,
+    discriminators: tuple[SliceDiscriminator, ...],
+    ctx: _SliceEvalContext,
+) -> bool:
+    if not discriminators:
+        return _item_matches_no_disc(item, inferred_type, sl, ctx)
+    return all(
+        _item_matches_discriminator(item, inferred_type, sl, disc, ctx) for disc in discriminators
+    )
+
+
+def _check_group_ordering_and_rules(
+    group: CompiledSliceGroup,
+    prof_url: str,
+    unmatched_indices: list[int],
+    matched_seq: list[tuple[int, int]],
+) -> list[str]:
+    issues: list[str] = []
+    if group.rules == "closed" and unmatched_indices:
+        issues.append(
+            f"Profile[{prof_url}]: closed slice at '{group.path}' found "
+            f"{len(unmatched_indices)} unmatched item(s)"
+        )
+    elif group.rules == "openAtEnd" and unmatched_indices and matched_seq:
+        last_matched_idx = max(item_idx for item_idx, _ in matched_seq)
+        if any(u_idx < last_matched_idx for u_idx in unmatched_indices):
+            issues.append(
+                f"Profile[{prof_url}]: openAtEnd slice at '{group.path}' "
+                "has unmatched item before the end"
+            )
+    if group.ordered and len(matched_seq) > 1:
+        slice_order = [s_idx for _, s_idx in matched_seq]
+        if any(b < a for a, b in pairwise(slice_order)):
+            issues.append(
+                f"Profile[{prof_url}]: ordered slice at '{group.path}' has items out of order"
+            )
+    return issues
+
+
+def _check_single_slice_group(
+    target: dict[str, Any],
+    prof_url: str,
+    group: CompiledSliceGroup,
+    ctx: _SliceEvalContext,
+) -> list[str]:
+    items = resolve_typed_nodes(target, group.parts)
+    matched_by_slice: list[list[tuple[Any, str | None]]] = [[] for _ in group.slices]
+    unmatched_indices: list[int] = []
+    matched_seq: list[tuple[int, int]] = []
+
+    for item_idx, (item, inferred_type) in enumerate(items):
+        hit_indices = [
+            s_idx
+            for s_idx, sl in enumerate(group.slices)
+            if _item_matches_slice(item, inferred_type, sl, group.discriminators, ctx)
+        ]
+        if not hit_indices:
+            unmatched_indices.append(item_idx)
+            continue
+        for s_idx in hit_indices:
+            matched_by_slice[s_idx].append((item, inferred_type))
+        matched_seq.append((item_idx, hit_indices[0]))
+
+    skip_resolved = frozenset(
+        (d.kind, d.sub_parts) for d in group.discriminators if d.resolve_target
+    )
+    issues = _check_group_ordering_and_rules(group, prof_url, unmatched_indices, matched_seq)
+    for s_idx, sl in enumerate(group.slices):
+        matched_items = matched_by_slice[s_idx]
+        count = len(matched_items)
+        if count < sl.min_count:
+            issues.append(
+                f"Profile[{prof_url}]: slice at '{group.path}' requires at least "
+                f"{sl.min_count} matching item(s), found {count}"
+            )
+        if sl.max_count is not None and count > sl.max_count:
+            issues.append(
+                f"Profile[{prof_url}]: slice at '{group.path}' allows at most "
+                f"{sl.max_count} matching item(s), found {count}"
+            )
+        for matched_item, inferred_type in matched_items:
+            if not _slice_constraints_satisfied(
+                matched_item, inferred_type, sl, ctx, skip_resolved
+            ):
+                issues.append(
+                    f"Profile[{prof_url}]: item in slice '{group.path}:{sl.slice_name}' "
+                    "does not satisfy slice constraints"
+                )
+            if sl.sub_groups and isinstance(matched_item, dict):
+                issues.extend(_check_slice_groups(matched_item, prof_url, sl.sub_groups, ctx))
+    return issues
+
+
+def _check_slice_groups(
+    target: dict[str, Any],
+    prof_url: str,
+    slice_groups: tuple[CompiledSliceGroup, ...],
+    ctx: _SliceEvalContext,
+) -> list[str]:
+    issues: list[str] = []
+    for group in slice_groups:
+        issues.extend(_check_single_slice_group(target, prof_url, group, ctx))
     return issues
 
 
@@ -458,6 +1064,20 @@ def validate_single_profile(
         if isinstance(tx_raw, TxOptions)
         else parse_tx_options(tx_raw, strict_extensible=strict_extensible)
     )
+    bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("bundle_index")
+    visited_profiles: frozenset[str] = kwargs.get("_visited_profiles", frozenset({prof_url}))
+
+    if spec.slice_groups:
+        ctx = _SliceEvalContext(
+            root_resource=resource,
+            compiled_profiles=compiled_profiles,
+            tx_options=tx_options,
+            bundle_index=bundle_index,
+            visited_profiles=visited_profiles,
+        )
+        slice_issues = _check_slice_groups(resource, prof_url, spec.slice_groups, ctx)
+    else:
+        slice_issues = _check_slices(resource, prof_url, spec.slices)
 
     return [
         *_check_required(resource, prof_url, spec.required),
@@ -474,5 +1094,5 @@ def validate_single_profile(
             tx_options,
             _warnings_out=_warnings_out,
         ),
-        *_check_slices(resource, prof_url, spec.slices),
+        *slice_issues,
     ]

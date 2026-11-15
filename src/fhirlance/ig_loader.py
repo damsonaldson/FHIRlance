@@ -20,6 +20,7 @@ from fhirlance.extensions import (
 from fhirlance.profile_engine import COMPILED_PROFILES, CompiledProfile, compile_profiles
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
+from fhirlance.slicing_spec import extract_slice_groups, merge_slice_groups
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -428,6 +429,9 @@ def _extract_profile_spec(
         "bindings": acc.bindings,
         "binding_specs": acc.binding_specs,
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
+        "slice_groups": extract_slice_groups(
+            diff_elements if diff_elements else (snap.get("element") or []),
+        ),
     }
 
 
@@ -465,6 +469,10 @@ def _merge_profile_with_parent(
         "bindings": {**p_bind, **spec.get("bindings", {})},
         "binding_specs": merged_bs,
         "slices": [*p_sl, *spec.get("slices", [])],
+        "slice_groups": merge_slice_groups(
+            parent.get("slice_groups", []) if parent else [],
+            spec.get("slice_groups", []),
+        ),
     }
 
 
