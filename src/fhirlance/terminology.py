@@ -407,6 +407,14 @@ def is_valid_iso3166_code(code: str, system: str = "urn:iso:std:iso:3166") -> bo
     return bool(_ISO_3166_ALPHA3_OR_NUM_RE.match(code))
 
 
+_ISO_4217_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def is_valid_iso4217_code(code: str) -> bool:
+    """Validate ISO-4217 3-letter currency code."""
+    return bool(code and _ISO_4217_RE.match(code))
+
+
 # -----------------------------------------------------------------------------
 # 2. MIME Types (urn:ietf:bcp:13)
 # -----------------------------------------------------------------------------
@@ -1034,6 +1042,8 @@ def _check_grammar_system(system: str, code: str) -> tuple[bool, bool]:
         return True, is_valid_mime_code(code)
     if system.startswith("urn:iso:std:iso:3166"):
         return True, is_valid_iso3166_code(code, system)
+    if system == "urn:iso:std:iso:4217":
+        return True, is_valid_iso4217_code(code)
     return False, True
 
 

@@ -900,6 +900,70 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
     return resolved
 
 
+_COMPLEX_BINDING_TYPES = frozenset({"CodeableConcept", "Coding", "code", "uri"})
+
+
+@dataclass(frozen=True, slots=True)
+class _CompiledTerminology:
+    complete_cs: dict[str, list[str]]
+    vs_specs: dict[str, ValueSetSpec]
+    base_bindings: dict[str, dict[str, dict[str, str]]]
+    complex_bindings: dict[str, dict[str, dict[str, str]]]
+
+
+def _extract_complex_element_bindings(
+    el: dict[str, Any],
+    value_sets: dict[str, list[str]],
+) -> list[tuple[str, dict[str, str]]]:
+    el_path = el.get("path", "")
+    if "." not in el_path:
+        return []
+    b = el.get("binding")
+    if not b or b.get("strength") not in ("required", "extensible") or not b.get("valueSet"):
+        return []
+    types = [t.get("code") for t in el.get("type", []) if isinstance(t, dict) and t.get("code")]
+    if not any(t in _COMPLEX_BINDING_TYPES for t in types):
+        return []
+    strength = str(b["strength"])
+    vs_url = str(b["valueSet"]).split("|", 1)[0]
+    codes = value_sets.get(vs_url, ())
+    if strength == "required" and types == ["code"] and 0 < len(codes) <= _MAX_LITERAL_CODES:
+        return []
+    rel_path = el_path.split(".", 1)[1]
+    spec = {"strength": strength, "value_set": vs_url}
+    if rel_path.endswith(_CHOICE_SUFFIX):
+        stem = rel_path[:-_CHOICE_SUFFIX_LEN]
+        return [
+            (f"{stem}{t[0].upper()}{t[1:]}", spec) for t in types if t in _COMPLEX_BINDING_TYPES
+        ]
+    return [(rel_path, spec)]
+
+
+def _extract_complex_type_bindings(
+    r4_pkg: Path,
+    value_sets: dict[str, list[str]],
+) -> dict[str, dict[str, dict[str, str]]]:
+    """Extract required/extensible bindings for complex datatype elements."""
+    bindings: dict[str, dict[str, dict[str, str]]] = {}
+    for path in _glob_json(r4_pkg, "StructureDefinition-"):
+        sd = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            sd.get("kind") != "complex-type"
+            or sd.get("abstract")
+            or sd.get("derivation") != "specialization"
+        ):
+            continue
+        dtype = sd["id"]
+        type_bindings = {
+            rel_path: spec
+            for el in sd.get("snapshot", {}).get("element", [])
+            for rel_path, spec in _extract_complex_element_bindings(el, value_sets)
+        }
+        if type_bindings:
+            bindings[dtype] = type_bindings
+    return bindings
+
+
 def _extract_base_resource_bindings(
     r4_pkg: Path,
 ) -> dict[str, dict[str, dict[str, str]]]:
@@ -938,9 +1002,7 @@ def _extract_base_resource_bindings(
 def _generate_all_ig_profiles(
     ig_pkgs: list[Path],
     value_sets: dict[str, list[str]],
-    complete_cs: dict[str, list[str]] | None = None,
-    vs_specs: dict[str, ValueSetSpec] | None = None,
-    base_bindings: dict[str, dict[str, dict[str, str]]] | None = None,
+    terminology: _CompiledTerminology | None = None,
 ) -> str:
     """Extract constraint specs and compile terminology across configured IG packages."""
     sd_type_by_url = _collect_sd_types(ig_pkgs)
@@ -966,14 +1028,18 @@ def _generate_all_ig_profiles(
         'from R4 Core and IG packages."""\n\n'
         "from typing import Any\n\n"
     )
-    cs_table = complete_cs if complete_cs is not None else {}
-    vs_table = {u: s.to_dict() for u, s in vs_specs.items()} if vs_specs is not None else {}
-    bb_table = base_bindings if base_bindings is not None else {}
+    cs_table = terminology.complete_cs if terminology is not None else {}
+    vs_table = (
+        {u: s.to_dict() for u, s in terminology.vs_specs.items()} if terminology is not None else {}
+    )
+    bb_table = terminology.base_bindings if terminology is not None else {}
+    cb_table = terminology.complex_bindings if terminology is not None else {}
     return (
         header
         + f"COMPLETE_CODE_SYSTEMS: dict[str, list[str]] = {cs_table!r}\n\n"
         + f"VALUE_SET_SPECS: dict[str, dict[str, Any]] = {vs_table!r}\n\n"
         + f"BASE_RESOURCE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {bb_table!r}\n\n"
+        + f"COMPLEX_TYPE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {cb_table!r}\n\n"
         + f"PROFILE_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved!r}\n\n"
         + f"EXTENSION_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved_extensions!r}\n"
     )
@@ -1083,15 +1149,23 @@ def main() -> None:
     ]
     res_names = _write_resources(resource_sds, r4_vs_codes, known_types)
     base_bindings = _extract_base_resource_bindings(R4_PKG)
+    complex_bindings = _extract_complex_type_bindings(R4_PKG, r4_vs_codes)
 
     profiles_content = _generate_all_ig_profiles(
-        IG_PKGS, value_set_codes, complete_cs, vs_specs, base_bindings
+        IG_PKGS,
+        value_set_codes,
+        _CompiledTerminology(
+            complete_cs=complete_cs,
+            vs_specs=vs_specs,
+            base_bindings=base_bindings,
+            complex_bindings=complex_bindings,
+        ),
     )
     (OUT_DIR / "profiles.py").write_text(profiles_content, encoding="utf-8")
     print(f"Generated {len(complex_sds)} complex types and {len(res_names)} R4 resources.")
     print(
         f"Compiled {len(complete_cs)} CodeSystems, {len(vs_specs)} ValueSets, "
-        f"and {len(base_bindings)} base bindings."
+        f"{len(base_bindings)} base bindings, and {len(complex_bindings)} complex bindings."
     )
 
 
