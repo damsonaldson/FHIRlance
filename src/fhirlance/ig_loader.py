@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import tarfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -628,28 +629,8 @@ def _resolve_source_path(source: str | Path) -> Path:
 
 def load_raw_ig_profiles(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
     """Load StructureDefinition profiles from IG sources and resolve inheritance."""
-    container = _IGResources()
-    for src in sources:
-        path = _resolve_source_path(src)
-        _load_source(path, container)
-
-    code_systems = _extract_code_systems(container.code_systems)
-    vs_specs: dict[str, dict[str, Any]] = {}
-    value_sets = _extract_value_sets(container.value_sets, code_systems, vs_specs)
-
-    all_sds: dict[str, dict[str, Any]] = {}
-    sd_type_by_url: dict[str, str] = {}
-    for sd in container.structure_definitions:
-        url = sd.get("url")
-        if url:
-            all_sds[url] = sd
-            clean_url = url.split("|", 1)[0]
-            all_sds[clean_url] = sd
-            sd_type = sd.get("type")
-            if sd_type:
-                sd_type_by_url[url] = sd_type
-                sd_type_by_url[clean_url] = sd_type
-
+    resolved_paths = [_resolve_source_path(s) for s in sources]
+    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
     raw_profiles: dict[str, dict[str, Any]] = {}
     for url, sd in all_sds.items():
         if (
@@ -691,10 +672,11 @@ _BASE_COMPILED_PROFILES: dict[str, CompiledProfile] = dict(COMPILED_PROFILES)
 _BASE_COMPILED_EXTENSIONS: dict[str, CompiledExtension] = dict(COMPILED_EXTENSIONS)
 _COMPILED_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledProfile]] = {}
 _COMPILED_EXT_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledExtension]] = {}
+_CACHE_LOCK = threading.Lock()
 
 
 def _load_ig_sds(
-    sources: Sequence[str | Path],
+    paths: Sequence[Path],
 ) -> tuple[
     dict[str, list[str]],
     dict[str, dict[str, Any]],
@@ -702,8 +684,7 @@ def _load_ig_sds(
     dict[str, str],
 ]:
     container = _IGResources()
-    for src in sources:
-        path = _resolve_source_path(src)
+    for path in paths:
         _load_source(path, container)
 
     code_systems = _extract_code_systems(container.code_systems)
@@ -727,7 +708,8 @@ def _load_ig_sds(
 
 def load_raw_ig_extensions(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
     """Load Extension StructureDefinitions from IG sources and resolve inheritance."""
-    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(sources)
+    resolved_paths = [_resolve_source_path(s) for s in sources]
+    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
     raw_exts: dict[str, dict[str, Any]] = {}
     for url, sd in all_sds.items():
         if sd.get("type") == "Extension" and sd.get("derivation") == "constraint":
@@ -736,9 +718,9 @@ def load_raw_ig_extensions(sources: Sequence[str | Path]) -> dict[str, dict[str,
 
 
 def _extract_profiles_and_extensions(
-    sources: Sequence[str | Path],
+    resolved_paths: Sequence[Path],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(sources)
+    value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
     raw_profiles: dict[str, dict[str, Any]] = {}
     raw_exts: dict[str, dict[str, Any]] = {}
     for url, sd in all_sds.items():
@@ -761,17 +743,19 @@ def load_compiled_ig_bundle(
     """Load and compile both IG profiles and Extension StructureDefinitions in one pass."""
     resolved_sources = [_resolve_source_path(s) for s in sources]
     cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
-    if cache_key in _COMPILED_CACHE and cache_key in _COMPILED_EXT_CACHE:
-        return dict(_COMPILED_CACHE[cache_key]), dict(_COMPILED_EXT_CACHE[cache_key])
+    with _CACHE_LOCK:
+        if cache_key in _COMPILED_CACHE and cache_key in _COMPILED_EXT_CACHE:
+            return dict(_COMPILED_CACHE[cache_key]), dict(_COMPILED_EXT_CACHE[cache_key])
 
-    raw_profiles, raw_exts = _extract_profiles_and_extensions(sources)
-    merged_profiles = dict(COMPILED_PROFILES)
+    raw_profiles, raw_exts = _extract_profiles_and_extensions(resolved_sources)
+    merged_profiles = dict(_BASE_COMPILED_PROFILES)
     merged_profiles.update(compile_profiles(raw_profiles))
-    _COMPILED_CACHE[cache_key] = merged_profiles
-
-    merged_exts = dict(COMPILED_EXTENSIONS)
+    merged_exts = dict(_BASE_COMPILED_EXTENSIONS)
     merged_exts.update(compile_extensions(raw_exts))
-    _COMPILED_EXT_CACHE[cache_key] = merged_exts
+
+    with _CACHE_LOCK:
+        _COMPILED_CACHE[cache_key] = merged_profiles
+        _COMPILED_EXT_CACHE[cache_key] = merged_exts
     return dict(merged_profiles), dict(merged_exts)
 
 
@@ -785,20 +769,22 @@ def load_compiled_ig_extensions(
 
 def clear_ig_cache() -> None:
     """Clear the compiled IG profiles/extensions cache and reset globals."""
-    _COMPILED_CACHE.clear()
-    _COMPILED_EXT_CACHE.clear()
-    COMPILED_PROFILES.clear()
-    COMPILED_PROFILES.update(_BASE_COMPILED_PROFILES)
-    COMPILED_EXTENSIONS.clear()
-    COMPILED_EXTENSIONS.update(_BASE_COMPILED_EXTENSIONS)
+    with _CACHE_LOCK:
+        _COMPILED_CACHE.clear()
+        _COMPILED_EXT_CACHE.clear()
+        COMPILED_PROFILES.clear()
+        COMPILED_PROFILES.update(_BASE_COMPILED_PROFILES)
+        COMPILED_EXTENSIONS.clear()
+        COMPILED_EXTENSIONS.update(_BASE_COMPILED_EXTENSIONS)
 
 
 def register_ig(sources: Sequence[str | Path]) -> dict[str, CompiledProfile]:
     """Compile IG sources and register profiles and extensions globally."""
     compiled, compiled_exts = load_compiled_ig_bundle(sources)
-    COMPILED_PROFILES.update(compiled)
-    COMPILED_EXTENSIONS.update(compiled_exts)
-    return dict(COMPILED_PROFILES)
+    with _CACHE_LOCK:
+        COMPILED_PROFILES.update(compiled)
+        COMPILED_EXTENSIONS.update(compiled_exts)
+        return dict(COMPILED_PROFILES)
 
 
 def load_compiled_ig_profiles(

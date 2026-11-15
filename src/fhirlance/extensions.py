@@ -13,7 +13,12 @@ from fhirlance.profile_engine import (
     pattern_matches,
 )
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, VALUE_SET_SPECS
-from fhirlance.terminology import TxOptions, _normalize_vs_spec, validate_binding_value
+from fhirlance.terminology import (
+    TxOptions,
+    _normalize_vs_spec,
+    parse_tx_options,
+    validate_binding_value,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -64,6 +69,7 @@ class _WalkContext:
     fhir_type: str
     is_root: bool
     is_domain_resource: bool
+    parent_type_path: str = ""
     parent_ext_url: str | None = None
 
 
@@ -156,6 +162,13 @@ def _unwrap_model_type(annotation: Any) -> type[Any] | None:
     return None
 
 
+def _matches_choice_stem(path: str, stem: str) -> bool:
+    if not path.startswith(stem):
+        return False
+    rest = path[len(stem) :]
+    return rest == "" or ("." not in rest and rest[0].isupper())
+
+
 def _match_element_expr(expr: str, ctx: _WalkContext) -> bool:
     if expr == "Element":
         return not ctx.is_root
@@ -167,8 +180,12 @@ def _match_element_expr(expr: str, ctx: _WalkContext) -> bool:
         return ctx.parent_ext_url is not None
     if expr.endswith("[x]"):
         stem = expr[:-3]
-        return ctx.element_path.startswith(stem) or ctx.type_path.startswith(stem)
-    return expr in (ctx.element_path, ctx.type_path, ctx.fhir_type)
+        return (
+            _matches_choice_stem(ctx.element_path, stem)
+            or _matches_choice_stem(ctx.type_path, stem)
+            or _matches_choice_stem(ctx.parent_type_path, stem)
+        )
+    return expr in (ctx.element_path, ctx.type_path, ctx.parent_type_path, ctx.fhir_type)
 
 
 def _context_matches(contexts: tuple[tuple[str, str], ...], ctx: _WalkContext) -> bool:
@@ -263,10 +280,19 @@ def _validate_value_constraints(
         env.issues.append(f"Extension[{ext_path}]: value[x] is forbidden (max=0) on '{node.url}'")
         return
     if node.value_required and not val_items:
-        if not any(k.startswith("_value") for k in ext_dict):
+        prim_val_keys = [k[1:] for k in ext_dict if k.startswith("_value")]
+        if not prim_val_keys:
             env.issues.append(
                 f"Extension[{ext_path}]: value[x] is required (min=1) on '{node.url}'"
             )
+            return
+        if node.allowed_value_keys:
+            for pv_key in prim_val_keys:
+                if pv_key not in node.allowed_value_keys:
+                    env.issues.append(
+                        f"Extension[{ext_path}]: '{node.url}' requires value[x] type in "
+                        f"{sorted(node.allowed_value_keys)}, got '{pv_key}'"
+                    )
         return
 
     for val_key, val in val_items:
@@ -360,6 +386,29 @@ def _validate_ext_node(
         _validate_ext_list(sub_list, f"{ext_path}.extension", False, nested_ctx, env)
 
 
+def _validate_unknown_ext_children(
+    item: dict[str, Any],
+    ext_path: str,
+    raw_url: str,
+    env: _ValidationEnv,
+) -> None:
+    nested_ctx = _WalkContext(
+        full_path=f"{ext_path}.extension",
+        element_path=f"{ext_path}.extension",
+        type_path="Extension",
+        fhir_type="Extension",
+        is_root=False,
+        is_domain_resource=False,
+        parent_ext_url=raw_url,
+    )
+    if "extension" in item:
+        _validate_ext_list(item["extension"], f"{ext_path}.extension", False, nested_ctx, env)
+    if "modifierExtension" in item:
+        _validate_ext_list(
+            item["modifierExtension"], f"{ext_path}.modifierExtension", True, nested_ctx, env
+        )
+
+
 def _validate_ext_list(
     items: Any,
     list_path: str,
@@ -385,6 +434,8 @@ def _validate_ext_list(
                     f"Extension[{ext_path}]: unknown modifierExtension '{raw_url}' "
                     "cannot be safely ignored"
                 )
+            else:
+                _validate_unknown_ext_children(item, ext_path, raw_url, env)
             continue
 
         if is_modifier_slot and not spec.is_modifier:
@@ -437,6 +488,31 @@ def _validate_prim_ext_slot(
                 _validate_prim_ext_slot(item, base_name, parent_ctx, env, f"[{idx}]")
 
 
+def _descend_child(
+    key: str,
+    val: Any,
+    fields: Mapping[str, Any] | None,
+    ctx: _WalkContext,
+    env: _ValidationEnv,
+) -> None:
+    sub_cls = _unwrap_model_type(fields[key].annotation) if fields and key in fields else None
+    sub_type = sub_cls.__name__ if sub_cls is not None else ""
+    parent_type_path = f"{ctx.type_path}.{key}"
+    next_type_path = (
+        sub_type if sub_type and not sub_type.startswith(ctx.fhir_type) else parent_type_path
+    )
+    child_ctx = _WalkContext(
+        full_path=f"{ctx.full_path}.{key}",
+        element_path=f"{ctx.element_path}.{key}",
+        type_path=next_type_path,
+        fhir_type=sub_type or key,
+        is_root=False,
+        is_domain_resource=False,
+        parent_type_path=parent_type_path,
+    )
+    _walk_resource_extensions(val, sub_cls, child_ctx, env)
+
+
 def _walk_resource_extensions(
     node: Any,
     model_cls: type[Any] | None,
@@ -452,6 +528,7 @@ def _walk_resource_extensions(
                 fhir_type=ctx.fhir_type,
                 is_root=ctx.is_root,
                 is_domain_resource=ctx.is_domain_resource,
+                parent_type_path=ctx.parent_type_path,
             )
             _walk_resource_extensions(item, model_cls, item_ctx, env)
         return
@@ -467,30 +544,31 @@ def _walk_resource_extensions(
 
     fields = getattr(model_cls, "model_fields", None) if model_cls is not None else None
     for key, val in node.items():
-        if key in ("extension", "modifierExtension") or val is None:
+        if (
+            key in ("extension", "modifierExtension", "contained")
+            or val is None
+            or (key == "resource" and ctx.element_path == "Bundle.entry")
+        ):
             continue
         if key.startswith("_") and len(key) > 1:
             _validate_prim_ext_slot(val, key[1:], ctx, env)
             continue
-        if not isinstance(val, (dict, list)):
-            continue
-        sub_cls = _unwrap_model_type(fields[key].annotation) if fields and key in fields else None
-        sub_type = sub_cls.__name__ if sub_cls is not None else ""
-        # Reset type_path to ComplexType when descending into a non-Backbone complex datatype
-        next_type_path = (
-            sub_type
-            if sub_type and not sub_type.startswith(ctx.fhir_type)
-            else f"{ctx.type_path}.{key}"
-        )
-        child_ctx = _WalkContext(
-            full_path=f"{ctx.full_path}.{key}",
-            element_path=f"{ctx.element_path}.{key}",
-            type_path=next_type_path,
-            fhir_type=sub_type or key,
-            is_root=False,
-            is_domain_resource=False,
-        )
-        _walk_resource_extensions(val, sub_cls, child_ctx, env)
+        if isinstance(val, (dict, list)):
+            _descend_child(key, val, fields, ctx, env)
+
+
+def _has_any_extension_key(node: Any) -> bool:
+    if type(node) is dict:
+        for key, val in node.items():
+            if key in ("extension", "modifierExtension") or (key.startswith("_") and len(key) > 1):
+                return True
+            if isinstance(val, (dict, list)) and _has_any_extension_key(val):
+                return True
+    elif type(node) is list:
+        for item in node:
+            if isinstance(item, (dict, list)) and _has_any_extension_key(item):
+                return True
+    return False
 
 
 def validate_extensions(
@@ -503,7 +581,9 @@ def validate_extensions(
     _warnings_out: list[str] | None = None,
 ) -> list[str]:
     """Validate all extensions and modifierExtensions in a FHIR resource."""
-    tx_options = tx if isinstance(tx, TxOptions) else TxOptions()
+    if not _has_any_extension_key(resource):
+        return []
+    tx_options = tx if isinstance(tx, TxOptions) else parse_tx_options(tx)
     issues: list[str] = []
     env = _ValidationEnv(
         compiled_extensions=compiled_extensions,

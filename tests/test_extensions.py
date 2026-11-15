@@ -13,7 +13,9 @@ from fhirlance import (
     register_ig,
     validate_resource,
 )
-from fhirlance.extensions import COMPILED_EXTENSIONS
+from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
+from fhirlance.extensions import COMPILED_EXTENSIONS, validate_extensions
+from fhirlance.resources import RESOURCE_MODELS
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -600,3 +602,197 @@ class TestRuntimeIGExtensionLoading:
             }
         )
         assert validate_resource(bad_dar, tx="off") == []
+
+    def test_bundle_contained_choice_complex_parent_and_edge_cases(self, tmp_path: Path) -> None:
+        race_ext = {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+            "extension": [{"url": "text", "valueString": "White"}],
+        }
+        # 1. Bundle.entry.resource and contained[] must not double-walk or false-fail context
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "collection",
+            "entry": [
+                {
+                    "resource": _patient(
+                        extension=[race_ext],
+                        contained=[
+                            _patient(id="c1", extension=[race_ext]),
+                        ],
+                    )
+                }
+            ],
+        }
+        assert validate_resource(bundle) == []
+
+        # 2. ComplexType.field context (CodeableConcept.coding) and [x] stem non-descendant
+        cc_coding_ext = {
+            "resourceType": "StructureDefinition",
+            "url": "http://example.org/fhir/StructureDefinition/cc-coding-ext",
+            "type": "Extension",
+            "kind": "complex-type",
+            "derivation": "constraint",
+            "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+            "context": [{"type": "element", "expression": "CodeableConcept.coding"}],
+            "differential": {
+                "element": [
+                    {"id": "Extension", "path": "Extension"},
+                    {
+                        "id": "Extension.value[x]",
+                        "path": "Extension.value[x]",
+                        "type": [{"code": "string"}],
+                    },
+                ]
+            },
+        }
+        obs_val_ext = {
+            "resourceType": "StructureDefinition",
+            "url": "http://example.org/fhir/StructureDefinition/obs-val-ext",
+            "type": "Extension",
+            "kind": "complex-type",
+            "derivation": "constraint",
+            "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+            "context": [{"type": "element", "expression": "Observation.value[x]"}],
+            "differential": {
+                "element": [
+                    {"id": "Extension", "path": "Extension"},
+                    {
+                        "id": "Extension.value[x]",
+                        "path": "Extension.value[x]",
+                        "type": [{"code": "string"}],
+                    },
+                ]
+            },
+        }
+        ig_dir = tmp_path / "edge_ig"
+        ig_dir.mkdir()
+        (ig_dir / "StructureDefinition-cc.json").write_text(json.dumps(cc_coding_ext))
+        (ig_dir / "StructureDefinition-ov.json").write_text(json.dumps(obs_val_ext))
+
+        obs_ok = _observation(
+            code={
+                "coding": [
+                    {
+                        "system": "http://loinc.org",
+                        "code": "29463-7",
+                        "extension": [
+                            {
+                                "url": "http://example.org/fhir/StructureDefinition/cc-coding-ext",
+                                "valueString": "ok",
+                            }
+                        ],
+                    }
+                ]
+            },
+            _valueString={
+                "extension": [
+                    {
+                        "url": "http://example.org/fhir/StructureDefinition/obs-val-ext",
+                        "valueString": "ok",
+                    }
+                ]
+            },
+        )
+        assert validate_resource(obs_ok, ig_sources=[ig_dir]) == []
+
+        # obs-val-ext must NOT match descendant Observation.valueCodeableConcept.coding
+        obs_bad_desc = _observation(
+            valueCodeableConcept={
+                "coding": [
+                    {
+                        "system": "http://loinc.org",
+                        "code": "1",
+                        "extension": [
+                            {
+                                "url": "http://example.org/fhir/StructureDefinition/obs-val-ext",
+                                "valueString": "bad",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        assert any(
+            "not valid in context" in m
+            for m in validate_resource(obs_bad_desc, ig_sources=[ig_dir])
+        )
+
+        # 3. Nested unknown modifierExtension inside unknown regular extension
+        nested_unknown_mod = _patient(
+            extension=[
+                {
+                    "url": "http://example.org/unknown-parent",
+                    "modifierExtension": [
+                        {"url": "http://example.org/unknown-mod", "valueBoolean": True}
+                    ],
+                }
+            ]
+        )
+        assert any("unknown modifierExtension" in m for m in validate_resource(nested_unknown_mod))
+
+        # 4. Direct validate_extensions with tx="off" and malformed items
+        assert (
+            validate_extensions(
+                {"resourceType": "Patient", "extension": ["not-a-dict", {"url": ""}]},
+                RESOURCE_MODELS["Patient"],
+                "Patient",
+                tx="off",
+            )
+            == []
+        )
+
+        # 5. extension_spec edge cases: cycle, missing parent, sub-extension merge, targetProfile
+        parent_url = "http://example.org/ext-p"
+        child_url = "http://example.org/ext-c"
+        cyc_url = "http://example.org/ext-cyc"
+        parent_sd: dict[str, Any] = {
+            "url": parent_url,
+            "type": "Extension",
+            "derivation": "constraint",
+            "baseDefinition": "http://hl7.org/fhir/StructureDefinition/Extension",
+            "differential": {
+                "element": [
+                    {"id": "Extension.extension:a", "path": "Extension.extension", "min": 1},
+                    {
+                        "id": "Extension.extension:a.value[x]",
+                        "path": "Extension.extension.value[x]",
+                        "type": [
+                            {
+                                "code": "Reference",
+                                "targetProfile": ["http://example.org/StructureDefinition/Patient"],
+                            }
+                        ],
+                    },
+                ]
+            },
+        }
+        child_sd: dict[str, Any] = {
+            "url": child_url,
+            "type": "Extension",
+            "derivation": "constraint",
+            "baseDefinition": parent_url,
+            "differential": {
+                "element": [
+                    {"id": "Extension.extension:a", "path": "Extension.extension", "max": "1"},
+                    {"id": "Extension.extension:b", "path": "Extension.extension", "min": 0},
+                ]
+            },
+        }
+        cyc_sd: dict[str, Any] = {
+            "url": cyc_url,
+            "type": "Extension",
+            "derivation": "constraint",
+            "baseDefinition": cyc_url,
+            "differential": {"element": []},
+        }
+        raw_map: dict[str, dict[str, Any]] = {
+            parent_url: extract_extension_spec(parent_sd, {}, {}, {"http://vs": {"codes": ["a"]}}),
+            child_url: extract_extension_spec(child_sd, {}, {}),
+            cyc_url: extract_extension_spec(cyc_sd, {}, {}),
+        }
+        resolved = resolve_all_extensions(raw_map)
+        assert "a" in resolved[child_url]["node"]["sub_extensions"]
+        assert "b" in resolved[child_url]["node"]["sub_extensions"]
+        assert (
+            "Patient" in resolved[parent_url]["node"]["sub_extensions"]["a"]["value_target_types"]
+        )
