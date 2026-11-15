@@ -69,7 +69,7 @@ def _select_official_examples() -> dict[str, dict[str, Any]]:
                 isinstance(rt, str)
                 and rt in RESOURCE_MODELS
                 and rt not in examples
-                and not validate_resource(data, require_canadian_profile=False)
+                and not validate_resource(data)
             ):
                 examples[rt] = data
                 remaining_lower.pop(rt.lower(), None)
@@ -519,7 +519,7 @@ def _build_corpus_cases() -> list[tuple[str, dict[str, Any], bool]]:
 def test_extra_equivalence_cases_offline_python_validation() -> None:
     """Verify all targeted equivalence cases deterministically in Python without needing JVM."""
     for name, payload, expected_valid in _extra_equivalence_cases():
-        issues = validate_resource(payload, require_canadian_profile=False)
+        issues = validate_resource(payload)
         assert (len(issues) == 0) == expected_valid, f"[{name}] Python mismatch: {issues}"
 
 
@@ -533,10 +533,7 @@ def test_all_146_resources_and_profiles_live_hl7_equivalence(tmp_path: Path) -> 
         (tmp_path / f"{idx:04d}_{name}.json").write_text(json.dumps(payload), encoding="utf-8")
 
     t_py0 = time.perf_counter()
-    py_results = [
-        len(validate_resource(payload, require_canadian_profile=False)) == 0
-        for _, payload, _ in cases
-    ]
+    py_results = [len(validate_resource(payload)) == 0 for _, payload, _ in cases]
     t_py = time.perf_counter() - t_py0
 
     out_file = tmp_path / "hl7_bundle_outcome.json"

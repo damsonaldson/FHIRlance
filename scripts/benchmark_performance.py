@@ -145,19 +145,19 @@ def _measure_python_modes(
 ) -> tuple[ModeMetrics, ModeMetrics]:
     """Measure Standard (`validate_resource`) and `OperationOutcome` modes over `corpus`."""
     for item in corpus:
-        validate_resource(item, require_canadian_profile=False)
-        validate_to_operation_outcome(item, require_canadian_profile=False)
+        validate_resource(item)
+        validate_to_operation_outcome(item)
 
     t0 = time.perf_counter()
     for _ in range(iterations):
         for item in corpus:
-            validate_resource(item, require_canadian_profile=False)
+            validate_resource(item)
     std_s = (time.perf_counter() - t0) / iterations
 
     t1 = time.perf_counter()
     for _ in range(iterations):
         for item in corpus:
-            validate_to_operation_outcome(item, require_canadian_profile=False)
+            validate_to_operation_outcome(item)
     oo_s = (time.perf_counter() - t1) / iterations
 
     count = len(corpus)
@@ -183,20 +183,20 @@ def _measure_ndjson_1k(corpus: list[dict[str, Any]], iterations: int = 5) -> tup
         ndjson_path = Path(tmp) / "bench_1000.ndjson"
         ndjson_path.write_text("\n".join(rows), encoding="utf-8")
 
-        warmup_report = validate_dataset(ndjson_path, require_canadian_profile=False)
+        warmup_report = validate_dataset(ndjson_path)
         format_dataset_report(warmup_report, output_format="json")
         format_dataset_report(warmup_report, output_format="operation-outcome")
         assert warmup_report["total_resources"] == NDJSON_BATCH_COUNT
 
         t0 = time.perf_counter()
         for _ in range(iterations):
-            report = validate_dataset(ndjson_path, require_canadian_profile=False)
+            report = validate_dataset(ndjson_path)
             format_dataset_report(report, output_format="json")
         std_ms = ((time.perf_counter() - t0) / iterations) * 1000.0
 
         t1 = time.perf_counter()
         for _ in range(iterations):
-            report_oo = validate_dataset(ndjson_path, require_canadian_profile=False)
+            report_oo = validate_dataset(ndjson_path)
             format_dataset_report(report_oo, output_format="operation-outcome")
         oo_ms = ((time.perf_counter() - t1) / iterations) * 1000.0
     return round(std_ms, 2), round(oo_ms, 2)

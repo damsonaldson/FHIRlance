@@ -29,7 +29,7 @@ _JSON_VALUES: st.SearchStrategy[Any] = st.recursive(
 @settings(max_examples=100, deadline=None)
 def test_validate_resource_never_crashes_on_arbitrary_json(payload: Any) -> None:
     """Arbitrary JSON structures must always yield a list[str], never an unhandled crash."""
-    issues = validate_resource(payload, require_canadian_profile=False)
+    issues = validate_resource(payload)
     assert isinstance(issues, list)
     assert all(isinstance(msg, str) for msg in issues)
 
@@ -47,7 +47,7 @@ def test_validate_resource_handles_arbitrary_fields_on_real_resources(
 ) -> None:
     """Known resource types with arbitrary mutated fields never raise unhandled exceptions."""
     payload = {**extra, "resourceType": resource_type}
-    issues = validate_resource(payload, require_canadian_profile=True)
+    issues = validate_resource(payload)
     assert isinstance(issues, list)
     assert all(isinstance(msg, str) for msg in issues)
 
@@ -71,10 +71,10 @@ def test_rust_hot_path_guard_and_throughput() -> None:
         "birthDate": "1990-05-15",
     }
     # Warm up and verify 200 validations complete comfortably under 0.5s in Python/Rust.
-    assert validate_resource(patient, require_canadian_profile=False) == []
+    assert validate_resource(patient) == []
     t0 = time.perf_counter()
     for _ in range(200):
-        assert validate_resource(patient, require_canadian_profile=False) == []
+        assert validate_resource(patient) == []
     elapsed = time.perf_counter() - t0
     assert elapsed < 0.5, f"Hot-path throughput regression: 200 patients took {elapsed:.3f}s"
 

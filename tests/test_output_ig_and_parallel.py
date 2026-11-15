@@ -103,7 +103,7 @@ class TestOutputFormatters:
         assert len(oo["issue"]) == 1
         assert oo["issue"][0]["severity"] == "information"
         assert oo["issue"][0]["code"] == "informational"
-        assert validate_resource(oo, require_canadian_profile=False) == []
+        assert validate_resource(oo) == []
 
     def test_issues_to_operation_outcome_classifications(self) -> None:
         issues = [
@@ -125,15 +125,15 @@ class TestOutputFormatters:
         assert codes[2] == "code-invalid"
         assert codes[3] == "required"
         assert codes[4] == "value"
-        assert codes[5] == "value"
+        assert codes[5] == "invalid"
         assert codes[6] == "invalid"
 
-        assert validate_resource(oo, require_canadian_profile=False) == []
+        assert validate_resource(oo) == []
 
     def test_nested_and_expression_extraction(self) -> None:
         assert _classify_issue_code("entry[0].resource: Structural[id]: error") == "structure"
         assert _classify_issue_code("contained[1]: ext-1 invariant error") == "invariant"
-        assert _classify_issue_code("missing Canadian meta.profile") == "required"
+        assert _classify_issue_code("Profile[http://x]: missing required element") == "required"
 
         expr1 = _extract_expression("entry[0].resource: Structural[name.0]: missing", "Bundle")
         assert expr1 == ["Bundle.entry[0].resource.name[0]"]
@@ -159,12 +159,12 @@ class TestOutputFormatters:
         # Empty report
         empty_oo = dataset_to_operation_outcome({"issues": []})
         assert empty_oo["resourceType"] == "OperationOutcome"
-        assert validate_resource(empty_oo, require_canadian_profile=False) == []
+        assert validate_resource(empty_oo) == []
 
         # Non-dict and string items
         str_oo = dataset_to_operation_outcome({"issues": ["Raw string issue", 12345]})
         assert len(str_oo["issue"]) == 2
-        assert validate_resource(str_oo, require_canadian_profile=False) == []
+        assert validate_resource(str_oo) == []
 
         # Parse error with line and without line
         report_with_parse_errors: dict[str, Any] = {
@@ -183,29 +183,28 @@ class TestOutputFormatters:
         assert oo["issue"][0]["code"] == "exception"
         assert "bad.json: Invalid JSON syntax" in oo["issue"][0]["diagnostics"]
         assert "bad.ndjson:5: Unterminated string" in oo["issue"][1]["diagnostics"]
-        assert validate_resource(oo, require_canadian_profile=False) == []
+        assert validate_resource(oo) == []
 
     def test_validate_to_operation_outcome_helper(self) -> None:
         valid_pat = _valid_patient_dict()
-        oo_valid = validate_to_operation_outcome(valid_pat, require_canadian_profile=True)
+        oo_valid = validate_to_operation_outcome(valid_pat)
         assert oo_valid["resourceType"] == "OperationOutcome"
         assert oo_valid["issue"][0]["code"] == "informational"
-        assert validate_resource(oo_valid, require_canadian_profile=False) == []
+        assert validate_resource(oo_valid) == []
 
         invalid_pat = _invalid_patient_dict()
-        oo_invalid = validate_to_operation_outcome(invalid_pat, require_canadian_profile=False)
+        oo_invalid = validate_to_operation_outcome(invalid_pat)
         assert oo_invalid["resourceType"] == "OperationOutcome"
         assert len(oo_invalid["issue"]) >= 1
         assert "Patient/bad-pat" in oo_invalid["issue"][0]["diagnostics"]
-        assert validate_resource(oo_invalid, require_canadian_profile=False) == []
+        assert validate_resource(oo_invalid) == []
 
         oo_scalar = validate_to_operation_outcome("not a dict")
         assert len(oo_scalar["issue"]) == 1
-        assert validate_resource(oo_scalar, require_canadian_profile=False) == []
+        assert validate_resource(oo_scalar) == []
 
     def test_sarif_formatter(self) -> None:
         assert _classify_sarif_rule_id("Invariant[ext-1]") == "FHIR002-Invariant"
-        assert _classify_sarif_rule_id("no Canadian profile") == "FHIR004-Canadian"
         assert _classify_sarif_rule_id("Profile[http://x]") == "FHIR003-Profile"
         assert _classify_sarif_rule_id("Structural[name]") == "FHIR001-Structural"
 
@@ -391,7 +390,6 @@ class TestDynamicIGLoader:
         }
         issues = validate_resource(
             test_patient,
-            require_canadian_profile=False,
             profile_urls=["http://example.org/fhir/StructureDefinition/strict-patient"],
             ig_sources=[sd_file],
         )
@@ -405,7 +403,6 @@ class TestDynamicIGLoader:
         }
         bad_issues = validate_resource(
             bad_patient,
-            require_canadian_profile=False,
             profile_urls=["http://example.org/fhir/StructureDefinition/strict-patient"],
             ig_sources=[sd_file],
         )
@@ -795,7 +792,7 @@ class TestCLIIntegration:
         assert cli_main([str(patient_file), "--operation-outcome"]) == 0
         oo_data = json.loads(capsys.readouterr().out)
         assert oo_data["resourceType"] == "OperationOutcome"
-        assert validate_resource(oo_data, require_canadian_profile=False) == []
+        assert validate_resource(oo_data) == []
 
         # 4. --format sarif
         assert cli_main([str(patient_file), "--format", "sarif"]) == 0
@@ -834,7 +831,6 @@ class TestCLIIntegration:
         exit_code = cli_main(
             [
                 str(patient_file),
-                "--no-canadian",
                 "-ig",
                 str(sd_file),
                 "--profile",
@@ -1266,7 +1262,6 @@ class TestCoverageDeepDives:
             == "Patient/p1: field missing"
         )
         assert _format_diagnostics("field missing", "Patient", None) == "Patient: field missing"
-        assert _classify_sarif_rule_id("Address[0] state US-only") == "FHIR004-Canadian"
         assert _classify_sarif_rule_id("not in required ValueSet") == "FHIR003-Profile"
 
     def test_direct_batch_and_chunk_workers(self) -> None:

@@ -29,7 +29,7 @@ from fhirlance.terminology import (
     validate_remote_code,
     validate_standalone_codings,
 )
-from fhirlance.validator import validate_dataset_structural, validate_structural_and_canadian
+from fhirlance.validator import validate_dataset_structural
 
 __version__ = "0.1.0"
 
@@ -60,6 +60,5 @@ __all__ = [
     "validate_remote_code",
     "validate_resource",
     "validate_standalone_codings",
-    "validate_structural_and_canadian",
     "validate_to_operation_outcome",
 ]

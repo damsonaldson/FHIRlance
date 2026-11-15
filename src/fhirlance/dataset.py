@@ -25,7 +25,6 @@ _FILE_READ_ERRORS = (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueErr
 
 @dataclass(frozen=True, slots=True)
 class _ValidationOptions:
-    require_canadian_profile: bool = True
     profile_urls: tuple[str, ...] | None = None
     ig_sources: tuple[str, ...] | None = None
     compiled_profiles: dict[str, CompiledProfile] | None = None
@@ -56,7 +55,6 @@ def _record_validation(
     warnings: list[str] = []
     issues = validate_resource(
         resource,
-        require_canadian_profile=options.require_canadian_profile,
         profile_urls=list(options.profile_urls) if options.profile_urls else None,
         ig_sources=effective_ig,
         tx=options.tx_options,
@@ -314,7 +312,6 @@ def _collect_dataset_files(target_path: Path) -> list[str]:
 def validate_dataset(
     target: Path | str,
     parallel: bool = False,
-    require_canadian_profile: bool = True,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
     **kwargs: Any,
@@ -336,7 +333,6 @@ def validate_dataset(
 
     files = _collect_dataset_files(target_path)
     options = _ValidationOptions(
-        require_canadian_profile=require_canadian_profile,
         profile_urls=tuple(profile_urls) if profile_urls else None,
         ig_sources=tuple(str(s) for s in ig_sources) if ig_sources else None,
         compiled_profiles=compiled_map,

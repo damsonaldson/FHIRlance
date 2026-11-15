@@ -335,14 +335,12 @@ def test_every_r4_root_literal_code_binding(
     valid_val: Any = [allowed_codes[0]] if is_list else allowed_codes[0]
     ok_issues = validate_resource(
         {**base, field_name: valid_val},
-        require_canadian_profile=False,
     )
     assert not any(f"Structural[{field_name}" in i for i in ok_issues)
 
     bad_val: Any = ["__invalid_fhir_code__"] if is_list else "__invalid_fhir_code__"
     bad_issues = validate_resource(
         {**base, field_name: bad_val},
-        require_canadian_profile=False,
     )
     assert any(f"Structural[{field_name}" in i for i in bad_issues), (
         f"{rtype}.{field_name} accepted invalid code: {bad_issues}"

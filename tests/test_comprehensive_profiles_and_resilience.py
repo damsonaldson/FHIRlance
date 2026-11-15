@@ -38,41 +38,6 @@ def _valid_ca_patient() -> dict[str, Any]:
     }
 
 
-@pytest.mark.parametrize(
-    "bad_resource",
-    [
-        {},
-        {"resourceType": "Patient", "id": "p1"},
-        {**_valid_ca_patient(), "meta": {}},
-        {**_valid_ca_patient(), "identifier": [{"system": "http://x.org", "value": "1"}]},
-        {
-            **_valid_ca_patient(),
-            "address": [{"country": "US", "state": "NS", "postalCode": "B2Y 1A1"}],
-        },
-        {
-            **_valid_ca_patient(),
-            "address": [{"country": "CA", "state": "ZZ", "postalCode": "B2Y 1A1"}],
-        },
-        {
-            **_valid_ca_patient(),
-            "address": [{"country": "CA", "state": "NS", "postalCode": "12345"}],
-        },
-        {
-            **_valid_ca_patient(),
-            "extension": [
-                {
-                    "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
-                    "valueString": "x",
-                }
-            ],
-        },
-    ],
-)
-def test_canadian_profile_rules_enforced(bad_resource: dict[str, Any]) -> None:
-    """Canadian profile presence, JHN, address, and disallowed US extensions are flagged."""
-    assert validate_resource(bad_resource)
-
-
 def test_primitive_extensions_valid_and_invalid() -> None:
     p = _valid_ca_patient()
     p["_birthDate"] = {"extension": [{"url": "http://example.org/ext", "valueString": "approx"}]}
@@ -133,7 +98,7 @@ def test_observation_obs7_and_bundle_recursive_and_bdl7() -> None:
             {"fullUrl": "urn:uuid:dup", "resource": _valid_ca_patient()},
         ],
     }
-    issues = validate_resource(bundle_bad, require_canadian_profile=False)
+    issues = validate_resource(bundle_bad)
     assert any("bdl-7" in i for i in issues)
     assert any("entry[0].resource:" in i for i in issues)
 
@@ -158,20 +123,14 @@ def test_ca_baseline_vitalsigns_ips_and_us_core_profiles() -> None:
         "effectiveDateTime": "2026-01-01T10:00:00Z",
         "valueQuantity": {"value": 72, "unit": "beats/min"},
     }
-    assert any(
-        "Observation.category" in i
-        for i in validate_resource(obs_vitals_missing_cat, require_canadian_profile=False)
-    )
+    assert any("Observation.category" in i for i in validate_resource(obs_vitals_missing_cat))
 
     ips_patient_no_name = {
         "resourceType": "Patient",
         "meta": {"profile": ["http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips"]},
         "gender": "female",
     }
-    assert any(
-        "Patient.name" in i
-        for i in validate_resource(ips_patient_no_name, require_canadian_profile=False)
-    )
+    assert any("Patient.name" in i for i in validate_resource(ips_patient_no_name))
 
     us_patient_ok = {
         "resourceType": "Patient",
@@ -180,7 +139,7 @@ def test_ca_baseline_vitalsigns_ips_and_us_core_profiles() -> None:
         "name": [{"family": "Smith", "given": ["Alex"]}],
         "gender": "male",
     }
-    assert validate_resource(us_patient_ok, require_canadian_profile=False) == []
+    assert validate_resource(us_patient_ok) == []
 
     wrong_type = {
         "resourceType": "Observation",
@@ -190,7 +149,7 @@ def test_ca_baseline_vitalsigns_ips_and_us_core_profiles() -> None:
     }
     assert any(
         "profile applies to 'Patient', got 'Observation'" in i
-        for i in validate_resource(wrong_type, require_canadian_profile=False)
+        for i in validate_resource(wrong_type)
     )
 
 
@@ -210,10 +169,7 @@ def test_resilience_and_cli(tmp_path: Path) -> None:
         nxt: dict[str, Any] = {"resourceType": "Bundle", "type": "collection"}
         cur["entry"] = [{"resource": nxt}]
         cur = nxt
-    assert any(
-        "Maximum resource nesting depth" in i
-        for i in validate_resource(nested, require_canadian_profile=False)
-    )
+    assert any("Maximum resource nesting depth" in i for i in validate_resource(nested))
 
     good_ndjson = tmp_path / "mixed.ndjson"
     good_ndjson.write_text(

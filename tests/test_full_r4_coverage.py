@@ -154,7 +154,7 @@ def test_every_r4_resource_accepts_valid_minimal_instance(rtype: str) -> None:
     """Every single one of the 146 R4 models must accept a clean minimal valid instance."""
     model_cls = RESOURCE_MODELS[rtype]
     payload = build_minimal_valid(model_cls)
-    issues = validate_resource(payload, require_canadian_profile=False)
+    issues = validate_resource(payload)
     assert issues == [], f"{rtype} rejected valid minimal instance: {issues}"
 
 
@@ -164,7 +164,6 @@ def test_every_r4_resource_rejects_unknown_field_and_empty_array(rtype: str) -> 
     base = build_minimal_valid(RESOURCE_MODELS[rtype])
     issues_unknown = validate_resource(
         {**base, "nonExistentFhirFieldXYZ": "bad"},
-        require_canadian_profile=False,
     )
     assert any("Structural[" in i for i in issues_unknown), (
         f"{rtype} allowed unknown field: {issues_unknown}"
@@ -178,7 +177,7 @@ def test_every_r4_resource_rejects_unknown_field_and_empty_array(rtype: str) -> 
                 list_field = info.alias or fname
                 break
     assert list_field is not None
-    issues_empty = validate_resource({**base, list_field: []}, require_canadian_profile=False)
+    issues_empty = validate_resource({**base, list_field: []})
     assert any("at least 1 item" in i or "cannot be empty" in i for i in issues_empty), (
         f"{rtype} allowed empty array for {list_field}: {issues_empty}"
     )
@@ -190,19 +189,17 @@ def test_every_r4_resource_rejects_invalid_id_and_primitives(rtype: str) -> None
     base = build_minimal_valid(RESOURCE_MODELS[rtype])
     bad_id_spaces = validate_resource(
         {**base, "id": "invalid id with spaces!"},
-        require_canadian_profile=False,
     )
     assert any("Structural[id]" in i for i in bad_id_spaces)
 
-    bad_id_long = validate_resource({**base, "id": "a" * 65}, require_canadian_profile=False)
+    bad_id_long = validate_resource({**base, "id": "a" * 65})
     assert any("Structural[id]" in i for i in bad_id_long)
 
-    bad_id_type = validate_resource({**base, "id": 12345}, require_canadian_profile=False)
+    bad_id_type = validate_resource({**base, "id": 12345})
     assert any("Structural[id]" in i for i in bad_id_type)
 
     bad_lang = validate_resource(
         {**base, "language": "  leading-whitespace  "},
-        require_canadian_profile=False,
     )
     assert any("Structural[language]" in i for i in bad_lang)
 
@@ -218,24 +215,16 @@ def test_every_r4_resource_domain_invariants_and_primitive_extensions(rtype: str
         "id": "res-1",
         "_id": {"extension": [{"url": "http://example.org/ext", "valueString": "v"}]},
     }
-    assert validate_resource(valid_prim_ext, require_canadian_profile=False) == []
+    assert validate_resource(valid_prim_ext) == []
 
     bad_prim_ext = {**base, "id": "res-1", "_id": {"unknownKey": 1}}
-    assert any(
-        "Structural[_id]" in i
-        for i in validate_resource(bad_prim_ext, require_canadian_profile=False)
-    )
+    assert any("Structural[_id]" in i for i in validate_resource(bad_prim_ext))
 
     if issubclass(model_cls, DomainResourceBase):
         bad_txt = {**base, "text": {"status": "generated", "div": "<span>no div</span>"}}
-        assert any(
-            "Invariant[txt-1]" in i
-            for i in validate_resource(bad_txt, require_canadian_profile=False)
-        )
+        assert any("Invariant[txt-1]" in i for i in validate_resource(bad_txt))
         bad_ext1 = {**base, "extension": [{"url": "http://example.org/empty"}]}
-        assert any(
-            "ext-1" in i for i in validate_resource(bad_ext1, require_canadian_profile=False)
-        )
+        assert any("ext-1" in i for i in validate_resource(bad_ext1))
 
 
 @pytest.mark.parametrize("rtype", sorted(RESOURCE_MODELS.keys()))
@@ -248,7 +237,7 @@ def test_every_r4_resource_enforces_required_fields(rtype: str) -> None:
         if name != "resourceType" and info.is_required()
     ]
     req_choices = [raw for raw, _, is_req in extract_model_choices(model_cls) if is_req]
-    issues = validate_resource({"resourceType": rtype}, require_canadian_profile=False)
+    issues = validate_resource({"resourceType": rtype})
     if required:
         assert any("Field required" in i for i in issues), (
             f"{rtype} did not report missing required fields {required}: {issues}"

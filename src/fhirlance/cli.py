@@ -22,11 +22,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("target", type=Path, help="FHIR JSON/NDJSON file or directory to validate")
     parser.add_argument(
-        "--no-canadian",
-        action="store_true",
-        help="Disable Canadian profile presence and JHN/address checks",
-    )
-    parser.add_argument(
         "--profile",
         action="append",
         default=None,
@@ -113,7 +108,6 @@ def main(argv: list[str] | None = None) -> int:
         report = validate_dataset(
             args.target,
             parallel=args.parallel,
-            require_canadian_profile=not args.no_canadian,
             profile_urls=args.profile,
             ig_sources=args.ig_sources,
             tx=args.tx,

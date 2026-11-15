@@ -109,12 +109,6 @@ def _base_valid_canadian_patient() -> dict[str, Any]:
         ),
         ("empty_array", lambda p: {**p, "telecom": []}, False, False),
         (
-            "missing_ca_jhn",
-            lambda p: {k: v for k, v in p.items() if k != "identifier"},
-            False,
-            True,
-        ),
-        (
             "vitalsigns_profile_missing_category",
             lambda _: {
                 "resourceType": "Observation",

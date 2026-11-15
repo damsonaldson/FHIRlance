@@ -29,7 +29,6 @@ from fhirlance.terminology import (
     validate_standalone_codings,
 )
 
-validate_structural_and_canadian = validate_resource
 validate_dataset_structural = validate_dataset
 
 __all__ = [
@@ -54,6 +53,5 @@ __all__ = [
     "validate_remote_code",
     "validate_resource",
     "validate_standalone_codings",
-    "validate_structural_and_canadian",
     "validate_to_operation_outcome",
 ]
