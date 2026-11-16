@@ -15,6 +15,7 @@ from fhirlance.profile_engine import (
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, VALUE_SET_SPECS
 from fhirlance.terminology import (
     TxOptions,
+    _lookup_value_set,
     _normalize_vs_spec,
     parse_tx_options,
     validate_binding_value,
@@ -95,7 +96,7 @@ def _compile_binding(raw_binding: dict[str, Any] | None, path: str) -> CompiledB
     vs_url = str(raw_binding.get("value_set") or "")
     if not vs_url:
         return None
-    raw_vs = raw_binding.get("vs_spec") or VALUE_SET_SPECS.get(vs_url)
+    raw_vs = raw_binding.get("vs_spec") or _lookup_value_set(vs_url, VALUE_SET_SPECS)
     return CompiledBindingRule(
         path=path,
         parts=(),

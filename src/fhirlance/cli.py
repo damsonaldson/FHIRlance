@@ -10,6 +10,7 @@ from typing import Any
 
 from fhirlance.dataset import validate_dataset
 from fhirlance.formatters import SUPPORTED_OUTPUT_FORMATS, format_dataset_report
+from fhirlance.pkg_manager import install_package
 
 _MAX_DISPLAYED_ISSUES = 20
 _CLI_USAGE_EXIT_CODE = 2
@@ -71,6 +72,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Require all profile mustSupport elements to be present",
     )
     parser.add_argument(
+        "--unknown-profile",
+        choices=("ignore", "warning", "error"),
+        default="ignore",
+        help="Behavior when a resource declares an unknown profile URL (default: ignore)",
+    )
+    parser.add_argument(
         "--format",
         choices=SUPPORTED_OUTPUT_FORMATS,
         default=None,
@@ -112,9 +119,56 @@ def _format_text_lines(report: dict[str, Any], elapsed: float) -> list[str]:
     return lines
 
 
+def _build_pkg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="fhirlance pkg",
+        description="Manage FHIRlance Implementation Guide packages.",
+    )
+    subparsers = parser.add_subparsers(dest="pkg_command", required=True)
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Download and install a FHIR IG package (<id>#<version> or <id>)",
+    )
+    install_parser.add_argument("package", help="Package spec (<id>#<version> or <id>)")
+    install_parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=None,
+        help="Override FHIRlance package cache directory",
+    )
+    install_parser.add_argument(
+        "--no-deps",
+        action="store_true",
+        help="Skip recursive installation of package dependencies",
+    )
+    return parser
+
+
+def _run_pkg_command(pkg_argv: list[str]) -> int:
+    args = _build_pkg_parser().parse_args(pkg_argv)
+    if args.pkg_command == "install":
+        try:
+            installed = install_package(
+                args.package,
+                cache_dir=args.cache_dir,
+                include_deps=not args.no_deps,
+            )
+        except (ValueError, RuntimeError, OSError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        for path in installed:
+            print(f"Installed: {path}")
+        return 0
+    return _CLI_USAGE_EXIT_CODE
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the FHIRlance CLI and return a POSIX exit status."""
-    args = _build_parser().parse_args(argv)
+    effective_argv = sys.argv[1:] if argv is None else argv
+    if effective_argv and effective_argv[0] == "pkg":
+        return _run_pkg_command(effective_argv[1:])
+
+    args = _build_parser().parse_args(effective_argv)
 
     t0 = time.perf_counter()
     try:
@@ -127,6 +181,7 @@ def main(argv: list[str] | None = None) -> int:
             strict_extensible=args.strict_extensible,
             best_practice=args.best_practice,
             enforce_must_support=args.enforce_must_support,
+            unknown_profile=args.unknown_profile,
         )
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -34,6 +34,7 @@ class _ValidationOptions:
     skip_nested_entries: bool = False
     best_practice: bool = False
     enforce_must_support: bool = False
+    unknown_profile: str = "ignore"
 
 
 def _reject_bad_json_constant(val: str) -> Any:
@@ -68,6 +69,7 @@ def _record_validation(
         _skip_nested_entries=options.skip_nested_entries,
         best_practice=options.best_practice,
         enforce_must_support=options.enforce_must_support,
+        unknown_profile=options.unknown_profile,
     )
     res_id = resource.get("id") if isinstance(resource, dict) else None
     res_type = resource.get("resourceType") if isinstance(resource, dict) else None
@@ -363,6 +365,9 @@ def validate_dataset(
     parallel: bool = False,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
+    *,
+    enforce_must_support: bool = False,
+    unknown_profile: str = "ignore",
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Validate a single file or all FHIR bundles / NDJSON files in a directory."""
@@ -390,6 +395,7 @@ def validate_dataset(
         tx_options=tx_options,
         best_practice=best_practice,
         enforce_must_support=enforce_must_support,
+        unknown_profile=unknown_profile,
     )
     total_resources = 0
     valid_resources = 0

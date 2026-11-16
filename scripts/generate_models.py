@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import json
 import keyword
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
 from fhirlance.slicing_spec import extract_slice_groups, merge_slice_groups
+from fhirlance.vs_expansion import (
+    CodeSystemHierarchy,
+    eval_filters,
+    merge_code_system_supplements,
+)
 
 R4_PKG = Path.home() / ".fhir" / "packages" / "hl7.fhir.r4.core#4.0.1" / "package"
 THO_PKG = Path.home() / ".fhir" / "packages" / "hl7.terminology.r4#6.2.0" / "package"
@@ -116,14 +120,6 @@ class CodegenContext:
 
 
 @dataclass(frozen=True, slots=True)
-class CodeSystemHierarchy:
-    """Complete CodeSystem codes and descendant hierarchy for filter expansion."""
-
-    codes: frozenset[str]
-    descendants: dict[str, frozenset[str]]
-
-
-@dataclass(frozen=True, slots=True)
 class ValueSetSpec:
     """Expanded ValueSet specification with local codes and external system tracking."""
 
@@ -187,91 +183,20 @@ def _pascal_from_path(path: str) -> str:
     return "".join(part[0].upper() + part[1:] for part in path.split("."))
 
 
-def _walk_concept_tree(
-    concepts: list[dict[str, Any]],
-    all_codes: set[str],
-    descendants: dict[str, set[str]],
-) -> set[str]:
-    subtree: set[str] = set()
-    for item in concepts:
-        code = item.get("code")
-        if not code or not isinstance(code, str):
-            continue
-        all_codes.add(code)
-        subtree.add(code)
-        sub_concepts = item.get("concept")
-        children: set[str] = set()
-        if isinstance(sub_concepts, list):
-            children = _walk_concept_tree(sub_concepts, all_codes, descendants)
-        descendants.setdefault(code, set()).update(children)
-        subtree.update(children)
-    return subtree
-
-
 def _load_complete_code_systems(
     ig_pkgs: list[Path],
 ) -> tuple[dict[str, list[str]], dict[str, CodeSystemHierarchy]]:
     """Extract complete CodeSystems and their hierarchies across all IG packages."""
-    complete_map: dict[str, list[str]] = {}
-    hierarchy_map: dict[str, CodeSystemHierarchy] = {}
+    raw_cs: list[dict[str, Any]] = []
     for pkg in ig_pkgs:
         if not pkg.exists():
             continue
-        for path in _glob_json(pkg, "CodeSystem-"):
-            cs = json.loads(path.read_text(encoding="utf-8"))
-            url = (cs.get("url") or "").split("|", 1)[0]
-            if not url or cs.get("content") != "complete":
-                continue
-            all_codes: set[str] = set()
-            descendants: dict[str, set[str]] = {}
-            _walk_concept_tree(cs.get("concept", []), all_codes, descendants)
-            if not all_codes:
-                continue
-            complete_map[url] = sorted(all_codes)
-            hierarchy_map[url] = CodeSystemHierarchy(
-                codes=frozenset(all_codes),
-                descendants={k: frozenset(v) for k, v in descendants.items()},
-            )
+        raw_cs.extend(
+            json.loads(path.read_text(encoding="utf-8")) for path in _glob_json(pkg, "CodeSystem-")
+        )
+    hierarchy_map = merge_code_system_supplements(raw_cs)
+    complete_map = {k: sorted(h.codes) for k, h in hierarchy_map.items()}
     return complete_map, hierarchy_map
-
-
-def _eval_regex_filter(val: str, codes: frozenset[str]) -> set[str]:
-    try:
-        rx = re.compile(val)
-        return {c for c in codes if rx.fullmatch(c)}
-    except re.error:
-        return set()
-
-
-def _eval_single_filter(
-    f: dict[str, Any],
-    cs: CodeSystemHierarchy,
-) -> set[str]:
-    op = f.get("op")
-    val = str(f.get("value", ""))
-    if op == "is-a":
-        return ({val} if val in cs.codes else set()) | set(cs.descendants.get(val, ()))
-    if op == "descendent-of":
-        return set(cs.descendants.get(val, ()))
-    if op == "=":
-        return {val} if val in cs.codes else set()
-    if op == "in":
-        return set(val.split(",")) & cs.codes
-    if op == "regex":
-        return _eval_regex_filter(val, cs.codes)
-    not_allowed = ({val} if val in cs.codes else set()) | set(cs.descendants.get(val, ()))
-    return set(cs.codes - not_allowed) if op == "is-not-a" else set()
-
-
-def _eval_filters(
-    filters: list[dict[str, Any]],
-    cs: CodeSystemHierarchy,
-) -> set[str]:
-    matches: set[str] | None = None
-    for f in filters:
-        m = _eval_single_filter(f, cs)
-        matches = m if matches is None else (matches & m)
-    return matches or set()
 
 
 def _collect_expansion_contains(
@@ -293,6 +218,26 @@ def _collect_expansion_contains(
             _collect_expansion_contains(sub_contains, sys_codes, codes)
 
 
+def _split_sys_version(entry: dict[str, Any]) -> tuple[str, str]:
+    raw_sys = entry.get("system") or ""
+    sys_url, _, embedded_ver = raw_sys.partition("|")
+    explicit_ver = entry.get("version")
+    ver = explicit_ver if isinstance(explicit_ver, str) and explicit_ver else embedded_ver
+    return sys_url, ver
+
+
+def _lookup_cs_hierarchy(
+    ctx: _VsResolverContext,
+    sys_url: str,
+    sys_ver: str,
+) -> CodeSystemHierarchy | None:
+    if sys_url and sys_ver:
+        versioned = ctx.hierarchy_map.get(f"{sys_url}|{sys_ver}")
+        if versioned is not None:
+            return versioned
+    return ctx.hierarchy_map.get(sys_url) if sys_url else None
+
+
 def _apply_imported_valuesets(
     ctx: _VsResolverContext,
     raw_refs: Any,
@@ -302,7 +247,12 @@ def _apply_imported_valuesets(
         return
     refs = raw_refs if isinstance(raw_refs, list) else [raw_refs]
     for ref_vs in refs:
-        ref_url = str(ref_vs).split("|", 1)[0]
+        ref_str = str(ref_vs)
+        ref_url = (
+            ref_str
+            if ref_str in ctx.raw_vs or ref_str in ctx.resolved
+            else ref_str.split("|", 1)[0]
+        )
         ref_spec = _resolve_single_value_set(ctx, ref_url)
         target.codes.update(ref_spec.codes)
         for s, sc in ref_spec.system_codes.items():
@@ -327,10 +277,12 @@ def _apply_include_filter(
     ctx: _VsResolverContext,
     inc: dict[str, Any],
     sys_url: str,
+    sys_ver: str,
     target: _VsTarget,
 ) -> None:
-    if sys_url in ctx.hierarchy_map:
-        matched = _eval_filters(inc["filter"], ctx.hierarchy_map[sys_url])
+    cs_hier = _lookup_cs_hierarchy(ctx, sys_url, sys_ver)
+    if cs_hier is not None:
+        matched = eval_filters(inc["filter"], cs_hier)
         target.codes.update(matched)
         if matched and sys_url:
             target.sys_codes.setdefault(sys_url, set()).update(matched)
@@ -341,10 +293,15 @@ def _apply_include_filter(
 def _apply_include_system(
     ctx: _VsResolverContext,
     sys_url: str,
+    sys_ver: str,
     target: _VsTarget,
 ) -> None:
-    if sys_url in ctx.complete_cs:
-        matched = set(ctx.complete_cs[sys_url])
+    versioned_key = f"{sys_url}|{sys_ver}" if sys_ver else ""
+    codes_list = ctx.complete_cs.get(versioned_key) if versioned_key else None
+    if codes_list is None:
+        codes_list = ctx.complete_cs.get(sys_url)
+    if codes_list is not None:
+        matched = set(codes_list)
         target.codes.update(matched)
         target.sys_codes.setdefault(sys_url, set()).update(matched)
     elif sys_url:
@@ -356,13 +313,13 @@ def _apply_include(
     inc: dict[str, Any],
     target: _VsTarget,
 ) -> None:
-    sys_url = (inc.get("system") or "").split("|", 1)[0]
+    sys_url, sys_ver = _split_sys_version(inc)
     if "concept" in inc:
         _apply_include_concepts(inc, sys_url, target)
     elif "filter" in inc:
-        _apply_include_filter(ctx, inc, sys_url, target)
+        _apply_include_filter(ctx, inc, sys_url, sys_ver, target)
     elif sys_url:
-        _apply_include_system(ctx, sys_url, target)
+        _apply_include_system(ctx, sys_url, sys_ver, target)
 
     _apply_imported_valuesets(ctx, inc.get("valueSet"), target)
 
@@ -387,10 +344,12 @@ def _apply_exclude_filter(
     ctx: _VsResolverContext,
     exc: dict[str, Any],
     sys_url: str,
+    sys_ver: str,
     target: _VsTarget,
 ) -> None:
-    if sys_url in ctx.hierarchy_map:
-        excluded = _eval_filters(exc["filter"], ctx.hierarchy_map[sys_url])
+    cs_hier = _lookup_cs_hierarchy(ctx, sys_url, sys_ver)
+    if cs_hier is not None:
+        excluded = eval_filters(exc["filter"], cs_hier)
         if sys_url in target.sys_codes:
             target.sys_codes[sys_url].difference_update(excluded)
 
@@ -400,11 +359,11 @@ def _apply_exclude(
     exc: dict[str, Any],
     target: _VsTarget,
 ) -> None:
-    sys_url = (exc.get("system") or "").split("|", 1)[0]
+    sys_url, sys_ver = _split_sys_version(exc)
     if "concept" in exc:
         _apply_exclude_concepts(exc, sys_url, target)
     elif "filter" in exc:
-        _apply_exclude_filter(ctx, exc, sys_url, target)
+        _apply_exclude_filter(ctx, exc, sys_url, sys_ver, target)
     elif sys_url:
         target.sys_codes.pop(sys_url, None)
 
@@ -458,9 +417,13 @@ def _load_all_value_sets(
             continue
         for path in _glob_json(pkg, "ValueSet-"):
             vs = json.loads(path.read_text(encoding="utf-8"))
-            url = (vs.get("url") or "").split("|", 1)[0]
+            raw_url = vs.get("url") or ""
+            url, _, embedded_ver = raw_url.partition("|")
+            version = vs.get("version") or embedded_ver
             if url:
                 raw_vs[url] = vs
+                if version:
+                    raw_vs[f"{url}|{version}"] = vs
 
     ctx = _VsResolverContext(
         raw_vs=raw_vs,
