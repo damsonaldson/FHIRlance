@@ -579,9 +579,10 @@ def validate_extensions(
     compiled_extensions: Mapping[str, CompiledExtension] = COMPILED_EXTENSIONS,
     tx: TxOptions | str = "local",
     _warnings_out: list[str] | None = None,
+    _skip_precheck: bool = False,
 ) -> list[str]:
     """Validate all extensions and modifierExtensions in a FHIR resource."""
-    if not _has_any_extension_key(resource):
+    if not _skip_precheck and not _has_any_extension_key(resource):
         return []
     tx_options = tx if isinstance(tx, TxOptions) else parse_tx_options(tx)
     issues: list[str] = []
