@@ -1,14 +1,15 @@
 # FHIRlance Roadmap: Footprint-Prioritized Validation & HAPI / Smile CDR Integration
 
 > [!IMPORTANT]
-> **Baseline Advantage**: FHIRlance already validates all 146 FHIR R4 resource types, 39 complex datatypes, 183 IG profiles, Extension `StructureDefinition`s, full slicing, `Bundle` reference graphs, and 1,161 CodeSystems / 3,297 ValueSets at **~118 µs/resource** in-process (`pydantic-core` Rust hot-path) vs. **35.13 s (`108.1 ms/resource`)** for `validator_cli.jar` (**916.1x speedup**).
+> **Baseline Advantage**: FHIRlance already validates all 146 FHIR R4 resource types, 39 complex datatypes, 183 IG profiles, Extension `StructureDefinition`s, full slicing, `Bundle` reference graphs, and 1,161 CodeSystems / 3,297 ValueSets at **~118 µs/resource (~8,500 res/s per core)** in-process (`pydantic-core` Rust hot-path) vs. **35.13 s (`108.1 ms/resource`)** for `validator_cli.jar` (**916.1x speedup**).
+> **Architecture Decision (Python-First)**: At ~0.12 ms/resource, validation is already faster than downstream FHIR server DB writes and search indexing. Rather than taking on a two-language Rust rewrite (`PyO3`/C-ABI) for academic microsecond gains, FHIRlance stays **Python-first** (`pydantic-core` + pure Python), focusing engineering effort on **conformance completeness** (Tier 2) and **server/sidecar integration** (Tier 3).
 > **Prioritization Principle**: Features are ordered by **real-world FHIR community footprint** — validating the **most widely used structures first** (core clinical resources, extensions, slicing, `Bundle` references, and common IG constraints) and **less used / long-tail structures last** (`Questionnaire` `que-*`, `CapabilityStatement`, `MedicinalProduct*`, `ConceptMap`, `R4B`/`R5`).
 
 ```mermaid
 flowchart LR
-    T1["Tier 1 (Done)<br/>Extensions, Full Slicing,<br/>Bundle Refs & Datatype Bindings"] --> T2["Tier 2 (Next #1)<br/>Compiled FHIRPath, Element Bounds,<br/>Transitive IGs & Versioned TX"]
+    T1["Tier 1 (Done)<br/>Extensions, Full Slicing,<br/>Bundle Refs & Datatype Bindings"] --> T2["Tier 2 (Next #1)<br/>AOT + Combinator FHIRPath,<br/>Element Bounds & Transitive IGs"]
     T2 --> T3["Tier 3 (Planned)<br/>fhirlance serve UDS Daemon,<br/>HAPI/Smile Interceptor & mmap"]
-    T3 --> T4["Tier 4 (Long-Term)<br/>Niche Resources, R4B/R5,<br/>libfhirlance Rust C-ABI & Panama"]
+    T3 --> T4["Tier 4 (Long-Term)<br/>Niche Resources, R4B/R5"]
 ```
 
 ---
@@ -19,9 +20,9 @@ flowchart LR
 | :--- | :---: | :---: | :--- | :--- |
 | **Baseline (`v0.1.0`)** | `v0.1.0` | **Done** | 146 R4 Resources, 39 Datatypes, 183 Profiles, Dynamic `-ig`, Local/SQLite TX (`hl7.terminology.r4` + 5 IGs), `OperationOutcome`/SARIF/JUnit | [`resources.py`](../src/fhirlance/resources.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`terminology.py`](../src/fhirlance/terminology.py) |
 | **Tier 1 (`v0.2.0`)** | `v0.2.0` | **Done** | **Highest-Footprint Structures**: Extension `StructureDefinition`s, Full Slicing (`type`/`profile`/`exists`, slice `max`, `closed`/`ordered`, nested sub-slicing), `Bundle` Reference/`targetProfile`/`aggregation` Graph & Outer `Bundle` Check, Complex Datatype Bindings (`Identifier.type`, `ContactPoint`, `Address`), Single-Pass Scan | [`extensions.py`](../src/fhirlance/extensions.py), [`slicing_spec.py`](../src/fhirlance/slicing_spec.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`resource_validator.py`](../src/fhirlance/resource_validator.py) |
-| **Tier 2 (`v0.3.0`)** | `v0.3.0` | **Next (#1)** | **High-Footprint Conformance**: General FHIRPath-to-Python Compiler (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, Transitive `package.json` IG Dependencies, Versioned Canonicals (`url\|version`), `--best-practice` (`dom-6`), `--enforce-must-support`, `unknown-profile` | [`invariants.py`](../src/fhirlance/invariants.py), [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) |
+| **Tier 2 (`v0.3.0`)** | `v0.3.0` | **Next (#1)** | **High-Footprint Conformance**: AOT Python + Zero-`exec` Combinator FHIRPath (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, Transitive `package.json` IG Dependencies, Versioned Canonicals (`url\|version`), `--best-practice` (`dom-6`), `--enforce-must-support`, `unknown-profile` | [`invariants.py`](../src/fhirlance/invariants.py), [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) |
 | **Tier 3 (`v0.4.0`)** | `v0.4.0` | **Planned** | **Server & Enterprise Scale**: `fhirlance serve` UDS/HTTP `$validate` Sidecar, **HAPI FHIR / Smile CDR Raw-Byte Interceptor**, Envoy/NGINX Edge Filter, `mmap` Multi-GB NDJSON Streaming | Unix Domain Socket (`/run/fhirlance.sock`), Java HAPI Interceptor |
-| **Tier 4 (`v1.0.0`)** | `v1.0.0` | **Long-Term** | **Long-Tail Structures & Native FFI**: Niche Resources (`que-*`, `CapabilityStatement`, `TestScript`, `ConceptMap`, `MedicinalProduct*`), `R4B`/`R5` Targets, **`libfhirlance` Rust C-ABI + Java 21+ Panama FFI** | `java.lang.foreign.Linker` off-heap `MemorySegment` |
+| **Tier 4 (`v1.0.0`)** | `v1.0.0` | **Long-Term** | **Long-Tail Structures & Multi-Version**: Niche Resources (`que-*`, `CapabilityStatement`, `TestScript`, `ConceptMap`, `MedicinalProduct*`), `R4B`/`R5` Targets | [`generate_models.py`](../scripts/generate_models.py), [`resources.py`](../src/fhirlance/resources.py) |
 
 ---
 
@@ -59,8 +60,8 @@ These structures appear in **>80% of real-world FHIR payloads** (US Core, IPS, C
 
 ## Tier 2: High-Footprint Conformance, FHIRPath & IG Ecosystem (`v0.3.0` — Next #1)
 
-1. **General FHIRPath-to-Python Constraint Compiler**
-   - Compile standard R4 and IG `ElementDefinition.constraint.expression` strings directly into fast Python callables at codegen/IG-load time (`dom-1..6`, `ele-1`, `ref-1`, `bdl-6`, `obs-*`, `pat-*`, `con-*`, `med-*`, `us-core-*`, `ips-*`).
+1. **AOT + Zero-`exec` Combinator FHIRPath Constraint Evaluator**
+   - Generate direct Python functions in [`generate_models.py`](../scripts/generate_models.py) for built-in R4 and compiled IG `ElementDefinition.constraint.expression` rules (`dom-1..6`, `ref-1`, `bdl-6`, `obs-*`, `pat-*`, `con-*`, `med-*`, `us-core-*`, `ips-*`), paired with a safe, zero-`exec` AST-combinator/pattern evaluator in [`invariants.py`](../src/fhirlance/invariants.py) for runtime `-ig` packages (avoiding `exec()`/`compile()` and external runtime dependencies).
    - Add opt-in `--best-practice` flag for non-blocking HL7 best-practice recommendations (`dom-6` narrative, `Observation.performer`, `preferred` ValueSet bindings).
 2. **Remaining `ElementDefinition` Constraints**
    - Extract and enforce `maxLength`, `minValue[x]` / `maxValue[x]`, `type.profile` (profiled datatypes such as `SimpleQuantity`, `Money`, `Age`, `Duration`), empty-list `min >= 1` edge cases, and optional `--enforce-must-support`.
@@ -83,7 +84,7 @@ These structures appear in **>80% of real-world FHIR payloads** (US Core, IPS, C
 
 ---
 
-## Tier 4: Long-Tail Structures, Multi-Version & Native FFI (`v1.0.0`)
+## Tier 4: Long-Tail Structures & Multi-Version (`v1.0.0`)
 
 Lower-frequency R4 resources and long-term platform targets:
 
@@ -91,8 +92,10 @@ Lower-frequency R4 resources and long-term platform targets:
    - `Questionnaire` / `QuestionnaireResponse` (`que-*` invariants and `enableWhen` / `answerOption` checks), `CapabilityStatement` / `OperationDefinition` / `SearchParameter`, `ConceptMap` (`$translate`), `TestScript`, `StructureMap`, `GraphDefinition`, `Subscription`, `MolecularSequence`, `MedicinalProduct*`, and `VerificationResult`.
 2. **Multi-Version FHIR Support (`R4B` & `R5`)**
    - Parameterize [`generate_models.py`](../scripts/generate_models.py) to emit versioned schema modules (`fhirlance.r4`, `fhirlance.r4b`, `fhirlance.r5`).
-3. **Native Rust Shared Library (`libfhirlance`) + Java 21+ Project Panama FFI**
-   - Pure-Rust C-ABI shared library (`libfhirlance.so`/`.dylib`/`.dll`) + `PyO3` wheel and `java.lang.foreign.Linker` off-heap `MemorySegment` binding (`~20–35 µs` inside the JVM) with a zero-exclusion live `validator_cli.jar` equivalence gate.
+
+> [!NOTE]
+> **Deferred: Native Rust C-ABI (`libfhirlance`) + Java Panama FFI**
+> A standalone Rust rewrite (`libfhirlance` + `PyO3` + `java.lang.foreign.Linker`) is **intentionally deferred**. At ~118 µs/resource (~8,500 res/s per core), Python + `pydantic-core` already outperforms downstream FHIR server database writes and search indexing; keeping the validation engine in pure Python avoids a two-language maintenance tax and cross-platform native wheel complexity. Revisit only if a concrete deployment requires zero-sidecar in-process JVM embedding without `fhirlance serve`.
 
 ---
 
