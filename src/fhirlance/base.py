@@ -129,9 +129,46 @@ __all__ = [
     "FHIRTime",
     "FHIRUnsignedInt",
     "StrictBool",
+    "check_value_bounds",
     "validate_extension_item",
     "validate_primitive_ext_obj",
 ]
+
+
+def _unwrap_comparable(val: Any) -> int | float | str | None:
+    if isinstance(val, dict):
+        val = val.get("value")
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float, str)):
+        return val
+    return None
+
+
+def _compare_lt(a: int | float | str, b: int | float | str) -> bool:
+    if isinstance(a, str) and isinstance(b, str):
+        min_len = min(len(a), len(b))
+        return a[:min_len] < b[:min_len]
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return a < b
+    return False
+
+
+def check_value_bounds(val: Any, min_val: Any, max_val: Any, label: str) -> list[str]:
+    """Check whether a primitive or Quantity dict value satisfies min/max bounds."""
+    comp_val = _unwrap_comparable(val)
+    if comp_val is None:
+        return []
+    errors: list[str] = []
+    if min_val is not None:
+        comp_min = _unwrap_comparable(min_val)
+        if comp_min is not None and _compare_lt(comp_val, comp_min):
+            errors.append(f"{label} must be >= {min_val!r}, got {val!r}")
+    if max_val is not None:
+        comp_max = _unwrap_comparable(max_val)
+        if comp_max is not None and _compare_lt(comp_max, comp_val):
+            errors.append(f"{label} must be <= {max_val!r}, got {val!r}")
+    return errors
 
 
 class FHIRBaseModel(BaseModel):

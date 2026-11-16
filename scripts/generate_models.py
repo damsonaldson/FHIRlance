@@ -72,7 +72,7 @@ PRIMITIVE_MAP: dict[str, str] = {
     "code": "FHIRCode",
     "positiveInt": "FHIRPositiveInt",
     "unsignedInt": "FHIRUnsignedInt",
-    "string": "StrictStr",
+    "string": "FHIRString",
     "uri": "StrictStr",
     "url": "StrictStr",
     "canonical": "StrictStr",
@@ -1033,6 +1033,26 @@ def _merge_max_length(
     return merged
 
 
+def _unwrap_bound_comparable(val: Any) -> int | float | str | None:
+    if isinstance(val, dict):
+        val = val.get("value")
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float, str)):
+        return val
+    return None
+
+
+def _pick_tighter_bound(prev: Any, val: Any, *, take_max: bool) -> Any:
+    comp_prev = _unwrap_bound_comparable(prev)
+    comp_val = _unwrap_bound_comparable(val)
+    if isinstance(comp_prev, (int, float)) and isinstance(comp_val, (int, float)):
+        return val if (comp_val > comp_prev if take_max else comp_val < comp_prev) else prev
+    if isinstance(comp_prev, str) and isinstance(comp_val, str):
+        return val if (comp_val > comp_prev if take_max else comp_val < comp_prev) else prev
+    return val
+
+
 def _merge_bound_values(
     parent_vals: dict[str, Any],
     child_vals: dict[str, Any],
@@ -1041,16 +1061,9 @@ def _merge_bound_values(
 ) -> dict[str, Any]:
     merged = dict(parent_vals)
     for path, val in child_vals.items():
-        if path not in merged:
-            merged[path] = val
-            continue
-        prev = merged[path]
-        try:
-            merged[path] = (
-                (val if val > prev else prev) if take_max else (val if val < prev else prev)
-            )
-        except TypeError:
-            merged[path] = val
+        merged[path] = (
+            _pick_tighter_bound(merged[path], val, take_max=take_max) if path in merged else val
+        )
     return merged
 
 
@@ -1358,7 +1371,8 @@ def _write_complex_types(
         "from pydantic import Field, StrictBool, StrictStr, model_validator",
         "from fhirlance.base import (",
         "    ExtensionBase, FHIRBaseModel, FHIRCode, FHIRDate, FHIRDateTime, FHIRDecimal,",
-        "    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRTime, FHIRUnsignedInt,",
+        "    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRString, FHIRTime,",
+        "    FHIRUnsignedInt,",
         ")",
         "",
         "class Element(FHIRBaseModel):",
@@ -1376,7 +1390,7 @@ def _write_complex_types(
             "    id: StrictStr | None = None",
             "    extension: Annotated[list[Extension], Field(min_length=1)] | None = None",
             "    value: FHIRDecimal | None = None",
-            "    unit: StrictStr | None = None",
+            "    unit: FHIRString | None = None",
             "    system: StrictStr | None = None",
             "    code: FHIRCode | None = None",
             "",
@@ -1404,7 +1418,8 @@ def _write_resources(
         "from fhirlance import types as fhir_types",
         "from fhirlance.base import (",
         "    DomainResourceBase, FHIRBaseModel, FHIRCode, FHIRDate, FHIRDateTime, FHIRDecimal,",
-        "    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRTime, FHIRUnsignedInt,",
+        "    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRString, FHIRTime,",
+        "    FHIRUnsignedInt,",
         ")",
         "",
         "class DomainResourceR4(DomainResourceBase):",

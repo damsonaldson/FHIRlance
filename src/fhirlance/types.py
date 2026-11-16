@@ -4,7 +4,8 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, StrictBool, StrictStr, model_validator
 from fhirlance.base import (
     ExtensionBase, FHIRBaseModel, FHIRCode, FHIRDate, FHIRDateTime, FHIRDecimal,
-    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRTime, FHIRUnsignedInt,
+    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRString, FHIRTime,
+    FHIRUnsignedInt,
 )
 
 class Element(FHIRBaseModel):
@@ -16,13 +17,13 @@ class Address(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     use: Literal['billing', 'home', 'old', 'temp', 'work'] | None = None
     type: Literal['both', 'physical', 'postal'] | None = None
-    text: StrictStr | None = None
-    line: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    city: StrictStr | None = None
-    district: StrictStr | None = None
-    state: StrictStr | None = None
-    postalCode: StrictStr | None = None
-    country: StrictStr | None = None
+    text: FHIRString | None = None
+    line: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    city: FHIRString | None = None
+    district: FHIRString | None = None
+    state: FHIRString | None = None
+    postalCode: FHIRString | None = None
+    country: FHIRString | None = None
     period: Period | None = None
 
 class Age(FHIRBaseModel):
@@ -30,7 +31,7 @@ class Age(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
     comparator: Literal['<', '<=', '>', '>='] | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 
@@ -38,7 +39,7 @@ class Annotation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     authorReference: Reference | None = None
-    authorString: StrictStr | None = None
+    authorString: FHIRString | None = None
     time: FHIRDateTime | None = None
     text: StrictStr
 
@@ -57,35 +58,35 @@ class Attachment(FHIRBaseModel):
     url: StrictStr | None = None
     size: FHIRUnsignedInt | None = None
     hash: StrictStr | None = None
-    title: StrictStr | None = None
+    title: FHIRString | None = None
     creation: FHIRDateTime | None = None
 
 class CodeableConcept(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     coding: Annotated[list[Coding], Field(min_length=1)] | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
 
 class Coding(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     system: StrictStr | None = None
-    version: StrictStr | None = None
+    version: FHIRString | None = None
     code: FHIRCode | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     userSelected: StrictBool | None = None
 
 class ContactDetail(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     telecom: Annotated[list[ContactPoint], Field(min_length=1)] | None = None
 
 class ContactPoint(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     system: Literal['email', 'fax', 'other', 'pager', 'phone', 'sms', 'url'] | None = None
-    value: StrictStr | None = None
+    value: FHIRString | None = None
     use: Literal['home', 'mobile', 'old', 'temp', 'work'] | None = None
     rank: FHIRPositiveInt | None = None
     period: Period | None = None
@@ -94,7 +95,7 @@ class Contributor(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     type: Literal['author', 'editor', 'endorser', 'reviewer']
-    name: StrictStr
+    name: FHIRString
     contact: Annotated[list[ContactDetail], Field(min_length=1)] | None = None
 
 class Count(FHIRBaseModel):
@@ -102,22 +103,22 @@ class Count(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
     comparator: Literal['<', '<=', '>', '>='] | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 
 class DataRequirementCodeFilter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    path: StrictStr | None = None
-    searchParam: StrictStr | None = None
+    path: FHIRString | None = None
+    searchParam: FHIRString | None = None
     valueSet: StrictStr | None = None
     code: Annotated[list[Coding], Field(min_length=1)] | None = None
 class DataRequirementDateFilter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    path: StrictStr | None = None
-    searchParam: StrictStr | None = None
+    path: FHIRString | None = None
+    searchParam: FHIRString | None = None
     valueDateTime: FHIRDateTime | None = None
     valuePeriod: Period | None = None
     valueDuration: Duration | None = None
@@ -130,7 +131,7 @@ class DataRequirementDateFilter(FHIRBaseModel):
 class DataRequirementSort(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    path: StrictStr
+    path: FHIRString
     direction: Literal['ascending', 'descending']
 class DataRequirement(FHIRBaseModel):
     id: StrictStr | None = None
@@ -139,7 +140,7 @@ class DataRequirement(FHIRBaseModel):
     profile: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     subjectCodeableConcept: CodeableConcept | None = None
     subjectReference: Reference | None = None
-    mustSupport: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    mustSupport: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     codeFilter: Annotated[list[DataRequirementCodeFilter], Field(min_length=1)] | None = None
     dateFilter: Annotated[list[DataRequirementDateFilter], Field(min_length=1)] | None = None
     limit: FHIRPositiveInt | None = None
@@ -156,7 +157,7 @@ class Distance(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
     comparator: Literal['<', '<=', '>', '>='] | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 
@@ -182,9 +183,9 @@ class Dosage(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[Extension], Field(min_length=1)] | None = None
     sequence: FHIRInteger | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
     additionalInstruction: Annotated[list[CodeableConcept], Field(min_length=1)] | None = None
-    patientInstruction: StrictStr | None = None
+    patientInstruction: FHIRString | None = None
     timing: Timing | None = None
     asNeededBoolean: StrictBool | None = None
     asNeededCodeableConcept: CodeableConcept | None = None
@@ -207,7 +208,7 @@ class Duration(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
     comparator: Literal['<', '<=', '>', '>='] | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 
@@ -215,20 +216,20 @@ class ElementDefinitionSlicingDiscriminator(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     type: Literal['exists', 'pattern', 'profile', 'type', 'value']
-    path: StrictStr
+    path: FHIRString
 class ElementDefinitionSlicing(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     discriminator: Annotated[list[ElementDefinitionSlicingDiscriminator], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     ordered: StrictBool | None = None
     rules: Literal['closed', 'open', 'openAtEnd']
 class ElementDefinitionBase(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    path: StrictStr
+    path: FHIRString
     min: FHIRUnsignedInt
-    max: StrictStr
+    max: FHIRString
 class ElementDefinitionType(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
@@ -240,7 +241,7 @@ class ElementDefinitionType(FHIRBaseModel):
 class ElementDefinitionExample(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    label: StrictStr
+    label: FHIRString
     valueBase64Binary: StrictStr | None = None
     valueBoolean: StrictBool | None = None
     valueCanonical: StrictStr | None = None
@@ -254,7 +255,7 @@ class ElementDefinitionExample(FHIRBaseModel):
     valueMarkdown: StrictStr | None = None
     valueOid: StrictStr | None = None
     valuePositiveInt: FHIRPositiveInt | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueTime: FHIRTime | None = None
     valueUnsignedInt: FHIRUnsignedInt | None = None
     valueUri: StrictStr | None = None
@@ -301,43 +302,43 @@ class ElementDefinitionConstraint(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     key: FHIRId
-    requirements: StrictStr | None = None
+    requirements: FHIRString | None = None
     severity: Literal['error', 'warning']
-    human: StrictStr
-    expression: StrictStr | None = None
-    xpath: StrictStr | None = None
+    human: FHIRString
+    expression: FHIRString | None = None
+    xpath: FHIRString | None = None
     source: StrictStr | None = None
 class ElementDefinitionBinding(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     strength: Literal['example', 'extensible', 'preferred', 'required']
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     valueSet: StrictStr | None = None
 class ElementDefinitionMapping(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     identity: FHIRId
     language: FHIRCode | None = None
-    map: StrictStr
-    comment: StrictStr | None = None
+    map: FHIRString
+    comment: FHIRString | None = None
 class ElementDefinition(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    path: StrictStr
+    path: FHIRString
     representation: Annotated[list[Literal['cdaText', 'typeAttr', 'xhtml', 'xmlAttr', 'xmlText']], Field(min_length=1)] | None = None
-    sliceName: StrictStr | None = None
+    sliceName: FHIRString | None = None
     sliceIsConstraining: StrictBool | None = None
-    label: StrictStr | None = None
+    label: FHIRString | None = None
     code: Annotated[list[Coding], Field(min_length=1)] | None = None
     slicing: ElementDefinitionSlicing | None = None
-    short: StrictStr | None = None
+    short: FHIRString | None = None
     definition: StrictStr | None = None
     comment: StrictStr | None = None
     requirements: StrictStr | None = None
-    alias: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    alias: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     min: FHIRUnsignedInt | None = None
-    max: StrictStr | None = None
+    max: FHIRString | None = None
     base: ElementDefinitionBase | None = None
     contentReference: StrictStr | None = None
     type: Annotated[list[ElementDefinitionType], Field(min_length=1)] | None = None
@@ -354,7 +355,7 @@ class ElementDefinition(FHIRBaseModel):
     defaultValueMarkdown: StrictStr | None = None
     defaultValueOid: StrictStr | None = None
     defaultValuePositiveInt: FHIRPositiveInt | None = None
-    defaultValueString: StrictStr | None = None
+    defaultValueString: FHIRString | None = None
     defaultValueTime: FHIRTime | None = None
     defaultValueUnsignedInt: FHIRUnsignedInt | None = None
     defaultValueUri: StrictStr | None = None
@@ -392,7 +393,7 @@ class ElementDefinition(FHIRBaseModel):
     defaultValueDosage: Dosage | None = None
     defaultValueMeta: Meta | None = None
     meaningWhenMissing: StrictStr | None = None
-    orderMeaning: StrictStr | None = None
+    orderMeaning: FHIRString | None = None
     fixedBase64Binary: StrictStr | None = None
     fixedBoolean: StrictBool | None = None
     fixedCanonical: StrictStr | None = None
@@ -406,7 +407,7 @@ class ElementDefinition(FHIRBaseModel):
     fixedMarkdown: StrictStr | None = None
     fixedOid: StrictStr | None = None
     fixedPositiveInt: FHIRPositiveInt | None = None
-    fixedString: StrictStr | None = None
+    fixedString: FHIRString | None = None
     fixedTime: FHIRTime | None = None
     fixedUnsignedInt: FHIRUnsignedInt | None = None
     fixedUri: StrictStr | None = None
@@ -456,7 +457,7 @@ class ElementDefinition(FHIRBaseModel):
     patternMarkdown: StrictStr | None = None
     patternOid: StrictStr | None = None
     patternPositiveInt: FHIRPositiveInt | None = None
-    patternString: StrictStr | None = None
+    patternString: FHIRString | None = None
     patternTime: FHIRTime | None = None
     patternUnsignedInt: FHIRUnsignedInt | None = None
     patternUri: StrictStr | None = None
@@ -517,7 +518,7 @@ class ElementDefinition(FHIRBaseModel):
     constraint: Annotated[list[ElementDefinitionConstraint], Field(min_length=1)] | None = None
     mustSupport: StrictBool | None = None
     isModifier: StrictBool | None = None
-    isModifierReason: StrictStr | None = None
+    isModifierReason: FHIRString | None = None
     isSummary: StrictBool | None = None
     binding: ElementDefinitionBinding | None = None
     mapping: Annotated[list[ElementDefinitionMapping], Field(min_length=1)] | None = None
@@ -539,10 +540,10 @@ class ElementDefinition(FHIRBaseModel):
 class Expression(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     name: FHIRId | None = None
     language: FHIRCode
-    expression: StrictStr | None = None
+    expression: FHIRString | None = None
     reference: StrictStr | None = None
 
 class Extension(ExtensionBase):
@@ -562,7 +563,7 @@ class Extension(ExtensionBase):
     valueMarkdown: StrictStr | None = None
     valueOid: StrictStr | None = None
     valuePositiveInt: FHIRPositiveInt | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueTime: FHIRTime | None = None
     valueUnsignedInt: FHIRUnsignedInt | None = None
     valueUri: StrictStr | None = None
@@ -610,11 +611,11 @@ class HumanName(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     use: Literal['anonymous', 'maiden', 'nickname', 'official', 'old', 'temp', 'usual'] | None = None
-    text: StrictStr | None = None
-    family: StrictStr | None = None
-    given: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    prefix: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    suffix: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    text: FHIRString | None = None
+    family: FHIRString | None = None
+    given: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    prefix: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    suffix: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     period: Period | None = None
 
 class Identifier(FHIRBaseModel):
@@ -623,7 +624,7 @@ class Identifier(FHIRBaseModel):
     use: Literal['official', 'old', 'secondary', 'temp', 'usual'] | None = None
     type: CodeableConcept | None = None
     system: StrictStr | None = None
-    value: StrictStr | None = None
+    value: FHIRString | None = None
     period: Period | None = None
     assigner: Reference | None = None
 
@@ -665,8 +666,8 @@ class ParameterDefinition(FHIRBaseModel):
     name: FHIRCode | None = None
     use: Literal['in', 'out']
     min: FHIRInteger | None = None
-    max: StrictStr | None = None
-    documentation: StrictStr | None = None
+    max: FHIRString | None = None
+    documentation: FHIRString | None = None
     type: FHIRCode
     profile: StrictStr | None = None
 
@@ -702,9 +703,9 @@ class ProdCharacteristic(FHIRBaseModel):
     weight: Quantity | None = None
     nominalVolume: Quantity | None = None
     externalDiameter: Quantity | None = None
-    shape: StrictStr | None = None
-    color: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    imprint: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    shape: FHIRString | None = None
+    color: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    imprint: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     image: Annotated[list[Attachment], Field(min_length=1)] | None = None
     scoring: CodeableConcept | None = None
 
@@ -722,7 +723,7 @@ class Quantity(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
     comparator: Literal['<', '<=', '>', '>='] | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 
@@ -741,17 +742,17 @@ class Ratio(FHIRBaseModel):
 class Reference(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    reference: StrictStr | None = None
+    reference: FHIRString | None = None
     type: StrictStr | None = None
     identifier: Identifier | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
 
 class RelatedArtifact(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     type: Literal['citation', 'composed-of', 'depends-on', 'derived-from', 'documentation', 'justification', 'predecessor', 'successor']
-    label: StrictStr | None = None
-    display: StrictStr | None = None
+    label: FHIRString | None = None
+    display: FHIRString | None = None
     citation: StrictStr | None = None
     url: StrictStr | None = None
     document: Attachment | None = None
@@ -766,7 +767,7 @@ class SampledData(FHIRBaseModel):
     lowerLimit: FHIRDecimal | None = None
     upperLimit: FHIRDecimal | None = None
     dimensions: FHIRPositiveInt
-    data: StrictStr | None = None
+    data: FHIRString | None = None
 
 class Signature(FHIRBaseModel):
     id: StrictStr | None = None
@@ -790,9 +791,9 @@ class SubstanceAmount(FHIRBaseModel):
     modifierExtension: Annotated[list[Extension], Field(min_length=1)] | None = None
     amountQuantity: Quantity | None = None
     amountRange: Range | None = None
-    amountString: StrictStr | None = None
+    amountString: FHIRString | None = None
     amountType: CodeableConcept | None = None
-    amountText: StrictStr | None = None
+    amountText: FHIRString | None = None
     referenceRange: SubstanceAmountReferenceRange | None = None
 
     @model_validator(mode='after')
@@ -839,7 +840,7 @@ class TriggerDefinition(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     type: Literal['data-access-ended', 'data-accessed', 'data-added', 'data-changed', 'data-modified', 'data-removed', 'named-event', 'periodic']
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     timingTiming: Timing | None = None
     timingReference: Reference | None = None
     timingDate: FHIRDate | None = None
@@ -872,7 +873,7 @@ class SimpleQuantity(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     value: FHIRDecimal | None = None
-    unit: StrictStr | None = None
+    unit: FHIRString | None = None
     system: StrictStr | None = None
     code: FHIRCode | None = None
 

@@ -7,6 +7,7 @@ from itertools import pairwise
 from typing import Any
 from urllib.parse import urlsplit
 
+from fhirlance.base import check_value_bounds
 from fhirlance.fhirpath import (
     CompiledExpr,
     EvalContext,
@@ -323,16 +324,17 @@ def _is_non_empty_value(val: Any) -> bool:
     return True
 
 
-def _check_child_present(parent_val: Any, child_seg: str) -> bool:
+def _check_child_present(parent_val: Any, child_seg: str, *, allow_empty: bool = False) -> bool:
     if not isinstance(parent_val, dict):
         return False
+    is_present = (lambda v: v is not None) if allow_empty else _is_non_empty_value
     if child_seg.endswith(_CHOICE_SUFFIX):
         stem = child_seg[:-_CHOICE_SUFFIX_LEN]
         return any(
-            k.startswith(stem) and not k.startswith("_") and _is_non_empty_value(parent_val[k])
+            k.startswith(stem) and not k.startswith("_") and is_present(parent_val[k])
             for k in parent_val
         )
-    return child_seg in parent_val and _is_non_empty_value(parent_val[child_seg])
+    return child_seg in parent_val and is_present(parent_val[child_seg])
 
 
 def _extract_ref_resource_type(ref_str: str) -> str | None:
@@ -658,18 +660,6 @@ def _check_required(
     return issues
 
 
-def _check_forbidden_present(parent_val: Any, child_seg: str) -> bool:
-    if not isinstance(parent_val, dict):
-        return False
-    if child_seg.endswith(_CHOICE_SUFFIX):
-        stem = child_seg[:-_CHOICE_SUFFIX_LEN]
-        return any(
-            k.startswith(stem) and not k.startswith("_") and parent_val[k] is not None
-            for k in parent_val
-        )
-    return child_seg in parent_val and parent_val[child_seg] is not None
-
-
 def _check_forbidden(
     resource: dict[str, Any], prof_url: str, rules: tuple[PathRule, ...]
 ) -> list[str]:
@@ -678,7 +668,7 @@ def _check_forbidden(
         if not rule.parts:
             continue
         parents = [resource] if len(rule.parts) == 1 else resolve_nodes(resource, rule.parts[:-1])
-        if any(_check_forbidden_present(p, rule.parts[-1]) for p in parents):
+        if any(_check_child_present(p, rule.parts[-1], allow_empty=True) for p in parents):
             issues.append(
                 f"Profile[{prof_url}]: forbidden element '{rule.path}' (max=0) is present"
             )
@@ -699,52 +689,14 @@ def _check_max_length(
     return issues
 
 
-def _unwrap_comparable(val: Any) -> int | float | str | None:
-    if isinstance(val, dict):
-        val = val.get("value")
-    if isinstance(val, bool):
-        return None
-    if isinstance(val, (int, float, str)):
-        return val
-    return None
-
-
-def _compare_lt(a: int | float | str, b: int | float | str) -> bool:
-    if isinstance(a, str) and isinstance(b, str):
-        min_len = min(len(a), len(b))
-        return a[:min_len] < b[:min_len]
-    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-        return a < b
-    return False
-
-
-def _check_single_bound(val: Any, rule: ValueBoundsRule, prof_url: str) -> list[str]:
-    comp_val = _unwrap_comparable(val)
-    if comp_val is None:
-        return []
-    issues: list[str] = []
-    if rule.min_val is not None:
-        comp_min = _unwrap_comparable(rule.min_val)
-        if comp_min is not None and _compare_lt(comp_val, comp_min):
-            issues.append(
-                f"Profile[{prof_url}]: '{rule.path}' must be >= {rule.min_val!r}, got {val!r}"
-            )
-    if rule.max_val is not None:
-        comp_max = _unwrap_comparable(rule.max_val)
-        if comp_max is not None and _compare_lt(comp_max, comp_val):
-            issues.append(
-                f"Profile[{prof_url}]: '{rule.path}' must be <= {rule.max_val!r}, got {val!r}"
-            )
-    return issues
-
-
 def _check_value_bounds(
     resource: dict[str, Any], prof_url: str, rules: tuple[ValueBoundsRule, ...]
 ) -> list[str]:
     issues: list[str] = []
     for rule in rules:
+        label = f"Profile[{prof_url}]: '{rule.path}'"
         for val in resolve_nodes(resource, rule.parts):
-            issues.extend(_check_single_bound(val, rule, prof_url))
+            issues.extend(check_value_bounds(val, rule.min_val, rule.max_val, label))
     return issues
 
 

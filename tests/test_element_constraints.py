@@ -549,3 +549,144 @@ def test_must_support_off_by_default_and_on_everywhere(tmp_path: Path) -> None:
         [str(bundle_file), "-ig", str(ig_dir), "-tx", "off", "--enforce-must-support"]
     )
     assert exit_on == 1
+
+
+# ---------------------------------------------------------------------------
+# FHIRString 1MB cap, Quantity bound merging, and Extension value bounds
+# ---------------------------------------------------------------------------
+
+
+def test_fhir_string_1mb_cap_on_resource() -> None:
+    """Base R4 string fields (FHIRString) reject payloads exceeding 1MB (1,048,576 chars)."""
+    ok = {"resourceType": "Patient", "name": [{"text": "a" * 1048576}]}
+    assert validate_resource(ok) == []
+
+    too_long = {"resourceType": "Patient", "name": [{"text": "a" * 1048577}]}
+    issues = validate_resource(too_long)
+    assert any("1048576" in i or "string_too_long" in i for i in issues)
+
+
+def test_quantity_bound_merging_in_ig_loader(tmp_path: Path) -> None:
+    """Child profiles tighten Quantity minValue/maxValue bounds instead of overwriting."""
+    parent_url = "http://example.org/sd/parent-qty-bounds"
+    child_url = "http://example.org/sd/child-qty-bounds"
+    _write_sd(
+        tmp_path,
+        "parent_qty",
+        _make_profile_sd(
+            parent_url,
+            "Observation",
+            [
+                {
+                    "id": "Observation.value[x]",
+                    "path": "Observation.value[x]",
+                    "type": [{"code": "Quantity"}],
+                    "minValueQuantity": {"value": 10, "unit": "kg"},
+                    "maxValueQuantity": {"value": 100, "unit": "kg"},
+                }
+            ],
+        ),
+    )
+    # Child specifies looser min (5 < 10) and tighter max (50 < 100):
+    # merged bounds must keep min=10 and tighten max=50.
+    _write_sd(
+        tmp_path,
+        "child_qty",
+        _make_profile_sd(
+            child_url,
+            "Observation",
+            [
+                {
+                    "id": "Observation.value[x]",
+                    "path": "Observation.value[x]",
+                    "type": [{"code": "Quantity"}],
+                    "minValueQuantity": {"value": 5, "unit": "kg"},
+                    "maxValueQuantity": {"value": 50, "unit": "kg"},
+                }
+            ],
+            base_definition=parent_url,
+        ),
+    )
+
+    obs_below_parent_min = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "weight"},
+        "valueQuantity": {"value": 7, "unit": "kg"},
+    }
+    issues_min = validate_resource(
+        obs_below_parent_min, profile_urls=[child_url], ig_sources=[tmp_path]
+    )
+    assert any("Observation.value[x]" in i and ">=" in i for i in issues_min)
+
+    obs_above_child_max = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "weight"},
+        "valueQuantity": {"value": 60, "unit": "kg"},
+    }
+    issues_max = validate_resource(
+        obs_above_child_max, profile_urls=[child_url], ig_sources=[tmp_path]
+    )
+    assert any("Observation.value[x]" in i and "<=" in i for i in issues_max)
+
+    obs_ok = {
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {"text": "weight"},
+        "valueQuantity": {"value": 25, "unit": "kg"},
+    }
+    assert validate_resource(obs_ok, profile_urls=[child_url], ig_sources=[tmp_path]) == []
+
+
+def test_extension_value_bounds_quantity_date_and_type_mismatch(tmp_path: Path) -> None:
+    """Extension value[x] enforces bounds on Quantity, ISO date, and ignores mismatched types."""
+    qty_ext_url = "http://example.org/sd/ext-qty-bounds"
+    date_ext_url = "http://example.org/sd/ext-date-bounds"
+    _write_sd(
+        tmp_path,
+        "ext_qty",
+        _make_extension_sd(
+            qty_ext_url,
+            {
+                "type": [{"code": "Quantity"}],
+                "minValueQuantity": {"value": 1.5, "unit": "mg"},
+                "maxValueQuantity": {"value": 10.0, "unit": "mg"},
+            },
+        ),
+    )
+    _write_sd(
+        tmp_path,
+        "ext_date",
+        _make_extension_sd(
+            date_ext_url,
+            {
+                "type": [{"code": "date"}],
+                "minValueDate": "2000-01-01",
+                "maxValueDate": "2025-12-31",
+            },
+        ),
+    )
+
+    patient_bad = {
+        "resourceType": "Patient",
+        "extension": [
+            {"url": qty_ext_url, "valueQuantity": {"value": 0.5, "unit": "mg"}},
+            {"url": date_ext_url, "valueDate": "1999-12-31"},
+            # Mismatched type (string vs Quantity numeric bound): type error only, no bound error
+            {"url": qty_ext_url, "valueString": "not-a-quantity"},
+        ],
+    }
+    issues = validate_resource(patient_bad, ig_sources=[tmp_path])
+    assert any(qty_ext_url in i or ("valueQuantity" in i and ">=" in i) for i in issues)
+    assert any("valueDate" in i and ">=" in i for i in issues)
+    assert not any("valueString" in i and (">=" in i or "<=" in i) for i in issues)
+
+    patient_ok = {
+        "resourceType": "Patient",
+        "extension": [
+            {"url": qty_ext_url, "valueQuantity": {"value": 5.0, "unit": "mg"}},
+            {"url": date_ext_url, "valueDate": "2020-06"},
+        ],
+    }
+    assert validate_resource(patient_ok, ig_sources=[tmp_path]) == []
