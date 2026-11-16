@@ -1301,61 +1301,109 @@ def validate_binding_value(
     return TerminologyResult(errors=errs, warnings=warns)
 
 
-def _walk_codings(
-    node: Any,
-    current_path: str,
-    items: list[tuple[str, str, str]],
-    root_path: str = "",
-) -> None:
-    if isinstance(node, dict):
-        if current_path and current_path != root_path and isinstance(node.get("resourceType"), str):
-            return
-        is_coding = (
-            "url" not in node
-            and isinstance(node.get("system"), str)
-            and isinstance(node.get("code"), str)
-        )
-        if is_coding:
-            items.append((current_path, node["system"], node["code"]))
-        for k, v in node.items():
-            child_path = f"{current_path}.{k}" if current_path else k
-            _walk_codings(v, child_path, items, root_path=root_path)
-    elif isinstance(node, list):
-        for idx, item in enumerate(node):
-            _walk_codings(item, f"{current_path}[{idx}]", items, root_path=root_path)
+def _format_trail_path(trail: list[tuple[int, str | int]], idx: int) -> str:
+    segs: list[str] = []
+    while idx > 0:
+        parent_idx, seg = trail[idx]
+        segs.append(f"[{seg}]" if isinstance(seg, int) else f".{seg}")
+        idx = parent_idx
+    segs.append(str(trail[0][1]))
+    segs.reverse()
+    return "".join(segs)
+
+
+def _subtree_has_extension_key(root: dict[str, Any]) -> bool:
+    stack: list[Any] = [root]
+    while stack:
+        curr = stack.pop()
+        if isinstance(curr, dict):
+            for k, v in curr.items():
+                if k in ("extension", "modifierExtension") or (len(k) > 1 and k[0] == "_"):
+                    return True
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+        elif isinstance(curr, list):
+            stack.extend(item for item in curr if isinstance(item, (dict, list)))
+    return False
+
+
+def _scan_codings_and_extensions(
+    resource: dict[str, Any],
+    root_path: str,
+) -> tuple[list[tuple[int, str, str]], list[tuple[int, str | int]], bool]:
+    trail: list[tuple[int, str | int]] = [(-1, root_path)]
+    stack: list[tuple[int, Any]] = [(0, resource)]
+    items: list[tuple[int, str, str]] = []
+    has_extensions = False
+
+    while stack:
+        node_idx, node = stack.pop()
+        if isinstance(node, dict):
+            if node is not resource and isinstance(node.get("resourceType"), str):
+                has_extensions = has_extensions or _subtree_has_extension_key(node)
+                continue
+            if (
+                "url" not in node
+                and isinstance(node.get("system"), str)
+                and isinstance(node.get("code"), str)
+            ):
+                items.append((node_idx, node["system"], node["code"]))
+            for k, v in reversed(node.items()):
+                if k in ("extension", "modifierExtension") or (len(k) > 1 and k[0] == "_"):
+                    has_extensions = True
+                if isinstance(v, (dict, list)):
+                    child_idx = len(trail)
+                    trail.append((node_idx, k))
+                    stack.append((child_idx, v))
+        else:
+            for i in range(len(node) - 1, -1, -1):
+                item = node[i]
+                if isinstance(item, (dict, list)):
+                    child_idx = len(trail)
+                    trail.append((node_idx, i))
+                    stack.append((child_idx, item))
+
+    return items, trail, has_extensions
 
 
 def _check_standalone_item(
-    path: str,
+    node_idx: int,
+    trail: list[tuple[int, str | int]],
     system: str,
     code: str,
     ctx: _StandaloneContext,
 ) -> tuple[str | None, str | None]:
     is_grammar, valid_grammar = _check_grammar_system(system, code)
     if is_grammar:
-        err = (
-            f"Terminology[{path}]: code '{code}' is not valid in grammar system '{system}'"
-            if not valid_grammar
-            else None
+        if valid_grammar:
+            return None, None
+        path = _format_trail_path(trail, node_idx)
+        return (
+            f"Terminology[{path}]: code '{code}' is not valid in grammar system '{system}'",
+            None,
         )
-        return err, None
 
     if ctx.complete_systems is not None and system in ctx.complete_systems:
         err = (
-            f"Terminology[{path}]: code '{code}' is not defined in CodeSystem '{system}'"
-            if code not in ctx.complete_systems[system]
-            else None
+            None
+            if code in ctx.complete_systems[system]
+            else (
+                f"Terminology[{_format_trail_path(trail, node_idx)}]: "
+                f"code '{code}' is not defined in CodeSystem '{system}'"
+            )
         )
         return err, None
 
     if ctx.options.mode == "remote" and system in _REMOTE_EXTERNAL_SYSTEMS:
         res, msg = validate_remote_code(options=ctx.options, system=system, code=code)
         if res is False:
+            path = _format_trail_path(trail, node_idx)
             return (
                 f"Terminology[{path}]: code '{code}' is not valid in CodeSystem '{system}'",
                 None,
             )
         if res is None:
+            path = _format_trail_path(trail, node_idx)
             return (
                 None,
                 f"Terminology[{path}]: could not validate code '{code}' on remote server ({msg})",
@@ -1364,26 +1412,25 @@ def _check_standalone_item(
     return None, None
 
 
-def validate_standalone_codings(
+def scan_and_validate_standalone_codings(
     resource: dict[str, Any],
     options: TxOptions,
     *,
     complete_systems: Mapping[str, Collection[str]] | None = None,
-) -> TerminologyResult:
-    """Recursively validate standalone Codings and Quantities against CodeSystems."""
+) -> tuple[TerminologyResult, bool]:
+    """Scan a resource in a single pass for standalone Codings and extension keys."""
     if options.mode == "off":
-        return TerminologyResult(errors=[], warnings=[])
+        return TerminologyResult(errors=[], warnings=[]), False
 
     root_path = str(resource.get("resourceType") or "Resource")
-    items: list[tuple[str, str, str]] = []
-    _walk_codings(resource, root_path, items, root_path=root_path)
+    items, trail, has_extensions = _scan_codings_and_extensions(resource, root_path)
 
     frozen_systems = _get_frozen_complete_systems(complete_systems)
     ctx = _StandaloneContext(options=options, complete_systems=frozen_systems)
     errors: list[str] = []
     warnings: list[str] = []
-    for path, system, code in items:
-        err, warn = _check_standalone_item(path, system, code, ctx)
+    for node_idx, system, code in items:
+        err, warn = _check_standalone_item(node_idx, trail, system, code, ctx)
         if err is not None:
             errors.append(err)
         if warn is not None:
@@ -1396,4 +1443,17 @@ def validate_standalone_codings(
             "in grammar system 'urn:ietf:bcp:47'"
         )
 
-    return TerminologyResult(errors=errors, warnings=warnings)
+    return TerminologyResult(errors=errors, warnings=warnings), has_extensions
+
+
+def validate_standalone_codings(
+    resource: dict[str, Any],
+    options: TxOptions,
+    *,
+    complete_systems: Mapping[str, Collection[str]] | None = None,
+) -> TerminologyResult:
+    """Recursively validate standalone Codings and Quantities against CodeSystems."""
+    result, _ = scan_and_validate_standalone_codings(
+        resource, options, complete_systems=complete_systems
+    )
+    return result

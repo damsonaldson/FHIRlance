@@ -30,10 +30,11 @@ from fhirlance.profiles import (
 )
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.terminology import (
+    TerminologyResult,
     TxOptions,
     parse_tx_options,
+    scan_and_validate_standalone_codings,
     validate_binding_value,
-    validate_standalone_codings,
 )
 
 if TYPE_CHECKING:
@@ -154,20 +155,59 @@ def _complex_binding_plan(model_cls: type[FHIRBaseModel]) -> tuple[_ComplexField
     return tuple(steps)
 
 
+@dataclass(frozen=True, slots=True)
+class _CompiledBindingEntry:
+    rel_path: str
+    first_key: str
+    parts: tuple[str, ...]
+    value_set: str
+    strength: str
+
+
+def _compile_binding_map(
+    raw_bindings: dict[str, dict[str, str]] | None,
+) -> tuple[_CompiledBindingEntry, ...]:
+    if not raw_bindings:
+        return ()
+    entries: list[_CompiledBindingEntry] = []
+    for rel_path, b_info in raw_bindings.items():
+        parts = tuple(p for p in rel_path.split(".") if p)
+        first_key = "" if not parts or parts[0].endswith("[x]") else parts[0]
+        entries.append(
+            _CompiledBindingEntry(
+                rel_path=rel_path,
+                first_key=first_key,
+                parts=parts,
+                value_set=b_info["value_set"],
+                strength=b_info["strength"],
+            )
+        )
+    return tuple(entries)
+
+
+@cache
+def _compiled_base_bindings(rtype: str) -> tuple[_CompiledBindingEntry, ...]:
+    return _compile_binding_map(BASE_RESOURCE_BINDINGS.get(rtype))
+
+
+@cache
+def _compiled_complex_bindings(type_name: str) -> tuple[_CompiledBindingEntry, ...]:
+    return _compile_binding_map(COMPLEX_TYPE_BINDINGS.get(type_name))
+
+
 def _apply_binding_values(
     val: Any,
     full_path: str,
-    b_info: dict[str, str],
+    entry: _CompiledBindingEntry,
     ctx: _BindingValidationCtx,
 ) -> None:
-    vs_url = b_info["value_set"]
     res = validate_binding_value(
         val,
         full_path,
-        vs_url,
-        b_info["strength"],
+        entry.value_set,
+        entry.strength,
         ctx.tx_options,
-        vs_spec=VALUE_SET_SPECS.get(vs_url),
+        vs_spec=VALUE_SET_SPECS.get(entry.value_set),
         complete_systems=COMPLETE_CODE_SYSTEMS,
     )
     ctx.issues.extend(res.errors)
@@ -175,19 +215,39 @@ def _apply_binding_values(
         ctx.warnings.extend(res.warnings)
 
 
+def _apply_direct_binding(
+    val: Any,
+    full_path: str,
+    entry: _CompiledBindingEntry,
+    ctx: _BindingValidationCtx,
+) -> None:
+    if val is None:
+        return
+    if isinstance(val, list):
+        for item in val:
+            if item is not None:
+                _apply_binding_values(item, full_path, entry, ctx)
+        return
+    _apply_binding_values(val, full_path, entry, ctx)
+
+
 def _check_bindings_for_node(
     node: dict[str, Any],
-    bindings: dict[str, dict[str, str]],
+    bindings: tuple[_CompiledBindingEntry, ...],
     prefix: str,
     ctx: _BindingValidationCtx,
 ) -> None:
-    for rel_path, b_info in bindings.items():
-        full_path = f"{prefix}.{rel_path}"
+    for entry in bindings:
+        if entry.first_key and entry.first_key not in node:
+            continue
+        full_path = f"{prefix}.{entry.rel_path}"
         if ctx.skip_paths and full_path in ctx.skip_paths:
             continue
-        parts = tuple(p for p in rel_path.split(".") if p)
-        for val in resolve_nodes(node, parts):
-            _apply_binding_values(val, full_path, b_info, ctx)
+        if len(entry.parts) == 1 and entry.first_key:
+            _apply_direct_binding(node[entry.first_key], full_path, entry, ctx)
+        else:
+            for val in resolve_nodes(node, entry.parts):
+                _apply_binding_values(val, full_path, entry, ctx)
 
 
 def _iter_child_dicts(child: Any) -> Iterator[dict[str, Any]]:
@@ -207,7 +267,7 @@ def _walk_complex_bindings(
     current_path: str,
     ctx: _BindingValidationCtx,
 ) -> None:
-    type_bindings = COMPLEX_TYPE_BINDINGS.get(model_cls.__name__)
+    type_bindings = _compiled_complex_bindings(model_cls.__name__)
     if type_bindings:
         _check_bindings_for_node(node, type_bindings, current_path, ctx)
     for step in _complex_binding_plan(model_cls):
@@ -224,22 +284,20 @@ def _validate_base_bindings(
     rtype: str,
     ctx: _BindingValidationCtx,
 ) -> None:
-    base_bindings = BASE_RESOURCE_BINDINGS.get(rtype)
+    base_bindings = _compiled_base_bindings(rtype)
     if not base_bindings:
         return
     _check_bindings_for_node(resource, base_bindings, rtype, ctx)
 
 
-def _validate_standalone_and_base_bindings(
+def _validate_bindings_and_append_standalone(
     resource: dict[str, Any],
     rtype: str,
     tx_options: TxOptions,
     issues: list[str],
     **kwargs: Any,
 ) -> None:
-    standalone_res = validate_standalone_codings(
-        resource, tx_options, complete_systems=COMPLETE_CODE_SYSTEMS
-    )
+    standalone_res: TerminologyResult = kwargs["standalone_res"]
     issues.extend(standalone_res.errors)
     warnings: list[str] | None = kwargs.get("warnings")
     if warnings is not None and standalone_res.warnings:
@@ -383,26 +441,42 @@ def validate_resource(
     effective_profiles = list(dict.fromkeys([*declared_profiles, *(profile_urls or ())]))
     profile_bound_paths = _collect_profile_binding_paths(effective_profiles, profiles_dict)
 
-    issues.extend(
-        validate_extensions(
-            resource,
-            model_cls,
-            rtype,
-            compiled_extensions=ext_dict,
-            tx=tx_options,
-            _warnings_out=_warnings_out,
-        )
-    )
-
     if tx_options.mode != "off":
-        _validate_standalone_and_base_bindings(
+        standalone_res, has_extensions = scan_and_validate_standalone_codings(
+            resource, tx_options, complete_systems=COMPLETE_CODE_SYSTEMS
+        )
+        if has_extensions:
+            issues.extend(
+                validate_extensions(
+                    resource,
+                    model_cls,
+                    rtype,
+                    compiled_extensions=ext_dict,
+                    tx=tx_options,
+                    _warnings_out=_warnings_out,
+                    _skip_precheck=True,
+                )
+            )
+        _validate_bindings_and_append_standalone(
             resource,
             rtype,
             tx_options,
             issues,
+            standalone_res=standalone_res,
             warnings=_warnings_out,
             skip_paths=profile_bound_paths,
             model_cls=model_cls,
+        )
+    else:
+        issues.extend(
+            validate_extensions(
+                resource,
+                model_cls,
+                rtype,
+                compiled_extensions=ext_dict,
+                tx=tx_options,
+                _warnings_out=_warnings_out,
+            )
         )
 
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
