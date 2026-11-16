@@ -85,9 +85,9 @@ report = validate_dataset("path/to/data", parallel=True, tx="local")
 ## Roadmap & HAPI FHIR / Smile CDR Integration (TL;DR)
 - **Baseline (`v0.1.0` — Done)**: All 146 R4 resources, 39 datatypes, 183 IG profiles, dynamic `-ig`, local/SQLite TX (`hl7.terminology.r4` + 5 IGs), and `OperationOutcome`/SARIF/JUnit output.
 - **Tier 1 (`v0.2.0` — Done)**: Extension `StructureDefinition`s, full slicing (all 5 discriminators, slice `max`, `closed`/`ordered`, nested sub-slicing), `Bundle` reference/`targetProfile` graph & outer `Bundle` validation, and complex datatype bindings.
-- **Tier 2 (`v0.3.0` — Next)**: AOT Python + zero-`exec` combinator FHIRPath evaluator (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, transitive IG dependencies, versioned canonicals, `--best-practice`, and `--enforce-must-support`.
+- **Tier 2 (`v0.3.0` — Next)**: Core R4 conformance/form/terminology resources (`Questionnaire`/`QuestionnaireResponse` `que-*`, `CapabilityStatement`/`OperationDefinition`/`SearchParameter`, `ConceptMap` `$translate`, `Subscription`, `TestScript`, `StructureMap`, `GraphDefinition`, `MolecularSequence`, `MedicinalProduct*`, `VerificationResult`), AOT Python + zero-`exec` combinator FHIRPath evaluator, `maxLength`/`minValue`/`maxValue`/`type.profile`, transitive IG dependencies, versioned canonicals, `--best-practice`, and `--enforce-must-support`.
 - **Tier 3 (`v0.4.0` — Planned)**: `fhirlance serve` persistent `$validate` daemon (Unix Domain Sockets & HTTP), HAPI FHIR / Smile CDR raw-byte interceptor, Envoy/NGINX edge filter, and `mmap` streaming NDJSON.
-- **Tier 4 (`v1.0.0` — Long-Term)**: Long-tail R4 resources (`que-*`, `CapabilityStatement`, `ConceptMap`, `MedicinalProduct*`) and `R4B`/`R5` codegen (Python-first; native Rust C-ABI / Panama FFI deferred unless zero-sidecar JVM embedding is required).
+- **Tier 4 (`v1.0.0` — Long-Term)**: Multi-version `R4B`/`R5` codegen (Python-first; native Rust C-ABI / Panama FFI deferred unless zero-sidecar JVM embedding is required).
 - **Details**: **[Architecture & Product Roadmap](docs/roadmap.md)**.
 
 ## License

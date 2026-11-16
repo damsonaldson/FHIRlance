@@ -3,13 +3,13 @@
 > [!IMPORTANT]
 > **Baseline Advantage**: FHIRlance already validates all 146 FHIR R4 resource types, 39 complex datatypes, 183 IG profiles, Extension `StructureDefinition`s, full slicing, `Bundle` reference graphs, and 1,161 CodeSystems / 3,297 ValueSets at **~118 µs/resource (~8,500 res/s per core)** in-process (`pydantic-core` Rust hot-path) vs. **35.13 s (`108.1 ms/resource`)** for `validator_cli.jar` (**916.1x speedup**).
 > **Architecture Decision (Python-First)**: At ~0.12 ms/resource, validation is already faster than downstream FHIR server DB writes and search indexing. Rather than taking on a two-language Rust rewrite (`PyO3`/C-ABI) for academic microsecond gains, FHIRlance stays **Python-first** (`pydantic-core` + pure Python), focusing engineering effort on **conformance completeness** (Tier 2) and **server/sidecar integration** (Tier 3).
-> **Prioritization Principle**: Features are ordered by **real-world FHIR community footprint** — validating the **most widely used structures first** (core clinical resources, extensions, slicing, `Bundle` references, and common IG constraints) and **less used / long-tail structures last** (`Questionnaire` `que-*`, `CapabilityStatement`, `MedicinalProduct*`, `ConceptMap`, `R4B`/`R5`).
+> **Prioritization Principle**: Features are ordered by **real-world FHIR community footprint** — validating the **most widely used structures first** (core clinical resources, extensions, slicing, `Bundle` references, and common IG constraints), **core conformance, form-capture, terminology-mapping, and subscription resources next** (`Questionnaire`/`QuestionnaireResponse`, `CapabilityStatement`, `OperationDefinition`, `SearchParameter`, `ConceptMap`, `Subscription`, plus `TestScript`, `StructureMap`, `GraphDefinition`, `MolecularSequence`, `MedicinalProduct*`, `VerificationResult`), and **multi-version targets** (`R4B`/`R5`) last.
 
 ```mermaid
 flowchart LR
-    T1["Tier 1 (Done)<br/>Extensions, Full Slicing,<br/>Bundle Refs & Datatype Bindings"] --> T2["Tier 2 (Next #1)<br/>AOT + Combinator FHIRPath,<br/>Element Bounds & Transitive IGs"]
+    T1["Tier 1 (Done)<br/>Extensions, Full Slicing,<br/>Bundle Refs & Datatype Bindings"] --> T2["Tier 2 (Next #1)<br/>Core R4 Conformance/Forms/ConceptMap,<br/>AOT+Combinator FHIRPath & Transitive IGs"]
     T2 --> T3["Tier 3 (Planned)<br/>fhirlance serve UDS Daemon,<br/>HAPI/Smile Interceptor & mmap"]
-    T3 --> T4["Tier 4 (Long-Term)<br/>Niche Resources, R4B/R5"]
+    T3 --> T4["Tier 4 (Long-Term)<br/>Multi-Version R4B/R5"]
 ```
 
 ---
@@ -20,9 +20,9 @@ flowchart LR
 | :--- | :---: | :---: | :--- | :--- |
 | **Baseline (`v0.1.0`)** | `v0.1.0` | **Done** | 146 R4 Resources, 39 Datatypes, 183 Profiles, Dynamic `-ig`, Local/SQLite TX (`hl7.terminology.r4` + 5 IGs), `OperationOutcome`/SARIF/JUnit | [`resources.py`](../src/fhirlance/resources.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`terminology.py`](../src/fhirlance/terminology.py) |
 | **Tier 1 (`v0.2.0`)** | `v0.2.0` | **Done** | **Highest-Footprint Structures**: Extension `StructureDefinition`s, Full Slicing (`type`/`profile`/`exists`, slice `max`, `closed`/`ordered`, nested sub-slicing), `Bundle` Reference/`targetProfile`/`aggregation` Graph & Outer `Bundle` Check, Complex Datatype Bindings (`Identifier.type`, `ContactPoint`, `Address`), Single-Pass Scan | [`extensions.py`](../src/fhirlance/extensions.py), [`slicing_spec.py`](../src/fhirlance/slicing_spec.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`resource_validator.py`](../src/fhirlance/resource_validator.py) |
-| **Tier 2 (`v0.3.0`)** | `v0.3.0` | **Next (#1)** | **High-Footprint Conformance**: AOT Python + Zero-`exec` Combinator FHIRPath (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, Transitive `package.json` IG Dependencies, Versioned Canonicals (`url\|version`), `--best-practice` (`dom-6`), `--enforce-must-support`, `unknown-profile` | [`invariants.py`](../src/fhirlance/invariants.py), [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) |
+| **Tier 2 (`v0.3.0`)** | `v0.3.0` | **Next (#1)** | **Core R4 Conformance, Forms, Terminology & IG Ecosystem**: `Questionnaire`/`QuestionnaireResponse` (`que-*`, `enableWhen`/`answerOption`), `CapabilityStatement`/`OperationDefinition`/`SearchParameter`, `ConceptMap` (`$translate`), `Subscription`, `TestScript`/`StructureMap`/`GraphDefinition`/`MolecularSequence`/`MedicinalProduct*`/`VerificationResult`; AOT Python + Zero-`exec` Combinator FHIRPath (`ElementDefinition.constraint`), `maxLength`/`minValue`/`maxValue`/`type.profile`, Transitive `package.json` IG Dependencies, Versioned Canonicals (`url\|version`), `--best-practice` (`dom-6`), `--enforce-must-support`, `unknown-profile` | [`invariants.py`](../src/fhirlance/invariants.py), [`ig_loader.py`](../src/fhirlance/ig_loader.py), [`terminology.py`](../src/fhirlance/terminology.py) |
 | **Tier 3 (`v0.4.0`)** | `v0.4.0` | **Planned** | **Server & Enterprise Scale**: `fhirlance serve` UDS/HTTP `$validate` Sidecar, **HAPI FHIR / Smile CDR Raw-Byte Interceptor**, Envoy/NGINX Edge Filter, `mmap` Multi-GB NDJSON Streaming | Unix Domain Socket (`/run/fhirlance.sock`), Java HAPI Interceptor |
-| **Tier 4 (`v1.0.0`)** | `v1.0.0` | **Long-Term** | **Long-Tail Structures & Multi-Version**: Niche Resources (`que-*`, `CapabilityStatement`, `TestScript`, `ConceptMap`, `MedicinalProduct*`), `R4B`/`R5` Targets | [`generate_models.py`](../scripts/generate_models.py), [`resources.py`](../src/fhirlance/resources.py) |
+| **Tier 4 (`v1.0.0`)** | `v1.0.0` | **Long-Term** | **Multi-Version FHIR Support**: `R4B` & `R5` Codegen Targets | [`generate_models.py`](../scripts/generate_models.py), [`resources.py`](../src/fhirlance/resources.py) |
 
 ---
 
@@ -58,14 +58,21 @@ These structures appear in **>80% of real-world FHIR payloads** (US Core, IPS, C
 
 ---
 
-## Tier 2: High-Footprint Conformance, FHIRPath & IG Ecosystem (`v0.3.0` — Next #1)
+## Tier 2: Core R4 Conformance, Forms, Terminology & IG Ecosystem (`v0.3.0` — Next #1)
 
-1. **AOT + Zero-`exec` Combinator FHIRPath Constraint Evaluator**
-   - Generate direct Python functions in [`generate_models.py`](../scripts/generate_models.py) for built-in R4 and compiled IG `ElementDefinition.constraint.expression` rules (`dom-1..6`, `ref-1`, `bdl-6`, `obs-*`, `pat-*`, `con-*`, `med-*`, `us-core-*`, `ips-*`), paired with a safe, zero-`exec` AST-combinator/pattern evaluator in [`invariants.py`](../src/fhirlance/invariants.py) for runtime `-ig` packages (avoiding `exec()`/`compile()` and external runtime dependencies).
+1. **Core Specialized FHIR R4 Resources & Terminologies** *(Priority #1)*
+   - Validated against production Canadian provincial IGs on Simplifier (**Ontario Health**: eForms SDC, eReferral/eConsult, Ontario Patient Summary, PHSD/PPR, PCR, OLIS, Subscription IG, Ontario Terminology; **British Columbia / PHSA**: BC Core, BC LRA; **Alberta**: PS-AB `ca.ab.fhir.psab`, AB:eReC), these are core interoperability resources rather than edge cases:
+     - **`Questionnaire` / `QuestionnaireResponse`**: `que-*` invariants, `enableWhen`, `answerOption` / `answerValueSet` checks (Ontario eForms SDC, eReferral/eConsult, provincial assessments).
+     - **`CapabilityStatement` / `OperationDefinition` / `SearchParameter`**: Server/client conformance, custom operations (e.g. BC `AddPatient`/PLR), and search parameter definitions (Ontario PHSD/PCR/OLIS, BC LRA, Alberta PS-AB).
+     - **`ConceptMap` (`$translate`)**: Local/provincial code-system mappings to SNOMED CT, LOINC, ICD-10-CA, and pCLOCD across Ontario, BC, and Alberta IGs.
+     - **`Subscription`**: Notification topics and R5-backport subscription validation (Ontario Health Subscription IG / PHSD).
+     - **Additional R4 Spec Resources**: `TestScript`, `StructureMap`, `GraphDefinition`, `MolecularSequence`, `MedicinalProduct*`, and `VerificationResult`.
+2. **AOT + Zero-`exec` Combinator FHIRPath Constraint Evaluator**
+   - Generate direct Python functions in [`generate_models.py`](../scripts/generate_models.py) for built-in R4 and compiled IG `ElementDefinition.constraint.expression` rules (`dom-1..6`, `ref-1`, `bdl-6`, `obs-*`, `pat-*`, `con-*`, `med-*`, `que-*`, `us-core-*`, `ips-*`), paired with a safe, zero-`exec` AST-combinator/pattern evaluator in [`invariants.py`](../src/fhirlance/invariants.py) for runtime `-ig` packages (avoiding `exec()`/`compile()` and external runtime dependencies).
    - Add opt-in `--best-practice` flag for non-blocking HL7 best-practice recommendations (`dom-6` narrative, `Observation.performer`, `preferred` ValueSet bindings).
-2. **Remaining `ElementDefinition` Constraints**
+3. **Remaining `ElementDefinition` Constraints**
    - Extract and enforce `maxLength`, `minValue[x]` / `maxValue[x]`, `type.profile` (profiled datatypes such as `SimpleQuantity`, `Money`, `Age`, `Duration`), empty-list `min >= 1` edge cases, and optional `--enforce-must-support`.
-3. **Transitive IG & Terminology Completeness**
+4. **Transitive IG & Terminology Completeness**
    - Automatically resolve transitive `package.json` `dependencies` in `ig_loader.py` and `generate_models.py`, plus persistent disk caching in `~/.cache/fhirlance/` and `fhirlance pkg install <id>#<version>` (fetching from `packages.fhir.org` / Simplifier).
    - Support versioned canonicals (`url|version`) in `VALUE_SET_SPECS` / `COMPLETE_CODE_SYSTEMS`, `CodeSystem.supplements`, `ValueSet.compose.include.filter` (`exists`, `generalizes`, `child-of`), and configurable `unknown-profile` warnings/errors.
 
@@ -84,13 +91,11 @@ These structures appear in **>80% of real-world FHIR payloads** (US Core, IPS, C
 
 ---
 
-## Tier 4: Long-Tail Structures & Multi-Version (`v1.0.0`)
+## Tier 4: Multi-Version FHIR Support (`v1.0.0`)
 
-Lower-frequency R4 resources and long-term platform targets:
+Long-term multi-version platform target:
 
-1. **Long-Tail / Specialized FHIR R4 Resources & Terminologies**
-   - `Questionnaire` / `QuestionnaireResponse` (`que-*` invariants and `enableWhen` / `answerOption` checks), `CapabilityStatement` / `OperationDefinition` / `SearchParameter`, `ConceptMap` (`$translate`), `TestScript`, `StructureMap`, `GraphDefinition`, `Subscription`, `MolecularSequence`, `MedicinalProduct*`, and `VerificationResult`.
-2. **Multi-Version FHIR Support (`R4B` & `R5`)**
+1. **Multi-Version FHIR Support (`R4B` & `R5`)**
    - Parameterize [`generate_models.py`](../scripts/generate_models.py) to emit versioned schema modules (`fhirlance.r4`, `fhirlance.r4b`, `fhirlance.r5`).
 
 > [!NOTE]
