@@ -15,7 +15,7 @@ flowchart LR
         PKGS["HL7 FHIR Packages (~/.fhir/packages)<br/>• R4 Core 4.0.1<br/>• CA-Baseline 1.2.0 & Infoway 1.1.0<br/>• HL7 IPS 1.0.0 & US Core 8.0.1"]
         CODEGEN["Schema Compiler<br/>(scripts/generate_models.py)"]
         GEN["Generated Modules (Zero Runtime I/O)<br/>• src/fhirlance/types.py (39 types)<br/>• src/fhirlance/resources.py (146 resources)<br/>• src/fhirlance/profiles.py (IG constraints)"]
-        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, invariants.py,<br/>canadian.py, resource_validator.py, cli.py)"]
+        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py,<br/>extensions.py, invariants.py, resource_validator.py, cli.py)"]
         PRE["Local Pre-Commit Gate<br/>(.pre-commit-config.yaml)<br/>• ruff --fix & ruff-format<br/>• mypy (strict + pydantic.mypy)"]
 
         PKGS --> CODEGEN --> GEN --> PRE

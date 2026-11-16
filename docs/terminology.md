@@ -5,7 +5,8 @@ This document provides a comprehensive technical reference for the **FHIRlance T
 FHIRlance delivers an ultra-fast, zero-network-by-default terminology engine that validates FHIR R4 codes, units, languages, media types, and country codes in microseconds without sacrificing conformance or requiring a running Java terminology server.
 
 For other topics, see:
-- **[CLI, Python API & Architecture Reference](usage-and-architecture.md)**
+- **[CLI & Python API Reference](usage.md)**
+- **[Package Architecture & Development Reference](architecture.md)**
 - **[Proof of Functional Equivalence & Test Suite Architecture](equivalence-and-testing.md)**
 - **[Build & CI/CD Architecture](ci-and-build.md)**
 - **[Architecture & Product Roadmap](roadmap.md)**
