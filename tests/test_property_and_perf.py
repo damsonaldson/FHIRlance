@@ -98,7 +98,7 @@ def test_benchmark_performance_script_and_docs_sync() -> None:
     recorded = json.loads(mod.BENCHMARK_JSON_PATH.read_text(encoding="utf-8"))
     assert recorded["corpus_size"] == 325
     assert recorded["r4_resource_types"] == 146
-    assert recorded["compiled_ig_profiles"] == 183
+    assert recorded["compiled_ig_profiles"] == 198
     assert recorded["standard_mode"]["speedup_vs_hl7"] > 100.0
     assert recorded["operation_outcome_mode"]["speedup_vs_hl7"] > 100.0
     assert recorded["hl7_baseline_mode"]["elapsed_ms"] > 1000.0

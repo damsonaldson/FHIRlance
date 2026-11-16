@@ -38,6 +38,8 @@ __all__ = [
 ]
 
 _CHOICE_SUFFIX = "[x]"
+_CHOICE_SUFFIX_LEN = len(_CHOICE_SUFFIX)
+_MAX_FHIR_STRING_LENGTH = 1_048_576
 _MAX_SNAPSHOT_TYPE_NARROWING = 4
 _MAX_TAR_MEMBER_BYTES = 25 * 1024 * 1024  # 25 MB
 _MAX_TAR_MEMBERS = 5000
@@ -69,9 +71,14 @@ class _ProfileAccumulator:
     required: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)
     max_one: list[str] = field(default_factory=list)
+    must_support: list[str] = field(default_factory=list)
     fixed: dict[str, Any] = field(default_factory=dict)
     pattern: dict[str, Any] = field(default_factory=dict)
+    max_length: dict[str, int] = field(default_factory=dict)
+    min_values: dict[str, Any] = field(default_factory=dict)
+    max_values: dict[str, Any] = field(default_factory=dict)
     type_narrowing: dict[str, list[str]] = field(default_factory=dict)
+    element_profiles: dict[str, list[str]] = field(default_factory=dict)
     target_types: dict[str, list[str]] = field(default_factory=dict)
     target_profiles: dict[str, list[str]] = field(default_factory=dict)
     target_aggregations: dict[str, list[str]] = field(default_factory=dict)
@@ -272,6 +279,34 @@ def _record_reference_type(
         acc.target_aggregations[path] = aggs
 
 
+def _record_type_profile(
+    type_entry: dict[str, Any],
+    path: str,
+    acc: _ProfileAccumulator,
+) -> None:
+    raw_profiles = type_entry.get("profile")
+    if not isinstance(raw_profiles, list) or not raw_profiles:
+        return
+    cleaned = sorted(
+        {
+            p.split("|", 1)[0].strip()
+            for p in raw_profiles
+            if isinstance(p, str) and p.split("|", 1)[0].strip()
+        }
+    )
+    if not cleaned:
+        return
+    if path.endswith(_CHOICE_SUFFIX):
+        t_code = type_entry.get("code")
+        if not isinstance(t_code, str) or not t_code:
+            return
+        target_path = f"{path[:-_CHOICE_SUFFIX_LEN]}{t_code[0].upper()}{t_code[1:]}"
+    else:
+        target_path = path
+    existing = acc.element_profiles.get(target_path, [])
+    acc.element_profiles[target_path] = sorted(set(existing) | set(cleaned))
+
+
 def _record_element_types(
     el: dict[str, Any],
     path: str,
@@ -286,8 +321,11 @@ def _record_element_types(
     for type_entry in el_types:
         if not isinstance(type_entry, dict):
             continue
-        if type_entry.get("code") == "Reference":
+        t_code = type_entry.get("code")
+        if t_code == "Reference":
             _record_reference_type(type_entry, path, sd_type_by_url, acc)
+        if t_code != "Extension":
+            _record_type_profile(type_entry, path, acc)
 
 
 def _record_element_binding(
@@ -320,6 +358,28 @@ def _record_element_binding(
         )
 
 
+def _record_value_bounds(
+    el: dict[str, Any],
+    path: str,
+    acc: _ProfileAccumulator,
+) -> None:
+    max_len = el.get("maxLength")
+    if (
+        isinstance(max_len, int)
+        and not isinstance(max_len, bool)
+        and max_len > 0
+        and max_len != _MAX_FHIR_STRING_LENGTH
+    ):
+        acc.max_length[path] = max_len
+    for k, v in el.items():
+        if v is None:
+            continue
+        if k.startswith("minValue") and len(k) > len("minValue"):
+            acc.min_values[path] = v
+        elif k.startswith("maxValue") and len(k) > len("maxValue"):
+            acc.max_values[path] = v
+
+
 def _record_differential_element(
     el: dict[str, Any],
     sd_type_by_url: dict[str, str],
@@ -335,10 +395,13 @@ def _record_differential_element(
 
     if el.get("min", 0) >= 1:
         acc.required.append(path)
-    if el.get("max") == "0":
+    is_forbidden = el.get("max") == "0"
+    if is_forbidden:
         acc.forbidden.append(path)
     elif el.get("max") == "1":
         acc.max_one.append(path)
+    if el.get("mustSupport") is True and not is_forbidden:
+        acc.must_support.append(path)
 
     fixed, pattern = _extract_fixed_or_pattern(el)
     if fixed is not None:
@@ -346,6 +409,7 @@ def _record_differential_element(
     if pattern is not None:
         acc.pattern[path] = pattern
 
+    _record_value_bounds(el, path, acc)
     _record_element_types(el, path, sd_type_by_url, acc)
     value_sets, vs_specs = _unpack_vs_data(vs_data)
     _record_element_binding(el, path, value_sets, vs_specs, acc)
@@ -371,10 +435,13 @@ def _record_snapshot_element(
 
     if el.get("min", 0) >= 1 and base_min == 0:
         acc.required.append(path)
-    if el.get("max") == "0" and base_max != "0":
+    is_forbidden = el.get("max") == "0"
+    if is_forbidden and base_max != "0":
         acc.forbidden.append(path)
     elif el.get("max") == "1" and base_max == "*":
         acc.max_one.append(path)
+    if el.get("mustSupport") is True and not is_forbidden:
+        acc.must_support.append(path)
 
     fixed, pattern = _extract_fixed_or_pattern(el)
     b_fixed, b_pattern = _extract_fixed_or_pattern(base_el)
@@ -383,6 +450,7 @@ def _record_snapshot_element(
     if pattern is not None and pattern != b_pattern:
         acc.pattern[path] = pattern
 
+    _record_value_bounds(el, path, acc)
     _record_element_types(el, path, sd_type_by_url, acc)
     value_sets, vs_specs = _unpack_vs_data(vs_data)
     _record_element_binding(el, path, value_sets, vs_specs, acc)
@@ -491,15 +559,21 @@ def _extract_profile_spec(
             if stypes and len(stypes) <= _MAX_SNAPSHOT_TYPE_NARROWING:
                 acc.type_narrowing.setdefault(sp, stypes)
 
+    forbidden = sorted(set(acc.forbidden))
     return {
         "base_type": sd.get("type"),
         "base_definition": sd.get("baseDefinition"),
         "required": sorted(set(acc.required)),
-        "forbidden": sorted(set(acc.forbidden)),
+        "forbidden": forbidden,
         "max_one": sorted(set(acc.max_one)),
+        "must_support": sorted(set(acc.must_support) - set(forbidden)),
         "fixed": acc.fixed,
         "pattern": acc.pattern,
+        "max_length": acc.max_length,
+        "min_values": acc.min_values,
+        "max_values": acc.max_values,
         "type_narrowing": acc.type_narrowing,
+        "element_profiles": acc.element_profiles,
         "target_types": acc.target_types,
         "target_profiles": acc.target_profiles,
         "target_aggregations": acc.target_aggregations,
@@ -516,6 +590,50 @@ def _extract_profile_spec(
     }
 
 
+def _merge_max_length(
+    parent_ml: dict[str, int],
+    child_ml: dict[str, int],
+) -> dict[str, int]:
+    merged = dict(parent_ml)
+    for path, val in child_ml.items():
+        merged[path] = min(merged[path], val) if path in merged else val
+    return merged
+
+
+def _unwrap_bound_comparable(val: Any) -> int | float | str | None:
+    if isinstance(val, dict):
+        val = val.get("value")
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float, str)):
+        return val
+    return None
+
+
+def _pick_tighter_bound(prev: Any, val: Any, *, take_max: bool) -> Any:
+    comp_prev = _unwrap_bound_comparable(prev)
+    comp_val = _unwrap_bound_comparable(val)
+    if isinstance(comp_prev, (int, float)) and isinstance(comp_val, (int, float)):
+        return val if (comp_val > comp_prev if take_max else comp_val < comp_prev) else prev
+    if isinstance(comp_prev, str) and isinstance(comp_val, str):
+        return val if (comp_val > comp_prev if take_max else comp_val < comp_prev) else prev
+    return val
+
+
+def _merge_bound_values(
+    parent_vals: dict[str, Any],
+    child_vals: dict[str, Any],
+    *,
+    take_max: bool,
+) -> dict[str, Any]:
+    merged = dict(parent_vals)
+    for path, val in child_vals.items():
+        merged[path] = (
+            _pick_tighter_bound(merged[path], val, take_max=take_max) if path in merged else val
+        )
+    return merged
+
+
 def _merge_profile_with_parent(
     spec: dict[str, Any],
     parent: dict[str, Any] | None,
@@ -523,10 +641,13 @@ def _merge_profile_with_parent(
     p_req = set(parent["required"]) if parent and "required" in parent else set()
     p_forb = set(parent["forbidden"]) if parent and "forbidden" in parent else set()
     p_max1 = set(parent["max_one"]) if parent and "max_one" in parent else set()
+    p_ms = set(parent.get("must_support", [])) if parent else set()
+    merged_forb = p_forb | set(spec.get("forbidden", []))
 
     p_fixed = parent.get("fixed", {}) if parent else {}
     p_pat = parent.get("pattern", {}) if parent else {}
     p_narr = parent.get("type_narrowing", {}) if parent else {}
+    p_ep = parent.get("element_profiles", {}) if parent else {}
     p_tgt = parent.get("target_types", {}) if parent else {}
     p_tp = parent.get("target_profiles", {}) if parent else {}
     p_ta = parent.get("target_aggregations", {}) if parent else {}
@@ -543,11 +664,27 @@ def _merge_profile_with_parent(
         "base_type": spec.get("base_type") or (parent.get("base_type") if parent else None),
         "base_definition": spec.get("base_definition"),
         "required": sorted(p_req | set(spec.get("required", []))),
-        "forbidden": sorted(p_forb | set(spec.get("forbidden", []))),
+        "forbidden": sorted(merged_forb),
         "max_one": sorted(p_max1 | set(spec.get("max_one", []))),
+        "must_support": sorted((p_ms | set(spec.get("must_support", []))) - merged_forb),
         "fixed": {**p_fixed, **spec.get("fixed", {})},
         "pattern": {**p_pat, **spec.get("pattern", {})},
+        "max_length": _merge_max_length(
+            parent.get("max_length", {}) if parent else {},
+            spec.get("max_length", {}),
+        ),
+        "min_values": _merge_bound_values(
+            parent.get("min_values", {}) if parent else {},
+            spec.get("min_values", {}),
+            take_max=True,
+        ),
+        "max_values": _merge_bound_values(
+            parent.get("max_values", {}) if parent else {},
+            spec.get("max_values", {}),
+            take_max=False,
+        ),
         "type_narrowing": {**p_narr, **spec.get("type_narrowing", {})},
+        "element_profiles": {**p_ep, **spec.get("element_profiles", {})},
         "target_types": {**p_tgt, **spec.get("target_types", {})},
         "target_profiles": {**p_tp, **spec.get("target_profiles", {})},
         "target_aggregations": {**p_ta, **spec.get("target_aggregations", {})},

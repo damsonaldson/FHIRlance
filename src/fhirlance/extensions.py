@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from fhirlance import profiles as _profiles
-from fhirlance.base import DomainResourceBase
+from fhirlance.base import DomainResourceBase, check_value_bounds
 from fhirlance.profile_engine import (
     CompiledBindingRule,
     _extract_ref_resource_type,
@@ -49,6 +49,9 @@ class ExtensionNodeSpec:
     extension_required: bool
     slicing_closed: bool
     sub_extensions: dict[str, ExtensionNodeSpec]
+    value_max_length: int | None = None
+    value_min: Any = None
+    value_max: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +129,9 @@ def _compile_node(raw: dict[str, Any], path_prefix: str) -> ExtensionNodeSpec:
         extension_required=bool(raw.get("extension_required")),
         slicing_closed=bool(raw.get("slicing_closed")),
         sub_extensions=sub_compiled,
+        value_max_length=raw.get("value_max_length"),
+        value_min=raw.get("value_min"),
+        value_max=raw.get("value_max"),
     )
 
 
@@ -267,6 +273,24 @@ def _validate_single_value_item(
             )
     if node.value_binding is not None:
         _validate_value_binding(val, f"{ext_path}.{val_key}", node.value_binding, env)
+    if (
+        node.value_max_length is not None
+        and isinstance(val, str)
+        and len(val) > node.value_max_length
+    ):
+        env.issues.append(
+            f"Extension[{ext_path}]: '{val_key}' length {len(val)} exceeds "
+            f"maxLength {node.value_max_length}"
+        )
+    if node.value_min is not None or node.value_max is not None:
+        env.issues.extend(
+            check_value_bounds(
+                val,
+                node.value_min,
+                node.value_max,
+                f"Extension[{ext_path}]: '{val_key}'",
+            )
+        )
 
 
 def _validate_value_constraints(

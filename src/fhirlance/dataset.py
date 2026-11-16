@@ -33,6 +33,7 @@ class _ValidationOptions:
     bundle_index: dict[str, dict[str, Any]] | None = None
     skip_nested_entries: bool = False
     best_practice: bool = False
+    enforce_must_support: bool = False
 
 
 def _reject_bad_json_constant(val: str) -> Any:
@@ -66,6 +67,7 @@ def _record_validation(
         _bundle_index=options.bundle_index,
         _skip_nested_entries=options.skip_nested_entries,
         best_practice=options.best_practice,
+        enforce_must_support=options.enforce_must_support,
     )
     res_id = resource.get("id") if isinstance(resource, dict) else None
     res_type = resource.get("resourceType") if isinstance(resource, dict) else None
@@ -373,6 +375,7 @@ def validate_dataset(
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
     best_practice = bool(kwargs.get("best_practice", False))
+    enforce_must_support = bool(kwargs.get("enforce_must_support", False))
     tx_options = (
         tx_raw
         if isinstance(tx_raw, TxOptions)
@@ -386,6 +389,7 @@ def validate_dataset(
         compiled_profiles=compiled_map,
         tx_options=tx_options,
         best_practice=best_practice,
+        enforce_must_support=enforce_must_support,
     )
     total_resources = 0
     valid_resources = 0

@@ -102,7 +102,7 @@ def test_codegen_builds_resource_model_with_choice_and_backbone() -> None:
     assert "class SampleResItem(FHIRBaseModel):" in rendered
     assert "class SampleRes(FHIRBaseModel):" in rendered
     assert "resourceType: Literal['SampleRes']" in rendered
-    assert "valueString: StrictStr | None = None" in rendered
+    assert "valueString: FHIRString | None = None" in rendered
     assert "valueInteger: FHIRInteger | None = None" in rendered
     assert "def _check_choices" in rendered
 
@@ -239,5 +239,112 @@ def test_codegen_extracts_and_merges_constraints_and_preferred_bindings(tmp_path
                 "expression": "code.exists()",
                 "path": "DemoRes",
             }
+        ]
+    }
+
+
+def test_codegen_simple_quantity_mapping() -> None:
+    mod = _load_codegen_module()
+    sd = {
+        "id": "DoseRes",
+        "snapshot": {
+            "element": [
+                {"path": "DoseRes"},
+                {
+                    "path": "DoseRes.dose",
+                    "min": 0,
+                    "max": "1",
+                    "type": [
+                        {
+                            "code": "Quantity",
+                            "profile": ["http://hl7.org/fhir/StructureDefinition/SimpleQuantity"],
+                        }
+                    ],
+                },
+                {
+                    "path": "DoseRes.val[x]",
+                    "min": 0,
+                    "max": "1",
+                    "type": [
+                        {
+                            "code": "Quantity",
+                            "profile": [
+                                "http://hl7.org/fhir/StructureDefinition/SimpleQuantity|4.0.1"
+                            ],
+                        },
+                        {"code": "string"},
+                    ],
+                },
+            ]
+        },
+    }
+    emitted, _ = mod._build_models_from_sd(
+        sd, {}, {"Quantity", "SimpleQuantity"}, is_resource_pkg=True
+    )
+    rendered = "\n".join(emitted)
+    assert "dose: fhir_types.SimpleQuantity | None = None" in rendered
+    assert "valQuantity: fhir_types.SimpleQuantity | None = None" in rendered
+    assert "valString: FHIRString | None = None" in rendered
+
+
+def test_codegen_extracts_bounds_profiles_and_must_support() -> None:
+    mod = _load_codegen_module()
+    sd_parent = {
+        "type": "Observation",
+        "differential": {
+            "element": [
+                {"path": "Observation.code", "mustSupport": True},
+                {"path": "Observation.note", "mustSupport": True},
+                {
+                    "path": "Observation.category",
+                    "id": "Observation.category:slice",
+                    "mustSupport": True,
+                },
+                {"path": "Observation.valueString", "maxLength": 100},
+                {"path": "Observation.valueInteger", "minValueInteger": 0, "maxValueInteger": 120},
+                {
+                    "path": "Observation.value[x]",
+                    "type": [
+                        {
+                            "code": "Quantity",
+                            "profile": [
+                                "http://hl7.org/fhir/uv/ips/StructureDefinition/Quantity-uv-ips|1.0.0"
+                            ],
+                        },
+                        {
+                            "code": "Extension",
+                            "profile": ["http://example.org/ext"],
+                        },
+                    ],
+                },
+            ]
+        },
+    }
+    sd_child = {
+        "type": "Observation",
+        "baseDefinition": "http://example.org/parent",
+        "differential": {
+            "element": [
+                {"path": "Observation.note", "max": "0", "mustSupport": True},
+                {"path": "Observation.status", "mustSupport": True},
+                {"path": "Observation.valueString", "maxLength": 50},
+                {"path": "Observation.comment", "maxLength": 1048576},
+                {"path": "Observation.valueInteger", "minValueInteger": 10, "maxValueInteger": 200},
+            ]
+        },
+    }
+    profiles = {
+        "http://example.org/parent": mod._extract_profile_spec(sd_parent, {}, {}),
+        "http://example.org/child": mod._extract_profile_spec(sd_child, {}, {}),
+    }
+    resolved = mod._resolve_all_profiles(profiles)
+    child = resolved["http://example.org/child"]
+    assert child["must_support"] == ["Observation.code", "Observation.status"]
+    assert child["max_length"] == {"Observation.valueString": 50}
+    assert child["min_values"] == {"Observation.valueInteger": 10}
+    assert child["max_values"] == {"Observation.valueInteger": 120}
+    assert child["element_profiles"] == {
+        "Observation.valueQuantity": [
+            "http://hl7.org/fhir/uv/ips/StructureDefinition/Quantity-uv-ips"
         ]
     }

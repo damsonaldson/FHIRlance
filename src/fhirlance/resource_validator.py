@@ -397,6 +397,7 @@ def _validate_nested_resources(
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index")
     skip_nested_entries = bool(kwargs.get("_skip_nested_entries", False))
     best_practice = bool(kwargs.get("best_practice", False))
+    enforce_must_support = bool(kwargs.get("enforce_must_support", False))
     issues: list[str] = []
     contained = resource.get("contained")
     if isinstance(contained, list):
@@ -411,6 +412,7 @@ def _validate_nested_resources(
                 _compiled_extensions=compiled_extensions,
                 _bundle_index=bundle_index,
                 best_practice=best_practice,
+                enforce_must_support=enforce_must_support,
             )
             issues.extend(f"contained[{idx}]: {msg}" for msg in sub_issues)
             if warnings_out is not None and sub_warnings:
@@ -429,6 +431,7 @@ def _validate_nested_resources(
                     _compiled_extensions=compiled_extensions,
                     _bundle_index=bundle_index,
                     best_practice=best_practice,
+                    enforce_must_support=enforce_must_support,
                 )
                 issues.extend(f"entry[{idx}].resource: {msg}" for msg in sub_issues)
                 if warnings_out is not None and sub_warnings:
@@ -545,6 +548,7 @@ def validate_resource(
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
     best_practice = bool(kwargs.get("best_practice", False))
+    enforce_must_support = bool(kwargs.get("enforce_must_support", False))
     _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     tx_options = (
         tx_raw
@@ -632,6 +636,7 @@ def validate_resource(
                 _warnings_out=_warnings_out,
                 bundle_index=bundle_index,
                 best_practice=best_practice,
+                enforce_must_support=enforce_must_support,
             )
         )
 
@@ -651,6 +656,7 @@ def validate_resource(
             _bundle_index=bundle_index,
             _skip_nested_entries=bool(kwargs.get("_skip_nested_entries", False)),
             best_practice=best_practice,
+            enforce_must_support=enforce_must_support,
         )
     )
     return issues

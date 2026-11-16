@@ -5,7 +5,8 @@ from pydantic import Field, StrictBool, StrictStr, model_validator
 from fhirlance import types as fhir_types
 from fhirlance.base import (
     DomainResourceBase, FHIRBaseModel, FHIRCode, FHIRDate, FHIRDateTime, FHIRDecimal,
-    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRTime, FHIRUnsignedInt,
+    FHIRId, FHIRInstant, FHIRInteger, FHIRPositiveInt, FHIRString, FHIRTime,
+    FHIRUnsignedInt,
 )
 
 class DomainResourceR4(DomainResourceBase):
@@ -33,12 +34,12 @@ class Account(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['active', 'entered-in-error', 'inactive', 'on-hold', 'unknown']
     type: fhir_types.CodeableConcept | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     subject: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     servicePeriod: fhir_types.Period | None = None
     coverage: Annotated[list[AccountCoverage], Field(min_length=1)] | None = None
     owner: fhir_types.Reference | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     guarantor: Annotated[list[AccountGuarantor], Field(min_length=1)] | None = None
     partOf: fhir_types.Reference | None = None
 
@@ -52,28 +53,28 @@ class ActivityDefinitionDynamicValue(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    path: StrictStr
+    path: FHIRString
     expression: fhir_types.Expression
 class ActivityDefinition(DomainResourceR4):
     resourceType: Literal['ActivityDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -101,7 +102,7 @@ class ActivityDefinition(DomainResourceR4):
     participant: Annotated[list[ActivityDefinitionParticipant], Field(min_length=1)] | None = None
     productReference: fhir_types.Reference | None = None
     productCodeableConcept: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     dosage: Annotated[list[fhir_types.Dosage], Field(min_length=1)] | None = None
     bodySite: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     specimenRequirement: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -125,7 +126,7 @@ class AdverseEventSuspectEntityCausality(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     assessment: fhir_types.CodeableConcept | None = None
-    productRelatedness: StrictStr | None = None
+    productRelatedness: FHIRString | None = None
     author: fhir_types.Reference | None = None
     method: fhir_types.CodeableConcept | None = None
 class AdverseEventSuspectEntity(FHIRBaseModel):
@@ -163,7 +164,7 @@ class AllergyIntoleranceReaction(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     substance: fhir_types.CodeableConcept | None = None
     manifestation: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)]
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     onset: FHIRDateTime | None = None
     severity: Literal['mild', 'moderate', 'severe'] | None = None
     exposureRoute: fhir_types.CodeableConcept | None = None
@@ -183,7 +184,7 @@ class AllergyIntolerance(DomainResourceR4):
     onsetAge: fhir_types.Age | None = None
     onsetPeriod: fhir_types.Period | None = None
     onsetRange: fhir_types.Range | None = None
-    onsetString: StrictStr | None = None
+    onsetString: FHIRString | None = None
     recordedDate: FHIRDateTime | None = None
     recorder: fhir_types.Reference | None = None
     asserter: fhir_types.Reference | None = None
@@ -218,15 +219,15 @@ class Appointment(DomainResourceR4):
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     reasonReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     priority: FHIRUnsignedInt | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     supportingInformation: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     start: FHIRInstant | None = None
     end: FHIRInstant | None = None
     minutesDuration: FHIRPositiveInt | None = None
     slot: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     created: FHIRDateTime | None = None
-    comment: StrictStr | None = None
-    patientInstruction: StrictStr | None = None
+    comment: FHIRString | None = None
+    patientInstruction: FHIRString | None = None
     basedOn: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     participant: Annotated[list[AppointmentParticipant], Field(min_length=1)]
     requestedPeriod: Annotated[list[fhir_types.Period], Field(min_length=1)] | None = None
@@ -240,13 +241,13 @@ class AppointmentResponse(DomainResourceR4):
     participantType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     actor: fhir_types.Reference | None = None
     participantStatus: Literal['accepted', 'declined', 'needs-action', 'tentative']
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
 
 class AuditEventAgentNetwork(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    address: StrictStr | None = None
+    address: FHIRString | None = None
     type: Literal['1', '2', '3', '4', '5'] | None = None
 class AuditEventAgent(FHIRBaseModel):
     id: StrictStr | None = None
@@ -255,8 +256,8 @@ class AuditEventAgent(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     role: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     who: fhir_types.Reference | None = None
-    altId: StrictStr | None = None
-    name: StrictStr | None = None
+    altId: FHIRString | None = None
+    name: FHIRString | None = None
     requestor: StrictBool
     location: fhir_types.Reference | None = None
     policy: Annotated[list[StrictStr], Field(min_length=1)] | None = None
@@ -267,15 +268,15 @@ class AuditEventSource(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    site: StrictStr | None = None
+    site: FHIRString | None = None
     observer: fhir_types.Reference
     type: Annotated[list[fhir_types.Coding], Field(min_length=1)] | None = None
 class AuditEventEntityDetail(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    type: StrictStr
-    valueString: StrictStr | None = None
+    type: FHIRString
+    valueString: FHIRString | None = None
     valueBase64Binary: StrictStr | None = None
 
     @model_validator(mode='after')
@@ -292,8 +293,8 @@ class AuditEventEntity(FHIRBaseModel):
     role: fhir_types.Coding | None = None
     lifecycle: fhir_types.Coding | None = None
     securityLabel: Annotated[list[fhir_types.Coding], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     query: StrictStr | None = None
     detail: Annotated[list[AuditEventEntityDetail], Field(min_length=1)] | None = None
 class AuditEvent(DomainResourceR4):
@@ -304,7 +305,7 @@ class AuditEvent(DomainResourceR4):
     period: fhir_types.Period | None = None
     recorded: FHIRInstant
     outcome: Literal['0', '12', '4', '8'] | None = None
-    outcomeDesc: StrictStr | None = None
+    outcomeDesc: FHIRString | None = None
     purposeOfEvent: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     agent: Annotated[list[AuditEventAgent], Field(min_length=1)]
     source: AuditEventSource
@@ -342,7 +343,7 @@ class BiologicallyDerivedProductProcessing(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     procedure: fhir_types.CodeableConcept | None = None
     additive: fhir_types.Reference | None = None
     timeDateTime: FHIRDateTime | None = None
@@ -357,7 +358,7 @@ class BiologicallyDerivedProductManipulation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     timeDateTime: FHIRDateTime | None = None
     timePeriod: fhir_types.Period | None = None
 
@@ -370,7 +371,7 @@ class BiologicallyDerivedProductStorage(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     temperature: FHIRDecimal | None = None
     scale: Literal['celsius', 'farenheit', 'kelvin'] | None = None
     duration: fhir_types.Period | None = None
@@ -395,7 +396,7 @@ class BodyStructure(DomainResourceR4):
     morphology: fhir_types.CodeableConcept | None = None
     location: fhir_types.CodeableConcept | None = None
     locationQualifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     image: Annotated[list[fhir_types.Attachment], Field(min_length=1)] | None = None
     patient: fhir_types.Reference
 
@@ -403,7 +404,7 @@ class BundleLink(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    relation: StrictStr
+    relation: FHIRString
     url: StrictStr
 class BundleEntrySearch(FHIRBaseModel):
     id: StrictStr | None = None
@@ -417,17 +418,17 @@ class BundleEntryRequest(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     method: Literal['DELETE', 'GET', 'HEAD', 'PATCH', 'POST', 'PUT']
     url: StrictStr
-    ifNoneMatch: StrictStr | None = None
+    ifNoneMatch: FHIRString | None = None
     ifModifiedSince: FHIRInstant | None = None
-    ifMatch: StrictStr | None = None
-    ifNoneExist: StrictStr | None = None
+    ifMatch: FHIRString | None = None
+    ifNoneExist: FHIRString | None = None
 class BundleEntryResponse(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    status: StrictStr
+    status: FHIRString
     location: StrictStr | None = None
-    etag: StrictStr | None = None
+    etag: FHIRString | None = None
     lastModified: FHIRInstant | None = None
     outcome: dict[str, Any] | None = None
 class BundleEntry(FHIRBaseModel):
@@ -454,14 +455,14 @@ class CapabilityStatementSoftware(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    version: StrictStr | None = None
+    name: FHIRString
+    version: FHIRString | None = None
     releaseDate: FHIRDateTime | None = None
 class CapabilityStatementImplementation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr
+    description: FHIRString
     url: StrictStr | None = None
     custodian: fhir_types.Reference | None = None
 class CapabilityStatementRestSecurity(FHIRBaseModel):
@@ -481,7 +482,7 @@ class CapabilityStatementRestResourceSearchParam(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     definition: StrictStr | None = None
     type: Literal['composite', 'date', 'number', 'quantity', 'reference', 'special', 'string', 'token', 'uri']
     documentation: StrictStr | None = None
@@ -489,7 +490,7 @@ class CapabilityStatementRestResourceOperation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     definition: StrictStr
     documentation: StrictStr | None = None
 class CapabilityStatementRestResource(FHIRBaseModel):
@@ -509,8 +510,8 @@ class CapabilityStatementRestResource(FHIRBaseModel):
     conditionalUpdate: StrictBool | None = None
     conditionalDelete: Literal['multiple', 'not-supported', 'single'] | None = None
     referencePolicy: Annotated[list[Literal['enforced', 'literal', 'local', 'logical', 'resolves']], Field(min_length=1)] | None = None
-    searchInclude: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    searchRevInclude: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    searchInclude: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    searchRevInclude: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     searchParam: Annotated[list[CapabilityStatementRestResourceSearchParam], Field(min_length=1)] | None = None
     operation: Annotated[list[CapabilityStatementRestResourceOperation], Field(min_length=1)] | None = None
 class CapabilityStatementRestInteraction(FHIRBaseModel):
@@ -561,13 +562,13 @@ class CapabilityStatementDocument(FHIRBaseModel):
 class CapabilityStatement(DomainResourceR4):
     resourceType: Literal['CapabilityStatement']
     url: StrictStr | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -603,14 +604,14 @@ class CarePlanActivityDetail(FHIRBaseModel):
     doNotPerform: StrictBool | None = None
     scheduledTiming: fhir_types.Timing | None = None
     scheduledPeriod: fhir_types.Period | None = None
-    scheduledString: StrictStr | None = None
+    scheduledString: FHIRString | None = None
     location: fhir_types.Reference | None = None
     performer: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     productCodeableConcept: fhir_types.CodeableConcept | None = None
     productReference: fhir_types.Reference | None = None
-    dailyAmount: fhir_types.Quantity | None = None
-    quantity: fhir_types.Quantity | None = None
-    description: StrictStr | None = None
+    dailyAmount: fhir_types.SimpleQuantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    description: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'CarePlanActivityDetail':
@@ -639,8 +640,8 @@ class CarePlan(DomainResourceR4):
     status: Literal['active', 'completed', 'draft', 'entered-in-error', 'on-hold', 'revoked', 'unknown']
     intent: Literal['option', 'order', 'plan', 'proposal']
     category: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    title: StrictStr | None = None
-    description: StrictStr | None = None
+    title: FHIRString | None = None
+    description: FHIRString | None = None
     subject: fhir_types.Reference
     encounter: fhir_types.Reference | None = None
     period: fhir_types.Period | None = None
@@ -667,7 +668,7 @@ class CareTeam(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['active', 'entered-in-error', 'inactive', 'proposed', 'suspended'] | None = None
     category: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     subject: fhir_types.Reference | None = None
     encounter: fhir_types.Reference | None = None
     period: fhir_types.Period | None = None
@@ -727,7 +728,7 @@ class ChargeItem(DomainResourceR4):
     bodysite: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     factorOverride: FHIRDecimal | None = None
     priceOverride: fhir_types.Money | None = None
-    overrideReason: StrictStr | None = None
+    overrideReason: FHIRString | None = None
     enterer: fhir_types.Reference | None = None
     enteredDate: FHIRDateTime | None = None
     reason: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -750,9 +751,9 @@ class ChargeItemDefinitionApplicability(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
-    language: StrictStr | None = None
-    expression: StrictStr | None = None
+    description: FHIRString | None = None
+    language: FHIRString | None = None
+    expression: FHIRString | None = None
 class ChargeItemDefinitionPropertyGroupPriceComponent(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -771,15 +772,15 @@ class ChargeItemDefinition(DomainResourceR4):
     resourceType: Literal['ChargeItemDefinition']
     url: StrictStr
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    title: FHIRString | None = None
     derivedFromUri: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     partOf: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     replaces: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -825,7 +826,7 @@ class ClaimSupportingInfo(FHIRBaseModel):
     timingDate: FHIRDate | None = None
     timingPeriod: fhir_types.Period | None = None
     valueBoolean: StrictBool | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueQuantity: fhir_types.Quantity | None = None
     valueAttachment: fhir_types.Attachment | None = None
     valueReference: fhir_types.Reference | None = None
@@ -878,8 +879,8 @@ class ClaimInsurance(FHIRBaseModel):
     focal: StrictBool
     identifier: fhir_types.Identifier | None = None
     coverage: fhir_types.Reference
-    businessArrangement: StrictStr | None = None
-    preAuthRef: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    businessArrangement: FHIRString | None = None
+    preAuthRef: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     claimResponse: fhir_types.Reference | None = None
 class ClaimAccident(FHIRBaseModel):
     id: StrictStr | None = None
@@ -905,7 +906,7 @@ class ClaimItemDetailSubDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -920,7 +921,7 @@ class ClaimItemDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -945,7 +946,7 @@ class ClaimItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1029,7 +1030,7 @@ class ClaimResponseAddItemDetailSubDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1041,7 +1042,7 @@ class ClaimResponseAddItemDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1064,7 +1065,7 @@ class ClaimResponseAddItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1103,7 +1104,7 @@ class ClaimResponseProcessNote(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     number: FHIRPositiveInt | None = None
     type: Literal['display', 'print', 'printoper'] | None = None
-    text: StrictStr
+    text: FHIRString
     language: fhir_types.CodeableConcept | None = None
 class ClaimResponseInsurance(FHIRBaseModel):
     id: StrictStr | None = None
@@ -1112,7 +1113,7 @@ class ClaimResponseInsurance(FHIRBaseModel):
     sequence: FHIRPositiveInt
     focal: StrictBool
     coverage: fhir_types.Reference
-    businessArrangement: StrictStr | None = None
+    businessArrangement: FHIRString | None = None
     claimResponse: fhir_types.Reference | None = None
 class ClaimResponseError(FHIRBaseModel):
     id: StrictStr | None = None
@@ -1135,8 +1136,8 @@ class ClaimResponse(DomainResourceR4):
     requestor: fhir_types.Reference | None = None
     request: fhir_types.Reference | None = None
     outcome: Literal['complete', 'error', 'partial', 'queued']
-    disposition: StrictStr | None = None
-    preAuthRef: StrictStr | None = None
+    disposition: FHIRString | None = None
+    preAuthRef: FHIRString | None = None
     preAuthPeriod: fhir_types.Period | None = None
     payeeType: fhir_types.CodeableConcept | None = None
     item: Annotated[list[ClaimResponseItem], Field(min_length=1)] | None = None
@@ -1164,14 +1165,14 @@ class ClinicalImpressionFinding(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     itemCodeableConcept: fhir_types.CodeableConcept | None = None
     itemReference: fhir_types.Reference | None = None
-    basis: StrictStr | None = None
+    basis: FHIRString | None = None
 class ClinicalImpression(DomainResourceR4):
     resourceType: Literal['ClinicalImpression']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['completed', 'entered-in-error', 'in-progress']
     statusReason: fhir_types.CodeableConcept | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     subject: fhir_types.Reference
     encounter: fhir_types.Reference | None = None
     effectiveDateTime: FHIRDateTime | None = None
@@ -1182,7 +1183,7 @@ class ClinicalImpression(DomainResourceR4):
     problem: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     investigation: Annotated[list[ClinicalImpressionInvestigation], Field(min_length=1)] | None = None
     protocol: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    summary: StrictStr | None = None
+    summary: FHIRString | None = None
     finding: Annotated[list[ClinicalImpressionFinding], Field(min_length=1)] | None = None
     prognosisCodeableConcept: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     prognosisReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -1200,16 +1201,16 @@ class CodeSystemFilter(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     operator: Annotated[list[Literal['=', 'descendent-of', 'exists', 'generalizes', 'in', 'is-a', 'is-not-a', 'not-in', 'regex']], Field(min_length=1)]
-    value: StrictStr
+    value: FHIRString
 class CodeSystemProperty(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
     uri: StrictStr | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     type: Literal['Coding', 'boolean', 'code', 'dateTime', 'decimal', 'integer', 'string']
 class CodeSystemConceptDesignation(FHIRBaseModel):
     id: StrictStr | None = None
@@ -1217,7 +1218,7 @@ class CodeSystemConceptDesignation(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     language: FHIRCode | None = None
     use: fhir_types.Coding | None = None
-    value: StrictStr
+    value: FHIRString
 class CodeSystemConceptProperty(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -1225,7 +1226,7 @@ class CodeSystemConceptProperty(FHIRBaseModel):
     code: FHIRCode
     valueCode: FHIRCode | None = None
     valueCoding: fhir_types.Coding | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueInteger: FHIRInteger | None = None
     valueBoolean: StrictBool | None = None
     valueDateTime: FHIRDateTime | None = None
@@ -1241,8 +1242,8 @@ class CodeSystemConcept(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
-    display: StrictStr | None = None
-    definition: StrictStr | None = None
+    display: FHIRString | None = None
+    definition: FHIRString | None = None
     designation: Annotated[list[CodeSystemConceptDesignation], Field(min_length=1)] | None = None
     property: Annotated[list[CodeSystemConceptProperty], Field(min_length=1)] | None = None
     concept: Annotated[list[CodeSystemConcept], Field(min_length=1)] | None = None
@@ -1250,13 +1251,13 @@ class CodeSystem(DomainResourceR4):
     resourceType: Literal['CodeSystem']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -1279,7 +1280,7 @@ class CommunicationPayload(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    contentString: StrictStr | None = None
+    contentString: FHIRString | None = None
     contentAttachment: fhir_types.Attachment | None = None
     contentReference: fhir_types.Reference | None = None
 
@@ -1318,7 +1319,7 @@ class CommunicationRequestPayload(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    contentString: StrictStr | None = None
+    contentString: FHIRString | None = None
     contentAttachment: fhir_types.Attachment | None = None
     contentReference: fhir_types.Reference | None = None
 
@@ -1364,17 +1365,17 @@ class CompartmentDefinitionResource(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
-    param: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    documentation: StrictStr | None = None
+    param: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    documentation: FHIRString | None = None
 class CompartmentDefinition(DomainResourceR4):
     resourceType: Literal['CompartmentDefinition']
     url: StrictStr
-    version: StrictStr | None = None
-    name: StrictStr
+    version: FHIRString | None = None
+    name: FHIRString
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -1414,7 +1415,7 @@ class CompositionSection(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    title: StrictStr | None = None
+    title: FHIRString | None = None
     code: fhir_types.CodeableConcept | None = None
     author: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     focus: fhir_types.Reference | None = None
@@ -1434,7 +1435,7 @@ class Composition(DomainResourceR4):
     encounter: fhir_types.Reference | None = None
     date: FHIRDateTime
     author: Annotated[list[fhir_types.Reference], Field(min_length=1)]
-    title: StrictStr
+    title: FHIRString
     confidentiality: Literal['L', 'M', 'N', 'R', 'U', 'V'] | None = None
     attester: Annotated[list[CompositionAttester], Field(min_length=1)] | None = None
     custodian: fhir_types.Reference | None = None
@@ -1448,16 +1449,16 @@ class ConceptMapGroupElementTargetDependsOn(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     property: StrictStr
     system: StrictStr | None = None
-    value: StrictStr
-    display: StrictStr | None = None
+    value: FHIRString
+    display: FHIRString | None = None
 class ConceptMapGroupElementTarget(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     equivalence: Literal['disjoint', 'equal', 'equivalent', 'inexact', 'narrower', 'relatedto', 'specializes', 'subsumes', 'unmatched', 'wider']
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     dependsOn: Annotated[list[ConceptMapGroupElementTargetDependsOn], Field(min_length=1)] | None = None
     product: Annotated[list[ConceptMapGroupElementTargetDependsOn], Field(min_length=1)] | None = None
 class ConceptMapGroupElement(FHIRBaseModel):
@@ -1465,7 +1466,7 @@ class ConceptMapGroupElement(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     target: Annotated[list[ConceptMapGroupElementTarget], Field(min_length=1)] | None = None
 class ConceptMapGroupUnmapped(FHIRBaseModel):
     id: StrictStr | None = None
@@ -1473,29 +1474,29 @@ class ConceptMapGroupUnmapped(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     mode: Literal['fixed', 'other-map', 'provided']
     code: FHIRCode | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     url: StrictStr | None = None
 class ConceptMapGroup(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     source: StrictStr | None = None
-    sourceVersion: StrictStr | None = None
+    sourceVersion: FHIRString | None = None
     target: StrictStr | None = None
-    targetVersion: StrictStr | None = None
+    targetVersion: FHIRString | None = None
     element: Annotated[list[ConceptMapGroupElement], Field(min_length=1)]
     unmapped: ConceptMapGroupUnmapped | None = None
 class ConceptMap(DomainResourceR4):
     resourceType: Literal['ConceptMap']
     url: StrictStr | None = None
     identifier: fhir_types.Identifier | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -1544,12 +1545,12 @@ class Condition(DomainResourceR4):
     onsetAge: fhir_types.Age | None = None
     onsetPeriod: fhir_types.Period | None = None
     onsetRange: fhir_types.Range | None = None
-    onsetString: StrictStr | None = None
+    onsetString: FHIRString | None = None
     abatementDateTime: FHIRDateTime | None = None
     abatementAge: fhir_types.Age | None = None
     abatementPeriod: fhir_types.Period | None = None
     abatementRange: fhir_types.Range | None = None
-    abatementString: StrictStr | None = None
+    abatementString: FHIRString | None = None
     recordedDate: FHIRDateTime | None = None
     recorder: fhir_types.Reference | None = None
     asserter: fhir_types.Reference | None = None
@@ -1662,7 +1663,7 @@ class ContractTermOfferAnswer(FHIRBaseModel):
     valueDate: FHIRDate | None = None
     valueDateTime: FHIRDateTime | None = None
     valueTime: FHIRTime | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueUri: StrictStr | None = None
     valueAttachment: fhir_types.Attachment | None = None
     valueCoding: fhir_types.Coding | None = None
@@ -1685,8 +1686,8 @@ class ContractTermOffer(FHIRBaseModel):
     decision: fhir_types.CodeableConcept | None = None
     decisionMode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     answer: Annotated[list[ContractTermOfferAnswer], Field(min_length=1)] | None = None
-    text: StrictStr | None = None
-    linkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    text: FHIRString | None = None
+    linkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     securityLabelNumber: Annotated[list[FHIRUnsignedInt], Field(min_length=1)] | None = None
 class ContractTermAssetContext(FHIRBaseModel):
     id: StrictStr | None = None
@@ -1694,7 +1695,7 @@ class ContractTermAssetContext(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     reference: fhir_types.Reference | None = None
     code: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
 class ContractTermAssetValuedItem(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -1703,16 +1704,16 @@ class ContractTermAssetValuedItem(FHIRBaseModel):
     entityReference: fhir_types.Reference | None = None
     identifier: fhir_types.Identifier | None = None
     effectiveTime: FHIRDateTime | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     points: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
-    payment: StrictStr | None = None
+    payment: FHIRString | None = None
     paymentDate: FHIRDateTime | None = None
     responsible: fhir_types.Reference | None = None
     recipient: fhir_types.Reference | None = None
-    linkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    linkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     securityLabelNumber: Annotated[list[FHIRUnsignedInt], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
@@ -1730,12 +1731,12 @@ class ContractTermAsset(FHIRBaseModel):
     subtype: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     relationship: fhir_types.Coding | None = None
     context: Annotated[list[ContractTermAssetContext], Field(min_length=1)] | None = None
-    condition: StrictStr | None = None
+    condition: FHIRString | None = None
     periodType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     period: Annotated[list[fhir_types.Period], Field(min_length=1)] | None = None
     usePeriod: Annotated[list[fhir_types.Period], Field(min_length=1)] | None = None
-    text: StrictStr | None = None
-    linkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    text: FHIRString | None = None
+    linkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     answer: Annotated[list[ContractTermOfferAnswer], Field(min_length=1)] | None = None
     securityLabelNumber: Annotated[list[FHIRUnsignedInt], Field(min_length=1)] | None = None
     valuedItem: Annotated[list[ContractTermAssetValuedItem], Field(min_length=1)] | None = None
@@ -1753,23 +1754,23 @@ class ContractTermAction(FHIRBaseModel):
     type: fhir_types.CodeableConcept
     subject: Annotated[list[ContractTermActionSubject], Field(min_length=1)] | None = None
     intent: fhir_types.CodeableConcept
-    linkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    linkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     status: fhir_types.CodeableConcept
     context: fhir_types.Reference | None = None
-    contextLinkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    contextLinkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     occurrenceDateTime: FHIRDateTime | None = None
     occurrencePeriod: fhir_types.Period | None = None
     occurrenceTiming: fhir_types.Timing | None = None
     requester: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    requesterLinkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    requesterLinkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     performerType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     performerRole: fhir_types.CodeableConcept | None = None
     performer: fhir_types.Reference | None = None
-    performerLinkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    performerLinkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     reasonReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    reason: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    reasonLinkId: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    reason: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    reasonLinkId: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
     securityLabelNumber: Annotated[list[FHIRUnsignedInt], Field(min_length=1)] | None = None
 
@@ -1789,7 +1790,7 @@ class ContractTerm(FHIRBaseModel):
     topicReference: fhir_types.Reference | None = None
     type: fhir_types.CodeableConcept | None = None
     subType: fhir_types.CodeableConcept | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
     securityLabel: Annotated[list[ContractTermSecurityLabel], Field(min_length=1)] | None = None
     offer: ContractTermOffer
     asset: Annotated[list[ContractTermAsset], Field(min_length=1)] | None = None
@@ -1848,7 +1849,7 @@ class Contract(DomainResourceR4):
     resourceType: Literal['Contract']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     url: StrictStr | None = None
-    version: StrictStr | None = None
+    version: FHIRString | None = None
     status: Literal['amended', 'appended', 'cancelled', 'disputed', 'entered-in-error', 'executable', 'executed', 'negotiable', 'offered', 'policy', 'rejected', 'renewed', 'resolved', 'revoked', 'terminated'] | None = None
     legalState: fhir_types.CodeableConcept | None = None
     instantiatesCanonical: fhir_types.Reference | None = None
@@ -1861,10 +1862,10 @@ class Contract(DomainResourceR4):
     authority: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     domain: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     site: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
-    alias: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
+    alias: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     author: fhir_types.Reference | None = None
     scope: fhir_types.CodeableConcept | None = None
     topicCodeableConcept: fhir_types.CodeableConcept | None = None
@@ -1895,8 +1896,8 @@ class CoverageClass(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept
-    value: StrictStr
-    name: StrictStr | None = None
+    value: FHIRString
+    name: FHIRString | None = None
 class CoverageCostToBeneficiaryException(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -1908,7 +1909,7 @@ class CoverageCostToBeneficiary(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    valueQuantity: fhir_types.Quantity | None = None
+    valueQuantity: fhir_types.SimpleQuantity | None = None
     valueMoney: fhir_types.Money | None = None
     exception: Annotated[list[CoverageCostToBeneficiaryException], Field(min_length=1)] | None = None
 
@@ -1924,15 +1925,15 @@ class Coverage(DomainResourceR4):
     type: fhir_types.CodeableConcept | None = None
     policyHolder: fhir_types.Reference | None = None
     subscriber: fhir_types.Reference | None = None
-    subscriberId: StrictStr | None = None
+    subscriberId: FHIRString | None = None
     beneficiary: fhir_types.Reference
-    dependent: StrictStr | None = None
+    dependent: FHIRString | None = None
     relationship: fhir_types.CodeableConcept | None = None
     period: fhir_types.Period | None = None
     payor: Annotated[list[fhir_types.Reference], Field(min_length=1)]
     class_: Annotated[list[CoverageClass], Field(min_length=1)] | None = Field(default=None, alias='class')
     order: FHIRPositiveInt | None = None
-    network: StrictStr | None = None
+    network: FHIRString | None = None
     costToBeneficiary: Annotated[list[CoverageCostToBeneficiary], Field(min_length=1)] | None = None
     subrogation: StrictBool | None = None
     contract: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -1950,7 +1951,7 @@ class CoverageEligibilityRequestInsurance(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     focal: StrictBool | None = None
     coverage: fhir_types.Reference
-    businessArrangement: StrictStr | None = None
+    businessArrangement: FHIRString | None = None
 class CoverageEligibilityRequestItemDiagnosis(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -1972,7 +1973,7 @@ class CoverageEligibilityRequestItem(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept | None = None
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     provider: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     facility: fhir_types.Reference | None = None
     diagnosis: Annotated[list[CoverageEligibilityRequestItemDiagnosis], Field(min_length=1)] | None = None
@@ -2007,10 +2008,10 @@ class CoverageEligibilityResponseInsuranceItemBenefit(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept
     allowedUnsignedInt: FHIRUnsignedInt | None = None
-    allowedString: StrictStr | None = None
+    allowedString: FHIRString | None = None
     allowedMoney: fhir_types.Money | None = None
     usedUnsignedInt: FHIRUnsignedInt | None = None
-    usedString: StrictStr | None = None
+    usedString: FHIRString | None = None
     usedMoney: fhir_types.Money | None = None
 
     @model_validator(mode='after')
@@ -2029,8 +2030,8 @@ class CoverageEligibilityResponseInsuranceItem(FHIRBaseModel):
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     provider: fhir_types.Reference | None = None
     excluded: StrictBool | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     network: fhir_types.CodeableConcept | None = None
     unit: fhir_types.CodeableConcept | None = None
     term: fhir_types.CodeableConcept | None = None
@@ -2063,10 +2064,10 @@ class CoverageEligibilityResponse(DomainResourceR4):
     requestor: fhir_types.Reference | None = None
     request: fhir_types.Reference
     outcome: Literal['complete', 'error', 'partial', 'queued']
-    disposition: StrictStr | None = None
+    disposition: FHIRString | None = None
     insurer: fhir_types.Reference
     insurance: Annotated[list[CoverageEligibilityResponseInsurance], Field(min_length=1)] | None = None
-    preAuthRef: StrictStr | None = None
+    preAuthRef: FHIRString | None = None
     form: fhir_types.CodeableConcept | None = None
     error: Annotated[list[CoverageEligibilityResponseError], Field(min_length=1)] | None = None
 
@@ -2101,7 +2102,7 @@ class DetectedIssue(DomainResourceR4):
     author: fhir_types.Reference | None = None
     implicated: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     evidence: Annotated[list[DetectedIssueEvidence], Field(min_length=1)] | None = None
-    detail: StrictStr | None = None
+    detail: FHIRString | None = None
     reference: StrictStr | None = None
     mitigation: Annotated[list[DetectedIssueMitigation], Field(min_length=1)] | None = None
 
@@ -2115,31 +2116,31 @@ class DeviceUdiCarrier(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    deviceIdentifier: StrictStr | None = None
+    deviceIdentifier: FHIRString | None = None
     issuer: StrictStr | None = None
     jurisdiction: StrictStr | None = None
     carrierAIDC: StrictStr | None = None
-    carrierHRF: StrictStr | None = None
+    carrierHRF: FHIRString | None = None
     entryType: Literal['barcode', 'card', 'manual', 'rfid', 'self-reported', 'unknown'] | None = None
 class DeviceDeviceName(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     type: Literal['manufacturer-name', 'model-name', 'other', 'patient-reported-name', 'udi-label-name', 'user-friendly-name']
 class DeviceSpecialization(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     systemType: fhir_types.CodeableConcept
-    version: StrictStr | None = None
+    version: FHIRString | None = None
 class DeviceVersion(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
     component: fhir_types.Identifier | None = None
-    value: StrictStr
+    value: FHIRString
 class DeviceProperty(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -2154,15 +2155,15 @@ class Device(DomainResourceR4):
     udiCarrier: Annotated[list[DeviceUdiCarrier], Field(min_length=1)] | None = None
     status: Literal['active', 'entered-in-error', 'inactive', 'unknown'] | None = None
     statusReason: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    distinctIdentifier: StrictStr | None = None
-    manufacturer: StrictStr | None = None
+    distinctIdentifier: FHIRString | None = None
+    manufacturer: FHIRString | None = None
     manufactureDate: FHIRDateTime | None = None
     expirationDate: FHIRDateTime | None = None
-    lotNumber: StrictStr | None = None
-    serialNumber: StrictStr | None = None
+    lotNumber: FHIRString | None = None
+    serialNumber: FHIRString | None = None
     deviceName: Annotated[list[DeviceDeviceName], Field(min_length=1)] | None = None
-    modelNumber: StrictStr | None = None
-    partNumber: StrictStr | None = None
+    modelNumber: FHIRString | None = None
+    partNumber: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     specialization: Annotated[list[DeviceSpecialization], Field(min_length=1)] | None = None
     version: Annotated[list[DeviceVersion], Field(min_length=1)] | None = None
@@ -2180,21 +2181,21 @@ class DeviceDefinitionUdiDeviceIdentifier(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    deviceIdentifier: StrictStr
+    deviceIdentifier: FHIRString
     issuer: StrictStr
     jurisdiction: StrictStr
 class DeviceDefinitionDeviceName(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     type: Literal['manufacturer-name', 'model-name', 'other', 'patient-reported-name', 'udi-label-name', 'user-friendly-name']
 class DeviceDefinitionSpecialization(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    systemType: StrictStr
-    version: StrictStr | None = None
+    systemType: FHIRString
+    version: FHIRString | None = None
 class DeviceDefinitionCapability(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -2219,13 +2220,13 @@ class DeviceDefinition(DomainResourceR4):
     resourceType: Literal['DeviceDefinition']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     udiDeviceIdentifier: Annotated[list[DeviceDefinitionUdiDeviceIdentifier], Field(min_length=1)] | None = None
-    manufacturerString: StrictStr | None = None
+    manufacturerString: FHIRString | None = None
     manufacturerReference: fhir_types.Reference | None = None
     deviceName: Annotated[list[DeviceDefinitionDeviceName], Field(min_length=1)] | None = None
-    modelNumber: StrictStr | None = None
+    modelNumber: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     specialization: Annotated[list[DeviceDefinitionSpecialization], Field(min_length=1)] | None = None
-    version: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    version: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     safety: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     shelfLifeStorage: Annotated[list[fhir_types.ProductShelfLife], Field(min_length=1)] | None = None
     physicalCharacteristics: fhir_types.ProdCharacteristic | None = None
@@ -2348,7 +2349,7 @@ class DiagnosticReportMedia(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     link: fhir_types.Reference
 class DiagnosticReport(DomainResourceR4):
     resourceType: Literal['DiagnosticReport']
@@ -2368,7 +2369,7 @@ class DiagnosticReport(DomainResourceR4):
     result: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     imagingStudy: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     media: Annotated[list[DiagnosticReportMedia], Field(min_length=1)] | None = None
-    conclusion: StrictStr | None = None
+    conclusion: FHIRString | None = None
     conclusionCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     presentedForm: Annotated[list[fhir_types.Attachment], Field(min_length=1)] | None = None
 
@@ -2395,7 +2396,7 @@ class DocumentManifest(DomainResourceR4):
     author: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     recipient: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     source: StrictStr | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     content: Annotated[list[fhir_types.Reference], Field(min_length=1)]
     related: Annotated[list[DocumentManifestRelated], Field(min_length=1)] | None = None
 
@@ -2436,7 +2437,7 @@ class DocumentReference(DomainResourceR4):
     authenticator: fhir_types.Reference | None = None
     custodian: fhir_types.Reference | None = None
     relatesTo: Annotated[list[DocumentReferenceRelatesTo], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     securityLabel: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     content: Annotated[list[DocumentReferenceContent], Field(min_length=1)]
     context: DocumentReferenceContext | None = None
@@ -2445,14 +2446,14 @@ class EffectEvidenceSynthesisSampleSize(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     numberOfStudies: FHIRInteger | None = None
     numberOfParticipants: FHIRInteger | None = None
 class EffectEvidenceSynthesisResultsByExposure(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     exposureState: Literal['exposure', 'exposure-alternative'] | None = None
     variantState: fhir_types.CodeableConcept | None = None
     riskEvidenceSynthesis: fhir_types.Reference
@@ -2468,7 +2469,7 @@ class EffectEvidenceSynthesisEffectEstimate(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     variantState: fhir_types.CodeableConcept | None = None
     value: FHIRDecimal | None = None
@@ -2492,12 +2493,12 @@ class EffectEvidenceSynthesis(DomainResourceR4):
     resourceType: Literal['EffectEvidenceSynthesis']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -2602,14 +2603,14 @@ class Endpoint(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['active', 'entered-in-error', 'error', 'off', 'suspended', 'test']
     connectionType: fhir_types.Coding
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     managingOrganization: fhir_types.Reference | None = None
     contact: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
     period: fhir_types.Period | None = None
     payloadType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)]
     payloadMimeType: Annotated[list[FHIRCode], Field(min_length=1)] | None = None
     address: StrictStr
-    header: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    header: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 
 class EnrollmentRequest(DomainResourceR4):
     resourceType: Literal['EnrollmentRequest']
@@ -2627,7 +2628,7 @@ class EnrollmentResponse(DomainResourceR4):
     status: Literal['active', 'cancelled', 'draft', 'entered-in-error'] | None = None
     request: fhir_types.Reference | None = None
     outcome: Literal['complete', 'error', 'partial', 'queued'] | None = None
-    disposition: StrictStr | None = None
+    disposition: FHIRString | None = None
     created: FHIRDateTime | None = None
     organization: fhir_types.Reference | None = None
     requestProvider: fhir_types.Reference | None = None
@@ -2664,22 +2665,22 @@ class EventDefinition(DomainResourceR4):
     resourceType: Literal['EventDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -2702,14 +2703,14 @@ class Evidence(DomainResourceR4):
     resourceType: Literal['Evidence']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    shortTitle: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    shortTitle: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -2733,7 +2734,7 @@ class EvidenceVariableCharacteristic(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     definitionReference: fhir_types.Reference | None = None
     definitionCanonical: StrictStr | None = None
     definitionCodeableConcept: fhir_types.CodeableConcept | None = None
@@ -2760,14 +2761,14 @@ class EvidenceVariable(DomainResourceR4):
     resourceType: Literal['EvidenceVariable']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    shortTitle: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    shortTitle: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -2790,29 +2791,29 @@ class ExampleScenarioActor(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    actorId: StrictStr
+    actorId: FHIRString
     type: Literal['entity', 'person']
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     description: StrictStr | None = None
 class ExampleScenarioInstanceVersion(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    versionId: StrictStr
+    versionId: FHIRString
     description: StrictStr
 class ExampleScenarioInstanceContainedInstance(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    resourceId: StrictStr
-    versionId: StrictStr | None = None
+    resourceId: FHIRString
+    versionId: FHIRString | None = None
 class ExampleScenarioInstance(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    resourceId: StrictStr
+    resourceId: FHIRString
     resourceType: FHIRCode
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     description: StrictStr | None = None
     version: Annotated[list[ExampleScenarioInstanceVersion], Field(min_length=1)] | None = None
     containedInstance: Annotated[list[ExampleScenarioInstanceContainedInstance], Field(min_length=1)] | None = None
@@ -2820,11 +2821,11 @@ class ExampleScenarioProcessStepOperation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    number: StrictStr
-    type: StrictStr | None = None
-    name: StrictStr | None = None
-    initiator: StrictStr | None = None
-    receiver: StrictStr | None = None
+    number: FHIRString
+    type: FHIRString | None = None
+    name: FHIRString | None = None
+    initiator: FHIRString | None = None
+    receiver: FHIRString | None = None
     description: StrictStr | None = None
     initiatorActive: StrictBool | None = None
     receiverActive: StrictBool | None = None
@@ -2834,7 +2835,7 @@ class ExampleScenarioProcessStepAlternative(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    title: StrictStr
+    title: FHIRString
     description: StrictStr | None = None
     step: Annotated[list[ExampleScenarioProcessStep], Field(min_length=1)] | None = None
 class ExampleScenarioProcessStep(FHIRBaseModel):
@@ -2849,7 +2850,7 @@ class ExampleScenarioProcess(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    title: StrictStr
+    title: FHIRString
     description: StrictStr | None = None
     preConditions: StrictStr | None = None
     postConditions: StrictStr | None = None
@@ -2858,12 +2859,12 @@ class ExampleScenario(DomainResourceR4):
     resourceType: Literal['ExampleScenario']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -2906,7 +2907,7 @@ class ExplanationOfBenefitSupportingInfo(FHIRBaseModel):
     timingDate: FHIRDate | None = None
     timingPeriod: fhir_types.Period | None = None
     valueBoolean: StrictBool | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueQuantity: fhir_types.Quantity | None = None
     valueAttachment: fhir_types.Attachment | None = None
     valueReference: fhir_types.Reference | None = None
@@ -2957,7 +2958,7 @@ class ExplanationOfBenefitInsurance(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     focal: StrictBool
     coverage: fhir_types.Reference
-    preAuthRef: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    preAuthRef: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 class ExplanationOfBenefitAccident(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -2990,7 +2991,7 @@ class ExplanationOfBenefitItemDetailSubDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3007,7 +3008,7 @@ class ExplanationOfBenefitItemDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3034,7 +3035,7 @@ class ExplanationOfBenefitItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3059,7 +3060,7 @@ class ExplanationOfBenefitAddItemDetailSubDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3071,7 +3072,7 @@ class ExplanationOfBenefitAddItemDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3094,7 +3095,7 @@ class ExplanationOfBenefitAddItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3133,7 +3134,7 @@ class ExplanationOfBenefitProcessNote(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     number: FHIRPositiveInt | None = None
     type: Literal['display', 'print', 'printoper'] | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
     language: fhir_types.CodeableConcept | None = None
 class ExplanationOfBenefitBenefitBalanceFinancial(FHIRBaseModel):
     id: StrictStr | None = None
@@ -3141,7 +3142,7 @@ class ExplanationOfBenefitBenefitBalanceFinancial(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept
     allowedUnsignedInt: FHIRUnsignedInt | None = None
-    allowedString: StrictStr | None = None
+    allowedString: FHIRString | None = None
     allowedMoney: fhir_types.Money | None = None
     usedUnsignedInt: FHIRUnsignedInt | None = None
     usedMoney: fhir_types.Money | None = None
@@ -3159,8 +3160,8 @@ class ExplanationOfBenefitBenefitBalance(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     category: fhir_types.CodeableConcept
     excluded: StrictBool | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     network: fhir_types.CodeableConcept | None = None
     unit: fhir_types.CodeableConcept | None = None
     term: fhir_types.CodeableConcept | None = None
@@ -3190,8 +3191,8 @@ class ExplanationOfBenefit(DomainResourceR4):
     claim: fhir_types.Reference | None = None
     claimResponse: fhir_types.Reference | None = None
     outcome: Literal['complete', 'error', 'partial', 'queued']
-    disposition: StrictStr | None = None
-    preAuthRef: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    disposition: FHIRString | None = None
+    preAuthRef: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     preAuthRefPeriod: Annotated[list[fhir_types.Period], Field(min_length=1)] | None = None
     careTeam: Annotated[list[ExplanationOfBenefitCareTeam], Field(min_length=1)] | None = None
     supportingInfo: Annotated[list[ExplanationOfBenefitSupportingInfo], Field(min_length=1)] | None = None
@@ -3221,7 +3222,7 @@ class FamilyMemberHistoryCondition(FHIRBaseModel):
     onsetAge: fhir_types.Age | None = None
     onsetRange: fhir_types.Range | None = None
     onsetPeriod: fhir_types.Period | None = None
-    onsetString: StrictStr | None = None
+    onsetString: FHIRString | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
@@ -3238,21 +3239,21 @@ class FamilyMemberHistory(DomainResourceR4):
     dataAbsentReason: fhir_types.CodeableConcept | None = None
     patient: fhir_types.Reference
     date: FHIRDateTime | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     relationship: fhir_types.CodeableConcept
     sex: fhir_types.CodeableConcept | None = None
     bornPeriod: fhir_types.Period | None = None
     bornDate: FHIRDate | None = None
-    bornString: StrictStr | None = None
+    bornString: FHIRString | None = None
     ageAge: fhir_types.Age | None = None
     ageRange: fhir_types.Range | None = None
-    ageString: StrictStr | None = None
+    ageString: FHIRString | None = None
     estimatedAge: StrictBool | None = None
     deceasedBoolean: StrictBool | None = None
     deceasedAge: fhir_types.Age | None = None
     deceasedRange: fhir_types.Range | None = None
     deceasedDate: FHIRDate | None = None
-    deceasedString: StrictStr | None = None
+    deceasedString: FHIRString | None = None
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     reasonReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -3287,7 +3288,7 @@ class GoalTarget(FHIRBaseModel):
     detailQuantity: fhir_types.Quantity | None = None
     detailRange: fhir_types.Range | None = None
     detailCodeableConcept: fhir_types.CodeableConcept | None = None
-    detailString: StrictStr | None = None
+    detailString: FHIRString | None = None
     detailBoolean: StrictBool | None = None
     detailInteger: FHIRInteger | None = None
     detailRatio: fhir_types.Ratio | None = None
@@ -3314,7 +3315,7 @@ class Goal(DomainResourceR4):
     startCodeableConcept: fhir_types.CodeableConcept | None = None
     target: Annotated[list[GoalTarget], Field(min_length=1)] | None = None
     statusDate: FHIRDate | None = None
-    statusReason: StrictStr | None = None
+    statusReason: FHIRString | None = None
     expressedBy: fhir_types.Reference | None = None
     addresses: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -3334,14 +3335,14 @@ class GraphDefinitionLinkTargetCompartment(FHIRBaseModel):
     use: Literal['condition', 'requirement']
     code: Literal['Device', 'Encounter', 'Patient', 'Practitioner', 'RelatedPerson']
     rule: Literal['custom', 'different', 'identical', 'matching']
-    expression: StrictStr | None = None
-    description: StrictStr | None = None
+    expression: FHIRString | None = None
+    description: FHIRString | None = None
 class GraphDefinitionLinkTarget(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: FHIRCode
-    params: StrictStr | None = None
+    params: FHIRString | None = None
     profile: StrictStr | None = None
     compartment: Annotated[list[GraphDefinitionLinkTargetCompartment], Field(min_length=1)] | None = None
     link: Annotated[list[GraphDefinitionLink], Field(min_length=1)] | None = None
@@ -3349,21 +3350,21 @@ class GraphDefinitionLink(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    path: StrictStr | None = None
-    sliceName: StrictStr | None = None
+    path: FHIRString | None = None
+    sliceName: FHIRString | None = None
     min: FHIRInteger | None = None
-    max: StrictStr | None = None
-    description: StrictStr | None = None
+    max: FHIRString | None = None
+    description: FHIRString | None = None
     target: Annotated[list[GraphDefinitionLinkTarget], Field(min_length=1)] | None = None
 class GraphDefinition(DomainResourceR4):
     resourceType: Literal['GraphDefinition']
     url: StrictStr | None = None
-    version: StrictStr | None = None
-    name: StrictStr
+    version: FHIRString | None = None
+    name: FHIRString
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -3405,7 +3406,7 @@ class Group(DomainResourceR4):
     type: Literal['animal', 'device', 'medication', 'person', 'practitioner', 'substance']
     actual: StrictBool
     code: fhir_types.CodeableConcept | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     quantity: FHIRUnsignedInt | None = None
     managingEntity: fhir_types.Reference | None = None
     characteristic: Annotated[list[GroupCharacteristic], Field(min_length=1)] | None = None
@@ -3455,7 +3456,7 @@ class HealthcareServiceNotAvailable(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr
+    description: FHIRString
     during: fhir_types.Period | None = None
 class HealthcareService(DomainResourceR4):
     resourceType: Literal['HealthcareService']
@@ -3466,8 +3467,8 @@ class HealthcareService(DomainResourceR4):
     type: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     specialty: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     location: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    comment: StrictStr | None = None
+    name: FHIRString | None = None
+    comment: FHIRString | None = None
     extraDetails: StrictStr | None = None
     photo: fhir_types.Attachment | None = None
     telecom: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
@@ -3481,7 +3482,7 @@ class HealthcareService(DomainResourceR4):
     appointmentRequired: StrictBool | None = None
     availableTime: Annotated[list[HealthcareServiceAvailableTime], Field(min_length=1)] | None = None
     notAvailable: Annotated[list[HealthcareServiceNotAvailable], Field(min_length=1)] | None = None
-    availabilityExceptions: StrictStr | None = None
+    availabilityExceptions: FHIRString | None = None
     endpoint: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
 class ImagingStudySeriesPerformer(FHIRBaseModel):
@@ -3497,7 +3498,7 @@ class ImagingStudySeriesInstance(FHIRBaseModel):
     uid: FHIRId
     sopClass: fhir_types.Coding
     number: FHIRUnsignedInt | None = None
-    title: StrictStr | None = None
+    title: FHIRString | None = None
 class ImagingStudySeries(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -3505,7 +3506,7 @@ class ImagingStudySeries(FHIRBaseModel):
     uid: FHIRId
     number: FHIRUnsignedInt | None = None
     modality: fhir_types.Coding
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     numberOfInstances: FHIRUnsignedInt | None = None
     endpoint: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     bodySite: fhir_types.Coding | None = None
@@ -3534,7 +3535,7 @@ class ImagingStudy(DomainResourceR4):
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     reasonReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     series: Annotated[list[ImagingStudySeries], Field(min_length=1)] | None = None
 
 class ImmunizationPerformer(FHIRBaseModel):
@@ -3547,7 +3548,7 @@ class ImmunizationEducation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    documentType: StrictStr | None = None
+    documentType: FHIRString | None = None
     reference: StrictStr | None = None
     publicationDate: FHIRDateTime | None = None
     presentationDate: FHIRDateTime | None = None
@@ -3562,13 +3563,13 @@ class ImmunizationProtocolApplied(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    series: StrictStr | None = None
+    series: FHIRString | None = None
     authority: fhir_types.Reference | None = None
     targetDisease: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     doseNumberPositiveInt: FHIRPositiveInt | None = None
-    doseNumberString: StrictStr | None = None
+    doseNumberString: FHIRString | None = None
     seriesDosesPositiveInt: FHIRPositiveInt | None = None
-    seriesDosesString: StrictStr | None = None
+    seriesDosesString: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'ImmunizationProtocolApplied':
@@ -3586,17 +3587,17 @@ class Immunization(DomainResourceR4):
     patient: fhir_types.Reference
     encounter: fhir_types.Reference | None = None
     occurrenceDateTime: FHIRDateTime | None = None
-    occurrenceString: StrictStr | None = None
+    occurrenceString: FHIRString | None = None
     recorded: FHIRDateTime | None = None
     primarySource: StrictBool | None = None
     reportOrigin: fhir_types.CodeableConcept | None = None
     location: fhir_types.Reference | None = None
     manufacturer: fhir_types.Reference | None = None
-    lotNumber: StrictStr | None = None
+    lotNumber: FHIRString | None = None
     expirationDate: FHIRDate | None = None
     site: fhir_types.CodeableConcept | None = None
     route: fhir_types.CodeableConcept | None = None
-    doseQuantity: fhir_types.Quantity | None = None
+    doseQuantity: fhir_types.SimpleQuantity | None = None
     performer: Annotated[list[ImmunizationPerformer], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -3626,12 +3627,12 @@ class ImmunizationEvaluation(DomainResourceR4):
     immunizationEvent: fhir_types.Reference
     doseStatus: fhir_types.CodeableConcept
     doseStatusReason: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
-    series: StrictStr | None = None
+    description: FHIRString | None = None
+    series: FHIRString | None = None
     doseNumberPositiveInt: FHIRPositiveInt | None = None
-    doseNumberString: StrictStr | None = None
+    doseNumberString: FHIRString | None = None
     seriesDosesPositiveInt: FHIRPositiveInt | None = None
-    seriesDosesString: StrictStr | None = None
+    seriesDosesString: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'ImmunizationEvaluation':
@@ -3657,12 +3658,12 @@ class ImmunizationRecommendationRecommendation(FHIRBaseModel):
     forecastStatus: fhir_types.CodeableConcept
     forecastReason: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     dateCriterion: Annotated[list[ImmunizationRecommendationRecommendationDateCriterion], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
-    series: StrictStr | None = None
+    description: FHIRString | None = None
+    series: FHIRString | None = None
     doseNumberPositiveInt: FHIRPositiveInt | None = None
-    doseNumberString: StrictStr | None = None
+    doseNumberString: FHIRString | None = None
     seriesDosesPositiveInt: FHIRPositiveInt | None = None
-    seriesDosesString: StrictStr | None = None
+    seriesDosesString: FHIRString | None = None
     supportingImmunization: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     supportingPatientInformation: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
@@ -3687,7 +3688,7 @@ class ImplementationGuideDependsOn(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     uri: StrictStr
     packageId: FHIRId | None = None
-    version: StrictStr | None = None
+    version: FHIRString | None = None
 class ImplementationGuideGlobal(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -3698,16 +3699,16 @@ class ImplementationGuideDefinitionGrouping(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    description: StrictStr | None = None
+    name: FHIRString
+    description: FHIRString | None = None
 class ImplementationGuideDefinitionResource(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     reference: fhir_types.Reference
     fhirVersion: Annotated[list[Literal['0.0.80', '0.0.81', '0.0.82', '0.01', '0.05', '0.06', '0.11', '0.4.0', '0.5.0', '1.0.0', '1.0.1', '1.0.2', '1.1.0', '1.4.0', '1.6.0', '1.8.0', '3.0.0', '3.0.1', '3.3.0', '3.5.0', '4.0.0', '4.0.1']], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     exampleBoolean: StrictBool | None = None
     exampleCanonical: StrictStr | None = None
     groupingId: FHIRId | None = None
@@ -3723,7 +3724,7 @@ class ImplementationGuideDefinitionPage(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     nameUrl: StrictStr | None = None
     nameReference: fhir_types.Reference | None = None
-    title: StrictStr
+    title: FHIRString
     generation: Literal['generated', 'html', 'markdown', 'xml']
     page: Annotated[list[ImplementationGuideDefinitionPage], Field(min_length=1)] | None = None
 
@@ -3737,14 +3738,14 @@ class ImplementationGuideDefinitionParameter(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: Literal['apply', 'expansion-parameter', 'generate-json', 'generate-turtle', 'generate-xml', 'html-template', 'path-pages', 'path-resource', 'path-tx-cache', 'rule-broken-links']
-    value: StrictStr
+    value: FHIRString
 class ImplementationGuideDefinitionTemplate(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
-    source: StrictStr
-    scope: StrictStr | None = None
+    source: FHIRString
+    scope: FHIRString | None = None
 class ImplementationGuideDefinition(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -3772,9 +3773,9 @@ class ImplementationGuideManifestPage(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    title: StrictStr | None = None
-    anchor: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    name: FHIRString
+    title: FHIRString | None = None
+    anchor: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 class ImplementationGuideManifest(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -3782,18 +3783,18 @@ class ImplementationGuideManifest(FHIRBaseModel):
     rendering: StrictStr | None = None
     resource: Annotated[list[ImplementationGuideManifestResource], Field(min_length=1)]
     page: Annotated[list[ImplementationGuideManifestPage], Field(min_length=1)] | None = None
-    image: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    other: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    image: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    other: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 class ImplementationGuide(DomainResourceR4):
     resourceType: Literal['ImplementationGuide']
     url: StrictStr
-    version: StrictStr | None = None
-    name: StrictStr
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -3826,7 +3827,7 @@ class InsurancePlanCoverageBenefit(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept
-    requirement: StrictStr | None = None
+    requirement: FHIRString | None = None
     limit: Annotated[list[InsurancePlanCoverageBenefitLimit], Field(min_length=1)] | None = None
 class InsurancePlanCoverage(FHIRBaseModel):
     id: StrictStr | None = None
@@ -3842,7 +3843,7 @@ class InsurancePlanPlanGeneralCost(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     groupSize: FHIRPositiveInt | None = None
     cost: fhir_types.Money | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
 class InsurancePlanPlanSpecificCostBenefitCost(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -3878,8 +3879,8 @@ class InsurancePlan(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['active', 'draft', 'retired', 'unknown'] | None = None
     type: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    alias: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    name: FHIRString | None = None
+    alias: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     period: fhir_types.Period | None = None
     ownedBy: fhir_types.Reference | None = None
     administeredBy: fhir_types.Reference | None = None
@@ -3922,7 +3923,7 @@ class Invoice(DomainResourceR4):
     resourceType: Literal['Invoice']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['balanced', 'cancelled', 'draft', 'entered-in-error', 'issued']
-    cancelledReason: StrictStr | None = None
+    cancelledReason: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     subject: fhir_types.Reference | None = None
     recipient: fhir_types.Reference | None = None
@@ -3941,23 +3942,23 @@ class Library(DomainResourceR4):
     resourceType: Literal['Library']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     type: fhir_types.CodeableConcept
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -4003,7 +4004,7 @@ class List(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['current', 'entered-in-error', 'retired']
     mode: Literal['changes', 'snapshot', 'working']
-    title: StrictStr | None = None
+    title: FHIRString | None = None
     code: fhir_types.CodeableConcept | None = None
     subject: fhir_types.Reference | None = None
     encounter: fhir_types.Reference | None = None
@@ -4034,9 +4035,9 @@ class Location(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     status: Literal['active', 'inactive', 'suspended'] | None = None
     operationalStatus: fhir_types.Coding | None = None
-    name: StrictStr | None = None
-    alias: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    alias: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    description: FHIRString | None = None
     mode: Literal['instance', 'kind'] | None = None
     type: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     telecom: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
@@ -4046,7 +4047,7 @@ class Location(DomainResourceR4):
     managingOrganization: fhir_types.Reference | None = None
     partOf: fhir_types.Reference | None = None
     hoursOfOperation: Annotated[list[LocationHoursOfOperation], Field(min_length=1)] | None = None
-    availabilityExceptions: StrictStr | None = None
+    availabilityExceptions: FHIRString | None = None
     endpoint: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
 class MeasureGroupPopulation(FHIRBaseModel):
@@ -4054,21 +4055,21 @@ class MeasureGroupPopulation(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     criteria: fhir_types.Expression
 class MeasureGroupStratifierComponent(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     criteria: fhir_types.Expression
 class MeasureGroupStratifier(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     criteria: fhir_types.Expression | None = None
     component: Annotated[list[MeasureGroupStratifierComponent], Field(min_length=1)] | None = None
 class MeasureGroup(FHIRBaseModel):
@@ -4076,7 +4077,7 @@ class MeasureGroup(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     population: Annotated[list[MeasureGroupPopulation], Field(min_length=1)] | None = None
     stratifier: Annotated[list[MeasureGroupStratifier], Field(min_length=1)] | None = None
 class MeasureSupplementalData(FHIRBaseModel):
@@ -4085,28 +4086,28 @@ class MeasureSupplementalData(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept | None = None
     usage: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     criteria: fhir_types.Expression
 class Measure(DomainResourceR4):
     resourceType: Literal['Measure']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -4122,8 +4123,8 @@ class Measure(DomainResourceR4):
     scoring: fhir_types.CodeableConcept | None = None
     compositeScoring: fhir_types.CodeableConcept | None = None
     type: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    riskAdjustment: StrictStr | None = None
-    rateAggregation: StrictStr | None = None
+    riskAdjustment: FHIRString | None = None
+    rateAggregation: FHIRString | None = None
     rationale: StrictStr | None = None
     clinicalRecommendationStatement: StrictStr | None = None
     improvementNotation: fhir_types.CodeableConcept | None = None
@@ -4211,7 +4212,7 @@ class Media(DomainResourceR4):
     operator: fhir_types.Reference | None = None
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     bodySite: fhir_types.CodeableConcept | None = None
-    deviceName: StrictStr | None = None
+    deviceName: FHIRString | None = None
     device: fhir_types.Reference | None = None
     height: FHIRPositiveInt | None = None
     width: FHIRPositiveInt | None = None
@@ -4244,7 +4245,7 @@ class MedicationBatch(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    lotNumber: StrictStr | None = None
+    lotNumber: FHIRString | None = None
     expirationDate: FHIRDateTime | None = None
 class Medication(DomainResourceR4):
     resourceType: Literal['Medication']
@@ -4267,13 +4268,13 @@ class MedicationAdministrationDosage(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
     site: fhir_types.CodeableConcept | None = None
     route: fhir_types.CodeableConcept | None = None
     method: fhir_types.CodeableConcept | None = None
-    dose: fhir_types.Quantity | None = None
+    dose: fhir_types.SimpleQuantity | None = None
     rateRatio: fhir_types.Ratio | None = None
-    rateQuantity: fhir_types.Quantity | None = None
+    rateQuantity: fhir_types.SimpleQuantity | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'MedicationAdministrationDosage':
@@ -4343,8 +4344,8 @@ class MedicationDispense(DomainResourceR4):
     location: fhir_types.Reference | None = None
     authorizingPrescription: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
-    daysSupply: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    daysSupply: fhir_types.SimpleQuantity | None = None
     whenPrepared: FHIRDateTime | None = None
     whenHandedOver: FHIRDateTime | None = None
     destination: fhir_types.Reference | None = None
@@ -4394,14 +4395,14 @@ class MedicationKnowledgeCost(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept
-    source: StrictStr | None = None
+    source: FHIRString | None = None
     cost: fhir_types.Money
 class MedicationKnowledgeMonitoringProgram(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
 class MedicationKnowledgeAdministrationGuidelinesDosage(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -4413,8 +4414,8 @@ class MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics(FHIRBase
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     characteristicCodeableConcept: fhir_types.CodeableConcept | None = None
-    characteristicQuantity: fhir_types.Quantity | None = None
-    value: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    characteristicQuantity: fhir_types.SimpleQuantity | None = None
+    value: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics':
@@ -4446,15 +4447,15 @@ class MedicationKnowledgePackaging(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
 class MedicationKnowledgeDrugCharacteristic(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
     valueCodeableConcept: fhir_types.CodeableConcept | None = None
-    valueString: StrictStr | None = None
-    valueQuantity: fhir_types.Quantity | None = None
+    valueString: FHIRString | None = None
+    valueQuantity: fhir_types.SimpleQuantity | None = None
     valueBase64Binary: StrictStr | None = None
 
     @model_validator(mode='after')
@@ -4477,7 +4478,7 @@ class MedicationKnowledgeRegulatoryMaxDispense(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity
+    quantity: fhir_types.SimpleQuantity
     period: fhir_types.Duration | None = None
 class MedicationKnowledgeRegulatory(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4491,8 +4492,8 @@ class MedicationKnowledgeKinetics(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    areaUnderCurve: Annotated[list[fhir_types.Quantity], Field(min_length=1)] | None = None
-    lethalDose50: Annotated[list[fhir_types.Quantity], Field(min_length=1)] | None = None
+    areaUnderCurve: Annotated[list[fhir_types.SimpleQuantity], Field(min_length=1)] | None = None
+    lethalDose50: Annotated[list[fhir_types.SimpleQuantity], Field(min_length=1)] | None = None
     halfLifePeriod: fhir_types.Duration | None = None
 class MedicationKnowledge(DomainResourceR4):
     resourceType: Literal['MedicationKnowledge']
@@ -4500,8 +4501,8 @@ class MedicationKnowledge(DomainResourceR4):
     status: Literal['active', 'entered-in-error', 'inactive'] | None = None
     manufacturer: fhir_types.Reference | None = None
     doseForm: fhir_types.CodeableConcept | None = None
-    amount: fhir_types.Quantity | None = None
-    synonym: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    amount: fhir_types.SimpleQuantity | None = None
+    synonym: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     relatedMedicationKnowledge: Annotated[list[MedicationKnowledgeRelatedMedicationKnowledge], Field(min_length=1)] | None = None
     associatedMedication: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     productType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -4523,7 +4524,7 @@ class MedicationRequestDispenseRequestInitialFill(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     duration: fhir_types.Duration | None = None
 class MedicationRequestDispenseRequest(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4533,7 +4534,7 @@ class MedicationRequestDispenseRequest(FHIRBaseModel):
     dispenseInterval: fhir_types.Duration | None = None
     validityPeriod: fhir_types.Period | None = None
     numberOfRepeatsAllowed: FHIRUnsignedInt | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     expectedSupplyDuration: fhir_types.Duration | None = None
     performer: fhir_types.Reference | None = None
 class MedicationRequestSubstitution(FHIRBaseModel):
@@ -4628,7 +4629,7 @@ class MedicinalProductNameNamePart(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    part: StrictStr
+    part: FHIRString
     type: fhir_types.Coding
 class MedicinalProductNameCountryLanguage(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4641,7 +4642,7 @@ class MedicinalProductName(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    productName: StrictStr
+    productName: FHIRString
     namePart: Annotated[list[MedicinalProductNameNamePart], Field(min_length=1)] | None = None
     countryLanguage: Annotated[list[MedicinalProductNameCountryLanguage], Field(min_length=1)] | None = None
 class MedicinalProductManufacturingBusinessOperation(FHIRBaseModel):
@@ -4680,7 +4681,7 @@ class MedicinalProduct(DomainResourceR4):
     combinedPharmaceuticalDoseForm: fhir_types.CodeableConcept | None = None
     legalStatusOfSupply: fhir_types.CodeableConcept | None = None
     additionalMonitoringIndicator: fhir_types.CodeableConcept | None = None
-    specialMeasures: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    specialMeasures: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     paediatricUseIndicator: fhir_types.CodeableConcept | None = None
     productClassification: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     marketingStatus: Annotated[list[fhir_types.MarketingStatus], Field(min_length=1)] | None = None
@@ -4793,7 +4794,7 @@ class MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceStrength(FHIR
     substance: fhir_types.CodeableConcept | None = None
     strength: fhir_types.Ratio
     strengthLowLimit: fhir_types.Ratio | None = None
-    measurementPoint: StrictStr | None = None
+    measurementPoint: FHIRString | None = None
     country: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
 class MedicinalProductIngredientSpecifiedSubstanceStrength(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4803,7 +4804,7 @@ class MedicinalProductIngredientSpecifiedSubstanceStrength(FHIRBaseModel):
     presentationLowLimit: fhir_types.Ratio | None = None
     concentration: fhir_types.Ratio | None = None
     concentrationLowLimit: fhir_types.Ratio | None = None
-    measurementPoint: StrictStr | None = None
+    measurementPoint: FHIRString | None = None
     country: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     referenceStrength: Annotated[list[MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceStrength], Field(min_length=1)] | None = None
 class MedicinalProductIngredientSpecifiedSubstance(FHIRBaseModel):
@@ -4844,7 +4845,7 @@ class MedicinalProductInteractionInteractant(FHIRBaseModel):
 class MedicinalProductInteraction(DomainResourceR4):
     resourceType: Literal['MedicinalProductInteraction']
     subject: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     interactant: Annotated[list[MedicinalProductInteractionInteractant], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
     effect: fhir_types.CodeableConcept | None = None
@@ -4887,7 +4888,7 @@ class MedicinalProductPackaged(DomainResourceR4):
     resourceType: Literal['MedicinalProductPackaged']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     subject: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     legalStatusOfSupply: fhir_types.CodeableConcept | None = None
     marketingStatus: Annotated[list[fhir_types.MarketingStatus], Field(min_length=1)] | None = None
     marketingAuthorization: fhir_types.Reference | None = None
@@ -4907,7 +4908,7 @@ class MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpeciesWithdrawal
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     tissue: fhir_types.CodeableConcept
     value: fhir_types.Quantity
-    supportingInformation: StrictStr | None = None
+    supportingInformation: FHIRString | None = None
 class MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecies(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -4950,7 +4951,7 @@ class MessageDefinitionFocus(FHIRBaseModel):
     code: FHIRCode
     profile: StrictStr | None = None
     min: FHIRUnsignedInt
-    max: StrictStr | None = None
+    max: FHIRString | None = None
 class MessageDefinitionAllowedResponse(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -4961,14 +4962,14 @@ class MessageDefinition(DomainResourceR4):
     resourceType: Literal['MessageDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     replaces: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -4995,7 +4996,7 @@ class MessageHeaderDestination(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     target: fhir_types.Reference | None = None
     endpoint: StrictStr
     receiver: fhir_types.Reference | None = None
@@ -5003,9 +5004,9 @@ class MessageHeaderSource(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    software: StrictStr | None = None
-    version: StrictStr | None = None
+    name: FHIRString | None = None
+    software: FHIRString | None = None
+    version: FHIRString | None = None
     contact: fhir_types.ContactPoint | None = None
     endpoint: StrictStr
 class MessageHeaderResponse(FHIRBaseModel):
@@ -5041,11 +5042,11 @@ class MolecularSequenceReferenceSeq(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     chromosome: fhir_types.CodeableConcept | None = None
-    genomeBuild: StrictStr | None = None
+    genomeBuild: FHIRString | None = None
     orientation: Literal['antisense', 'sense'] | None = None
     referenceSeqId: fhir_types.CodeableConcept | None = None
     referenceSeqPointer: fhir_types.Reference | None = None
-    referenceSeqString: StrictStr | None = None
+    referenceSeqString: FHIRString | None = None
     strand: Literal['crick', 'watson'] | None = None
     windowStart: FHIRInteger | None = None
     windowEnd: FHIRInteger | None = None
@@ -5055,9 +5056,9 @@ class MolecularSequenceVariant(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     start: FHIRInteger | None = None
     end: FHIRInteger | None = None
-    observedAllele: StrictStr | None = None
-    referenceAllele: StrictStr | None = None
-    cigar: StrictStr | None = None
+    observedAllele: FHIRString | None = None
+    referenceAllele: FHIRString | None = None
+    cigar: FHIRString | None = None
     variantPointer: fhir_types.Reference | None = None
 class MolecularSequenceQualityRoc(FHIRBaseModel):
     id: StrictStr | None = None
@@ -5095,10 +5096,10 @@ class MolecularSequenceRepository(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: Literal['directlink', 'login', 'oauth', 'openapi', 'other']
     url: StrictStr | None = None
-    name: StrictStr | None = None
-    datasetId: StrictStr | None = None
-    variantsetId: StrictStr | None = None
-    readsetId: StrictStr | None = None
+    name: FHIRString | None = None
+    datasetId: FHIRString | None = None
+    variantsetId: FHIRString | None = None
+    readsetId: FHIRString | None = None
 class MolecularSequenceStructureVariantOuter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -5132,7 +5133,7 @@ class MolecularSequence(DomainResourceR4):
     quantity: fhir_types.Quantity | None = None
     referenceSeq: MolecularSequenceReferenceSeq | None = None
     variant: Annotated[list[MolecularSequenceVariant], Field(min_length=1)] | None = None
-    observedSeq: StrictStr | None = None
+    observedSeq: FHIRString | None = None
     quality: Annotated[list[MolecularSequenceQuality], Field(min_length=1)] | None = None
     readCoverage: FHIRInteger | None = None
     repository: Annotated[list[MolecularSequenceRepository], Field(min_length=1)] | None = None
@@ -5144,24 +5145,24 @@ class NamingSystemUniqueId(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: Literal['oid', 'other', 'uri', 'uuid']
-    value: StrictStr
+    value: FHIRString
     preferred: StrictBool | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     period: fhir_types.Period | None = None
 class NamingSystem(DomainResourceR4):
     resourceType: Literal['NamingSystem']
-    name: StrictStr
+    name: FHIRString
     status: Literal['active', 'draft', 'retired', 'unknown']
     kind: Literal['codesystem', 'identifier', 'root']
     date: FHIRDateTime
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
-    responsible: StrictStr | None = None
+    responsible: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     uniqueId: Annotated[list[NamingSystemUniqueId], Field(min_length=1)]
 
 class NutritionOrderOralDietNutrient(FHIRBaseModel):
@@ -5169,7 +5170,7 @@ class NutritionOrderOralDietNutrient(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifier: fhir_types.CodeableConcept | None = None
-    amount: fhir_types.Quantity | None = None
+    amount: fhir_types.SimpleQuantity | None = None
 class NutritionOrderOralDietTexture(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -5185,23 +5186,23 @@ class NutritionOrderOralDiet(FHIRBaseModel):
     nutrient: Annotated[list[NutritionOrderOralDietNutrient], Field(min_length=1)] | None = None
     texture: Annotated[list[NutritionOrderOralDietTexture], Field(min_length=1)] | None = None
     fluidConsistencyType: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    instruction: StrictStr | None = None
+    instruction: FHIRString | None = None
 class NutritionOrderSupplement(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    productName: StrictStr | None = None
+    productName: FHIRString | None = None
     schedule: Annotated[list[fhir_types.Timing], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
-    instruction: StrictStr | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    instruction: FHIRString | None = None
 class NutritionOrderEnteralFormulaAdministration(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     schedule: fhir_types.Timing | None = None
-    quantity: fhir_types.Quantity | None = None
-    rateQuantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    rateQuantity: fhir_types.SimpleQuantity | None = None
     rateRatio: fhir_types.Ratio | None = None
 
     @model_validator(mode='after')
@@ -5214,14 +5215,14 @@ class NutritionOrderEnteralFormula(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     baseFormulaType: fhir_types.CodeableConcept | None = None
-    baseFormulaProductName: StrictStr | None = None
+    baseFormulaProductName: FHIRString | None = None
     additiveType: fhir_types.CodeableConcept | None = None
-    additiveProductName: StrictStr | None = None
-    caloricDensity: fhir_types.Quantity | None = None
+    additiveProductName: FHIRString | None = None
+    caloricDensity: fhir_types.SimpleQuantity | None = None
     routeofAdministration: fhir_types.CodeableConcept | None = None
     administration: Annotated[list[NutritionOrderEnteralFormulaAdministration], Field(min_length=1)] | None = None
-    maxVolumeToDeliver: fhir_types.Quantity | None = None
-    administrationInstruction: StrictStr | None = None
+    maxVolumeToDeliver: fhir_types.SimpleQuantity | None = None
+    administrationInstruction: FHIRString | None = None
 class NutritionOrder(DomainResourceR4):
     resourceType: Literal['NutritionOrder']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
@@ -5246,12 +5247,12 @@ class ObservationReferenceRange(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    low: fhir_types.Quantity | None = None
-    high: fhir_types.Quantity | None = None
+    low: fhir_types.SimpleQuantity | None = None
+    high: fhir_types.SimpleQuantity | None = None
     type: fhir_types.CodeableConcept | None = None
     appliesTo: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     age: fhir_types.Range | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
 class ObservationComponent(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -5259,7 +5260,7 @@ class ObservationComponent(FHIRBaseModel):
     code: fhir_types.CodeableConcept
     valueQuantity: fhir_types.Quantity | None = None
     valueCodeableConcept: fhir_types.CodeableConcept | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueBoolean: StrictBool | None = None
     valueInteger: FHIRInteger | None = None
     valueRange: fhir_types.Range | None = None
@@ -5296,7 +5297,7 @@ class Observation(DomainResourceR4):
     performer: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     valueQuantity: fhir_types.Quantity | None = None
     valueCodeableConcept: fhir_types.CodeableConcept | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueBoolean: StrictBool | None = None
     valueInteger: FHIRInteger | None = None
     valueRange: fhir_types.Range | None = None
@@ -5344,7 +5345,7 @@ class ObservationDefinitionQualifiedInterval(FHIRBaseModel):
     gender: Literal['female', 'male', 'other', 'unknown'] | None = None
     age: fhir_types.Range | None = None
     gestationalAge: fhir_types.Range | None = None
-    condition: StrictStr | None = None
+    condition: FHIRString | None = None
 class ObservationDefinition(DomainResourceR4):
     resourceType: Literal['ObservationDefinition']
     category: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -5353,7 +5354,7 @@ class ObservationDefinition(DomainResourceR4):
     permittedDataType: Annotated[list[Literal['CodeableConcept', 'Period', 'Quantity', 'Range', 'Ratio', 'SampledData', 'boolean', 'dateTime', 'integer', 'string', 'time']], Field(min_length=1)] | None = None
     multipleResultsAllowed: StrictBool | None = None
     method: fhir_types.CodeableConcept | None = None
-    preferredReportName: StrictStr | None = None
+    preferredReportName: FHIRString | None = None
     quantitativeDetails: ObservationDefinitionQuantitativeDetails | None = None
     qualifiedInterval: Annotated[list[ObservationDefinitionQualifiedInterval], Field(min_length=1)] | None = None
     validCodedValueSet: fhir_types.Reference | None = None
@@ -5371,8 +5372,8 @@ class OperationDefinitionParameterReferencedFrom(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    source: StrictStr
-    sourceId: StrictStr | None = None
+    source: FHIRString
+    sourceId: FHIRString | None = None
 class OperationDefinitionParameter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -5380,8 +5381,8 @@ class OperationDefinitionParameter(FHIRBaseModel):
     name: FHIRCode
     use: Literal['in', 'out']
     min: FHIRInteger
-    max: StrictStr
-    documentation: StrictStr | None = None
+    max: FHIRString
+    documentation: FHIRString | None = None
     type: FHIRCode | None = None
     targetProfile: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     searchType: Literal['composite', 'date', 'number', 'quantity', 'reference', 'special', 'string', 'token', 'uri'] | None = None
@@ -5392,19 +5393,19 @@ class OperationDefinitionOverload(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    parameterName: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    comment: StrictStr | None = None
+    parameterName: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    comment: FHIRString | None = None
 class OperationDefinition(DomainResourceR4):
     resourceType: Literal['OperationDefinition']
     url: StrictStr | None = None
-    version: StrictStr | None = None
-    name: StrictStr
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     kind: Literal['operation', 'query']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -5430,9 +5431,9 @@ class OperationOutcomeIssue(FHIRBaseModel):
     severity: Literal['error', 'fatal', 'information', 'warning']
     code: Literal['business-rule', 'code-invalid', 'conflict', 'deleted', 'duplicate', 'exception', 'expired', 'extension', 'forbidden', 'incomplete', 'informational', 'invalid', 'invariant', 'lock-error', 'login', 'multiple-matches', 'no-store', 'not-found', 'not-supported', 'processing', 'required', 'security', 'structure', 'suppressed', 'throttled', 'timeout', 'too-costly', 'too-long', 'transient', 'unknown', 'value']
     details: fhir_types.CodeableConcept | None = None
-    diagnostics: StrictStr | None = None
-    location: Annotated[list[StrictStr], Field(min_length=1)] | None = None
-    expression: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    diagnostics: FHIRString | None = None
+    location: Annotated[list[FHIRString], Field(min_length=1)] | None = None
+    expression: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 class OperationOutcome(DomainResourceR4):
     resourceType: Literal['OperationOutcome']
     issue: Annotated[list[OperationOutcomeIssue], Field(min_length=1)]
@@ -5450,8 +5451,8 @@ class Organization(DomainResourceR4):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     active: StrictBool | None = None
     type: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    alias: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    name: FHIRString | None = None
+    alias: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     telecom: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
     address: Annotated[list[fhir_types.Address], Field(min_length=1)] | None = None
     partOf: fhir_types.Reference | None = None
@@ -5477,7 +5478,7 @@ class ParametersParameter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     valueBase64Binary: StrictStr | None = None
     valueBoolean: StrictBool | None = None
     valueCanonical: StrictStr | None = None
@@ -5491,7 +5492,7 @@ class ParametersParameter(FHIRBaseModel):
     valueMarkdown: StrictStr | None = None
     valueOid: StrictStr | None = None
     valuePositiveInt: FHIRPositiveInt | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueTime: FHIRTime | None = None
     valueUnsignedInt: FHIRUnsignedInt | None = None
     valueUri: StrictStr | None = None
@@ -5626,7 +5627,7 @@ class PaymentReconciliationProcessNote(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: Literal['display', 'print', 'printoper'] | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
 class PaymentReconciliation(DomainResourceR4):
     resourceType: Literal['PaymentReconciliation']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
@@ -5637,7 +5638,7 @@ class PaymentReconciliation(DomainResourceR4):
     request: fhir_types.Reference | None = None
     requestor: fhir_types.Reference | None = None
     outcome: Literal['complete', 'error', 'partial', 'queued'] | None = None
-    disposition: StrictStr | None = None
+    disposition: FHIRString | None = None
     paymentDate: FHIRDate
     paymentAmount: fhir_types.Money
     paymentIdentifier: fhir_types.Identifier | None = None
@@ -5720,16 +5721,16 @@ class PlanDefinitionActionDynamicValue(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    path: StrictStr | None = None
+    path: FHIRString | None = None
     expression: fhir_types.Expression | None = None
 class PlanDefinitionAction(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    prefix: StrictStr | None = None
-    title: StrictStr | None = None
-    description: StrictStr | None = None
-    textEquivalent: StrictStr | None = None
+    prefix: FHIRString | None = None
+    title: FHIRString | None = None
+    description: FHIRString | None = None
+    textEquivalent: FHIRString | None = None
     priority: Literal['asap', 'routine', 'stat', 'urgent'] | None = None
     code: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     reason: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -5774,23 +5775,23 @@ class PlanDefinition(DomainResourceR4):
     resourceType: Literal['PlanDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    subtitle: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -5844,7 +5845,7 @@ class PractitionerRoleNotAvailable(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr
+    description: FHIRString
     during: fhir_types.Period | None = None
 class PractitionerRole(DomainResourceR4):
     resourceType: Literal['PractitionerRole']
@@ -5860,7 +5861,7 @@ class PractitionerRole(DomainResourceR4):
     telecom: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
     availableTime: Annotated[list[PractitionerRoleAvailableTime], Field(min_length=1)] | None = None
     notAvailable: Annotated[list[PractitionerRoleNotAvailable], Field(min_length=1)] | None = None
-    availabilityExceptions: StrictStr | None = None
+    availabilityExceptions: FHIRString | None = None
     endpoint: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
 class ProcedurePerformer(FHIRBaseModel):
@@ -5891,7 +5892,7 @@ class Procedure(DomainResourceR4):
     encounter: fhir_types.Reference | None = None
     performedDateTime: FHIRDateTime | None = None
     performedPeriod: fhir_types.Period | None = None
-    performedString: StrictStr | None = None
+    performedString: FHIRString | None = None
     performedAge: fhir_types.Age | None = None
     performedRange: fhir_types.Range | None = None
     recorder: fhir_types.Reference | None = None
@@ -5956,7 +5957,7 @@ class QuestionnaireItemEnableWhen(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    question: StrictStr
+    question: FHIRString
     operator: Literal['!=', '<', '<=', '=', '>', '>=', 'exists']
     answerBoolean: StrictBool | None = None
     answerDecimal: FHIRDecimal | None = None
@@ -5964,7 +5965,7 @@ class QuestionnaireItemEnableWhen(FHIRBaseModel):
     answerDate: FHIRDate | None = None
     answerDateTime: FHIRDateTime | None = None
     answerTime: FHIRTime | None = None
-    answerString: StrictStr | None = None
+    answerString: FHIRString | None = None
     answerCoding: fhir_types.Coding | None = None
     answerQuantity: fhir_types.Quantity | None = None
     answerReference: fhir_types.Reference | None = None
@@ -5981,7 +5982,7 @@ class QuestionnaireItemAnswerOption(FHIRBaseModel):
     valueInteger: FHIRInteger | None = None
     valueDate: FHIRDate | None = None
     valueTime: FHIRTime | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueCoding: fhir_types.Coding | None = None
     valueReference: fhir_types.Reference | None = None
     initialSelected: StrictBool | None = None
@@ -6001,7 +6002,7 @@ class QuestionnaireItemInitial(FHIRBaseModel):
     valueDate: FHIRDate | None = None
     valueDateTime: FHIRDateTime | None = None
     valueTime: FHIRTime | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueUri: StrictStr | None = None
     valueAttachment: fhir_types.Attachment | None = None
     valueCoding: fhir_types.Coding | None = None
@@ -6017,11 +6018,11 @@ class QuestionnaireItem(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    linkId: StrictStr
+    linkId: FHIRString
     definition: StrictStr | None = None
     code: Annotated[list[fhir_types.Coding], Field(min_length=1)] | None = None
-    prefix: StrictStr | None = None
-    text: StrictStr | None = None
+    prefix: FHIRString | None = None
+    text: FHIRString | None = None
     type: Literal['attachment', 'boolean', 'choice', 'date', 'dateTime', 'decimal', 'display', 'group', 'integer', 'open-choice', 'quantity', 'question', 'reference', 'string', 'text', 'time', 'url']
     enableWhen: Annotated[list[QuestionnaireItemEnableWhen], Field(min_length=1)] | None = None
     enableBehavior: Literal['all', 'any'] | None = None
@@ -6037,15 +6038,15 @@ class Questionnaire(DomainResourceR4):
     resourceType: Literal['Questionnaire']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     derivedFrom: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectType: Annotated[list[FHIRCode], Field(min_length=1)] | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -6068,7 +6069,7 @@ class QuestionnaireResponseItemAnswer(FHIRBaseModel):
     valueDate: FHIRDate | None = None
     valueDateTime: FHIRDateTime | None = None
     valueTime: FHIRTime | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueUri: StrictStr | None = None
     valueAttachment: fhir_types.Attachment | None = None
     valueCoding: fhir_types.Coding | None = None
@@ -6085,9 +6086,9 @@ class QuestionnaireResponseItem(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    linkId: StrictStr
+    linkId: FHIRString
     definition: StrictStr | None = None
-    text: StrictStr | None = None
+    text: FHIRString | None = None
     answer: Annotated[list[QuestionnaireResponseItemAnswer], Field(min_length=1)] | None = None
     item: Annotated[list[QuestionnaireResponseItem], Field(min_length=1)] | None = None
 class QuestionnaireResponse(DomainResourceR4):
@@ -6149,10 +6150,10 @@ class RequestGroupAction(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    prefix: StrictStr | None = None
-    title: StrictStr | None = None
-    description: StrictStr | None = None
-    textEquivalent: StrictStr | None = None
+    prefix: FHIRString | None = None
+    title: FHIRString | None = None
+    description: FHIRString | None = None
+    textEquivalent: FHIRString | None = None
     priority: Literal['asap', 'routine', 'stat', 'urgent'] | None = None
     code: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     documentation: Annotated[list[fhir_types.RelatedArtifact], Field(min_length=1)] | None = None
@@ -6204,24 +6205,24 @@ class ResearchDefinition(DomainResourceR4):
     resourceType: Literal['ResearchDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    shortTitle: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    shortTitle: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
-    comment: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    comment: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -6255,14 +6256,14 @@ class ResearchElementDefinitionCharacteristic(FHIRBaseModel):
     usageContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     exclude: StrictBool | None = None
     unitOfMeasure: fhir_types.CodeableConcept | None = None
-    studyEffectiveDescription: StrictStr | None = None
+    studyEffectiveDescription: FHIRString | None = None
     studyEffectiveDateTime: FHIRDateTime | None = None
     studyEffectivePeriod: fhir_types.Period | None = None
     studyEffectiveDuration: fhir_types.Duration | None = None
     studyEffectiveTiming: fhir_types.Timing | None = None
     studyEffectiveTimeFromStart: fhir_types.Duration | None = None
     studyEffectiveGroupMeasure: Literal['mean', 'mean-of-mean', 'mean-of-median', 'median', 'median-of-mean', 'median-of-median'] | None = None
-    participantEffectiveDescription: StrictStr | None = None
+    participantEffectiveDescription: FHIRString | None = None
     participantEffectiveDateTime: FHIRDateTime | None = None
     participantEffectivePeriod: fhir_types.Period | None = None
     participantEffectiveDuration: fhir_types.Duration | None = None
@@ -6283,24 +6284,24 @@ class ResearchElementDefinition(DomainResourceR4):
     resourceType: Literal['ResearchElementDefinition']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
-    shortTitle: StrictStr | None = None
-    subtitle: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
+    shortTitle: FHIRString | None = None
+    subtitle: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     subjectCodeableConcept: fhir_types.CodeableConcept | None = None
     subjectReference: fhir_types.Reference | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
-    comment: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    comment: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
     jurisdiction: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     purpose: StrictStr | None = None
-    usage: StrictStr | None = None
+    usage: FHIRString | None = None
     copyright: StrictStr | None = None
     approvalDate: FHIRDate | None = None
     lastReviewDate: FHIRDate | None = None
@@ -6326,19 +6327,19 @@ class ResearchStudyArm(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     type: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
 class ResearchStudyObjective(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
 class ResearchStudy(DomainResourceR4):
     resourceType: Literal['ResearchStudy']
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    title: StrictStr | None = None
+    title: FHIRString | None = None
     protocol: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     partOf: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     status: Literal['active', 'administratively-completed', 'approved', 'closed-to-accrual', 'closed-to-accrual-and-intervention', 'completed', 'disapproved', 'in-review', 'temporarily-closed-to-accrual', 'temporarily-closed-to-accrual-and-intervention', 'withdrawn']
@@ -6369,8 +6370,8 @@ class ResearchSubject(DomainResourceR4):
     period: fhir_types.Period | None = None
     study: fhir_types.Reference
     individual: fhir_types.Reference
-    assignedArm: StrictStr | None = None
-    actualArm: StrictStr | None = None
+    assignedArm: FHIRString | None = None
+    actualArm: FHIRString | None = None
     consent: fhir_types.Reference | None = None
 
 class RiskAssessmentPrediction(FHIRBaseModel):
@@ -6384,7 +6385,7 @@ class RiskAssessmentPrediction(FHIRBaseModel):
     relativeRisk: FHIRDecimal | None = None
     whenPeriod: fhir_types.Period | None = None
     whenRange: fhir_types.Range | None = None
-    rationale: StrictStr | None = None
+    rationale: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'RiskAssessmentPrediction':
@@ -6411,7 +6412,7 @@ class RiskAssessment(DomainResourceR4):
     reasonReference: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     basis: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     prediction: Annotated[list[RiskAssessmentPrediction], Field(min_length=1)] | None = None
-    mitigation: StrictStr | None = None
+    mitigation: FHIRString | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
@@ -6424,7 +6425,7 @@ class RiskEvidenceSynthesisSampleSize(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     numberOfStudies: FHIRInteger | None = None
     numberOfParticipants: FHIRInteger | None = None
 class RiskEvidenceSynthesisRiskEstimatePrecisionEstimate(FHIRBaseModel):
@@ -6439,7 +6440,7 @@ class RiskEvidenceSynthesisRiskEstimate(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
     value: FHIRDecimal | None = None
     unitOfMeasure: fhir_types.CodeableConcept | None = None
@@ -6464,12 +6465,12 @@ class RiskEvidenceSynthesis(DomainResourceR4):
     resourceType: Literal['RiskEvidenceSynthesis']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
@@ -6503,24 +6504,24 @@ class Schedule(DomainResourceR4):
     specialty: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     actor: Annotated[list[fhir_types.Reference], Field(min_length=1)]
     planningHorizon: fhir_types.Period | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
 
 class SearchParameterComponent(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     definition: StrictStr
-    expression: StrictStr
+    expression: FHIRString
 class SearchParameter(DomainResourceR4):
     resourceType: Literal['SearchParameter']
     url: StrictStr
-    version: StrictStr | None = None
-    name: StrictStr
+    version: FHIRString | None = None
+    name: FHIRString
     derivedFrom: StrictStr | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -6529,15 +6530,15 @@ class SearchParameter(DomainResourceR4):
     code: FHIRCode
     base: Annotated[list[FHIRCode], Field(min_length=1)]
     type: Literal['composite', 'date', 'number', 'quantity', 'reference', 'special', 'string', 'token', 'uri']
-    expression: StrictStr | None = None
-    xpath: StrictStr | None = None
+    expression: FHIRString | None = None
+    xpath: FHIRString | None = None
     xpathUsage: Literal['distance', 'nearby', 'normal', 'other', 'phonetic'] | None = None
     target: Annotated[list[FHIRCode], Field(min_length=1)] | None = None
     multipleOr: StrictBool | None = None
     multipleAnd: StrictBool | None = None
     comparator: Annotated[list[Literal['ap', 'eb', 'eq', 'ge', 'gt', 'le', 'lt', 'ne', 'sa']], Field(min_length=1)] | None = None
     modifier: Annotated[list[Literal['above', 'below', 'contains', 'exact', 'identifier', 'in', 'missing', 'not', 'not-in', 'ofType', 'text', 'type']], Field(min_length=1)] | None = None
-    chain: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    chain: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     component: Annotated[list[SearchParameterComponent], Field(min_length=1)] | None = None
 
 class ServiceRequest(DomainResourceR4):
@@ -6578,7 +6579,7 @@ class ServiceRequest(DomainResourceR4):
     specimen: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     bodySite: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
-    patientInstruction: StrictStr | None = None
+    patientInstruction: FHIRString | None = None
     relevantHistory: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
@@ -6603,7 +6604,7 @@ class Slot(DomainResourceR4):
     start: FHIRInstant
     end: FHIRInstant
     overbooked: StrictBool | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
 
 class SpecimenCollection(FHIRBaseModel):
     id: StrictStr | None = None
@@ -6613,7 +6614,7 @@ class SpecimenCollection(FHIRBaseModel):
     collectedDateTime: FHIRDateTime | None = None
     collectedPeriod: fhir_types.Period | None = None
     duration: fhir_types.Duration | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     method: fhir_types.CodeableConcept | None = None
     bodySite: fhir_types.CodeableConcept | None = None
     fastingStatusCodeableConcept: fhir_types.CodeableConcept | None = None
@@ -6630,7 +6631,7 @@ class SpecimenProcessing(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     procedure: fhir_types.CodeableConcept | None = None
     additive: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     timeDateTime: FHIRDateTime | None = None
@@ -6646,10 +6647,10 @@ class SpecimenContainer(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     type: fhir_types.CodeableConcept | None = None
-    capacity: fhir_types.Quantity | None = None
-    specimenQuantity: fhir_types.Quantity | None = None
+    capacity: fhir_types.SimpleQuantity | None = None
+    specimenQuantity: fhir_types.SimpleQuantity | None = None
     additiveCodeableConcept: fhir_types.CodeableConcept | None = None
     additiveReference: fhir_types.Reference | None = None
 
@@ -6693,12 +6694,12 @@ class SpecimenDefinitionTypeTestedContainer(FHIRBaseModel):
     material: fhir_types.CodeableConcept | None = None
     type: fhir_types.CodeableConcept | None = None
     cap: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
-    capacity: fhir_types.Quantity | None = None
-    minimumVolumeQuantity: fhir_types.Quantity | None = None
-    minimumVolumeString: StrictStr | None = None
+    description: FHIRString | None = None
+    capacity: fhir_types.SimpleQuantity | None = None
+    minimumVolumeQuantity: fhir_types.SimpleQuantity | None = None
+    minimumVolumeString: FHIRString | None = None
     additive: Annotated[list[SpecimenDefinitionTypeTestedContainerAdditive], Field(min_length=1)] | None = None
-    preparation: StrictStr | None = None
+    preparation: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'SpecimenDefinitionTypeTestedContainer':
@@ -6712,7 +6713,7 @@ class SpecimenDefinitionTypeTestedHandling(FHIRBaseModel):
     temperatureQualifier: fhir_types.CodeableConcept | None = None
     temperatureRange: fhir_types.Range | None = None
     maxDuration: fhir_types.Duration | None = None
-    instruction: StrictStr | None = None
+    instruction: FHIRString | None = None
 class SpecimenDefinitionTypeTested(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -6721,7 +6722,7 @@ class SpecimenDefinitionTypeTested(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     preference: Literal['alternate', 'preferred']
     container: SpecimenDefinitionTypeTestedContainer | None = None
-    requirement: StrictStr | None = None
+    requirement: FHIRString | None = None
     retentionTime: fhir_types.Duration | None = None
     rejectionCriterion: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     handling: Annotated[list[SpecimenDefinitionTypeTestedHandling], Field(min_length=1)] | None = None
@@ -6730,7 +6731,7 @@ class SpecimenDefinition(DomainResourceR4):
     identifier: fhir_types.Identifier | None = None
     typeCollected: fhir_types.CodeableConcept | None = None
     patientPreparation: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    timeAspect: StrictStr | None = None
+    timeAspect: FHIRString | None = None
     collection: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     typeTested: Annotated[list[SpecimenDefinitionTypeTested], Field(min_length=1)] | None = None
 
@@ -6740,14 +6741,14 @@ class StructureDefinitionMapping(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     identity: FHIRId
     uri: StrictStr | None = None
-    name: StrictStr | None = None
-    comment: StrictStr | None = None
+    name: FHIRString | None = None
+    comment: FHIRString | None = None
 class StructureDefinitionContext(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: Literal['element', 'extension', 'fhirpath']
-    expression: StrictStr
+    expression: FHIRString
 class StructureDefinitionSnapshot(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -6762,13 +6763,13 @@ class StructureDefinition(DomainResourceR4):
     resourceType: Literal['StructureDefinition']
     url: StrictStr
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -6781,7 +6782,7 @@ class StructureDefinition(DomainResourceR4):
     kind: Literal['complex-type', 'logical', 'primitive-type', 'resource']
     abstract: StrictBool
     context: Annotated[list[StructureDefinitionContext], Field(min_length=1)] | None = None
-    contextInvariant: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    contextInvariant: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     type: StrictStr
     baseDefinition: StrictStr | None = None
     derivation: Literal['constraint', 'specialization'] | None = None
@@ -6794,24 +6795,24 @@ class StructureMapStructure(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     url: StrictStr
     mode: Literal['produced', 'queried', 'source', 'target']
-    alias: StrictStr | None = None
-    documentation: StrictStr | None = None
+    alias: FHIRString | None = None
+    documentation: FHIRString | None = None
 class StructureMapGroupInput(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     name: FHIRId
-    type: StrictStr | None = None
+    type: FHIRString | None = None
     mode: Literal['source', 'target']
-    documentation: StrictStr | None = None
+    documentation: FHIRString | None = None
 class StructureMapGroupRuleSource(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     context: FHIRId
     min: FHIRInteger | None = None
-    max: StrictStr | None = None
-    type: StrictStr | None = None
+    max: FHIRString | None = None
+    type: FHIRString | None = None
     defaultValueBase64Binary: StrictStr | None = None
     defaultValueBoolean: StrictBool | None = None
     defaultValueCanonical: StrictStr | None = None
@@ -6825,7 +6826,7 @@ class StructureMapGroupRuleSource(FHIRBaseModel):
     defaultValueMarkdown: StrictStr | None = None
     defaultValueOid: StrictStr | None = None
     defaultValuePositiveInt: FHIRPositiveInt | None = None
-    defaultValueString: StrictStr | None = None
+    defaultValueString: FHIRString | None = None
     defaultValueTime: FHIRTime | None = None
     defaultValueUnsignedInt: FHIRUnsignedInt | None = None
     defaultValueUri: StrictStr | None = None
@@ -6862,12 +6863,12 @@ class StructureMapGroupRuleSource(FHIRBaseModel):
     defaultValueUsageContext: fhir_types.UsageContext | None = None
     defaultValueDosage: fhir_types.Dosage | None = None
     defaultValueMeta: fhir_types.Meta | None = None
-    element: StrictStr | None = None
+    element: FHIRString | None = None
     listMode: Literal['first', 'last', 'not_first', 'not_last', 'only_one'] | None = None
     variable: FHIRId | None = None
-    condition: StrictStr | None = None
-    check: StrictStr | None = None
-    logMessage: StrictStr | None = None
+    condition: FHIRString | None = None
+    check: FHIRString | None = None
+    logMessage: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'StructureMapGroupRuleSource':
@@ -6879,7 +6880,7 @@ class StructureMapGroupRuleTargetParameter(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     valueId: FHIRId | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueBoolean: StrictBool | None = None
     valueInteger: FHIRInteger | None = None
     valueDecimal: FHIRDecimal | None = None
@@ -6895,7 +6896,7 @@ class StructureMapGroupRuleTarget(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     context: FHIRId | None = None
     contextType: Literal['type', 'variable'] | None = None
-    element: StrictStr | None = None
+    element: FHIRString | None = None
     variable: FHIRId | None = None
     listMode: Annotated[list[Literal['collate', 'first', 'last', 'share']], Field(min_length=1)] | None = None
     listRuleId: FHIRId | None = None
@@ -6906,7 +6907,7 @@ class StructureMapGroupRuleDependent(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     name: FHIRId
-    variable: Annotated[list[StrictStr], Field(min_length=1)]
+    variable: Annotated[list[FHIRString], Field(min_length=1)]
 class StructureMapGroupRule(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -6916,7 +6917,7 @@ class StructureMapGroupRule(FHIRBaseModel):
     target: Annotated[list[StructureMapGroupRuleTarget], Field(min_length=1)] | None = None
     rule: Annotated[list[StructureMapGroupRule], Field(min_length=1)] | None = None
     dependent: Annotated[list[StructureMapGroupRuleDependent], Field(min_length=1)] | None = None
-    documentation: StrictStr | None = None
+    documentation: FHIRString | None = None
 class StructureMapGroup(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -6924,20 +6925,20 @@ class StructureMapGroup(FHIRBaseModel):
     name: FHIRId
     extends: FHIRId | None = None
     typeMode: Literal['none', 'type-and-types', 'types']
-    documentation: StrictStr | None = None
+    documentation: FHIRString | None = None
     input: Annotated[list[StructureMapGroupInput], Field(min_length=1)]
     rule: Annotated[list[StructureMapGroupRule], Field(min_length=1)]
 class StructureMap(DomainResourceR4):
     resourceType: Literal['StructureMap']
     url: StrictStr
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -6955,15 +6956,15 @@ class SubscriptionChannel(FHIRBaseModel):
     type: Literal['email', 'message', 'rest-hook', 'sms', 'websocket']
     endpoint: StrictStr | None = None
     payload: FHIRCode | None = None
-    header: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    header: Annotated[list[FHIRString], Field(min_length=1)] | None = None
 class Subscription(DomainResourceR4):
     resourceType: Literal['Subscription']
     status: Literal['active', 'error', 'off', 'requested']
     contact: Annotated[list[fhir_types.ContactPoint], Field(min_length=1)] | None = None
     end: FHIRInstant | None = None
-    reason: StrictStr
-    criteria: StrictStr
-    error: StrictStr | None = None
+    reason: FHIRString
+    criteria: FHIRString
+    error: FHIRString | None = None
     channel: SubscriptionChannel
 
 class SubstanceInstance(FHIRBaseModel):
@@ -6972,7 +6973,7 @@ class SubstanceInstance(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     identifier: fhir_types.Identifier | None = None
     expiry: FHIRDateTime | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
 class SubstanceIngredient(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -6992,7 +6993,7 @@ class Substance(DomainResourceR4):
     status: Literal['active', 'entered-in-error', 'inactive'] | None = None
     category: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     code: fhir_types.CodeableConcept
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     instance: Annotated[list[SubstanceInstance], Field(min_length=1)] | None = None
     ingredient: Annotated[list[SubstanceIngredient], Field(min_length=1)] | None = None
 
@@ -7000,23 +7001,23 @@ class SubstanceNucleicAcidSubunitLinkage(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    connectivity: StrictStr | None = None
+    connectivity: FHIRString | None = None
     identifier: fhir_types.Identifier | None = None
-    name: StrictStr | None = None
-    residueSite: StrictStr | None = None
+    name: FHIRString | None = None
+    residueSite: FHIRString | None = None
 class SubstanceNucleicAcidSubunitSugar(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     identifier: fhir_types.Identifier | None = None
-    name: StrictStr | None = None
-    residueSite: StrictStr | None = None
+    name: FHIRString | None = None
+    residueSite: FHIRString | None = None
 class SubstanceNucleicAcidSubunit(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     subunit: FHIRInteger | None = None
-    sequence: StrictStr | None = None
+    sequence: FHIRString | None = None
     length: FHIRInteger | None = None
     sequenceAttachment: fhir_types.Attachment | None = None
     fivePrime: fhir_types.CodeableConcept | None = None
@@ -7027,7 +7028,7 @@ class SubstanceNucleicAcid(DomainResourceR4):
     resourceType: Literal['SubstanceNucleicAcid']
     sequenceType: fhir_types.CodeableConcept | None = None
     numberOfSubunits: FHIRInteger | None = None
-    areaOfHybridisation: StrictStr | None = None
+    areaOfHybridisation: FHIRString | None = None
     oligoNucleotideType: fhir_types.CodeableConcept | None = None
     subunit: Annotated[list[SubstanceNucleicAcidSubunit], Field(min_length=1)] | None = None
 
@@ -7056,14 +7057,14 @@ class SubstancePolymerRepeatRepeatUnitStructuralRepresentation(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    representation: StrictStr | None = None
+    representation: FHIRString | None = None
     attachment: fhir_types.Attachment | None = None
 class SubstancePolymerRepeatRepeatUnit(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     orientationOfPolymerisation: fhir_types.CodeableConcept | None = None
-    repeatUnit: StrictStr | None = None
+    repeatUnit: FHIRString | None = None
     amount: fhir_types.SubstanceAmount | None = None
     degreeOfPolymerisation: Annotated[list[SubstancePolymerRepeatRepeatUnitDegreeOfPolymerisation], Field(min_length=1)] | None = None
     structuralRepresentation: Annotated[list[SubstancePolymerRepeatRepeatUnitStructuralRepresentation], Field(min_length=1)] | None = None
@@ -7072,7 +7073,7 @@ class SubstancePolymerRepeat(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     numberOfUnits: FHIRInteger | None = None
-    averageMolecularFormula: StrictStr | None = None
+    averageMolecularFormula: FHIRString | None = None
     repeatUnitAmountType: fhir_types.CodeableConcept | None = None
     repeatUnit: Annotated[list[SubstancePolymerRepeatRepeatUnit], Field(min_length=1)] | None = None
 class SubstancePolymer(DomainResourceR4):
@@ -7080,7 +7081,7 @@ class SubstancePolymer(DomainResourceR4):
     class_: fhir_types.CodeableConcept | None = Field(default=None, alias='class')
     geometry: fhir_types.CodeableConcept | None = None
     copolymerConnectivity: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    modification: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    modification: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     monomerSet: Annotated[list[SubstancePolymerMonomerSet], Field(min_length=1)] | None = None
     repeat: Annotated[list[SubstancePolymerRepeat], Field(min_length=1)] | None = None
 
@@ -7089,18 +7090,18 @@ class SubstanceProteinSubunit(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     subunit: FHIRInteger | None = None
-    sequence: StrictStr | None = None
+    sequence: FHIRString | None = None
     length: FHIRInteger | None = None
     sequenceAttachment: fhir_types.Attachment | None = None
     nTerminalModificationId: fhir_types.Identifier | None = None
-    nTerminalModification: StrictStr | None = None
+    nTerminalModification: FHIRString | None = None
     cTerminalModificationId: fhir_types.Identifier | None = None
-    cTerminalModification: StrictStr | None = None
+    cTerminalModification: FHIRString | None = None
 class SubstanceProtein(DomainResourceR4):
     resourceType: Literal['SubstanceProtein']
     sequenceType: fhir_types.CodeableConcept | None = None
     numberOfSubunits: FHIRInteger | None = None
-    disulfideLinkage: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    disulfideLinkage: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     subunit: Annotated[list[SubstanceProteinSubunit], Field(min_length=1)] | None = None
 
 class SubstanceReferenceInformationGene(FHIRBaseModel):
@@ -7136,7 +7137,7 @@ class SubstanceReferenceInformationTarget(FHIRBaseModel):
     organismType: fhir_types.CodeableConcept | None = None
     amountQuantity: fhir_types.Quantity | None = None
     amountRange: fhir_types.Range | None = None
-    amountString: StrictStr | None = None
+    amountString: FHIRString | None = None
     amountType: fhir_types.CodeableConcept | None = None
     source: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 
@@ -7147,7 +7148,7 @@ class SubstanceReferenceInformationTarget(FHIRBaseModel):
         return self
 class SubstanceReferenceInformation(DomainResourceR4):
     resourceType: Literal['SubstanceReferenceInformation']
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     gene: Annotated[list[SubstanceReferenceInformationGene], Field(min_length=1)] | None = None
     geneElement: Annotated[list[SubstanceReferenceInformationGeneElement], Field(min_length=1)] | None = None
     classification: Annotated[list[SubstanceReferenceInformationClassification], Field(min_length=1)] | None = None
@@ -7157,22 +7158,22 @@ class SubstanceSourceMaterialFractionDescription(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    fraction: StrictStr | None = None
+    fraction: FHIRString | None = None
     materialType: fhir_types.CodeableConcept | None = None
 class SubstanceSourceMaterialOrganismAuthor(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     authorType: fhir_types.CodeableConcept | None = None
-    authorDescription: StrictStr | None = None
+    authorDescription: FHIRString | None = None
 class SubstanceSourceMaterialOrganismHybrid(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    maternalOrganismId: StrictStr | None = None
-    maternalOrganismName: StrictStr | None = None
-    paternalOrganismId: StrictStr | None = None
-    paternalOrganismName: StrictStr | None = None
+    maternalOrganismId: FHIRString | None = None
+    maternalOrganismName: FHIRString | None = None
+    paternalOrganismId: FHIRString | None = None
+    paternalOrganismName: FHIRString | None = None
     hybridType: fhir_types.CodeableConcept | None = None
 class SubstanceSourceMaterialOrganismOrganismGeneral(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7190,7 +7191,7 @@ class SubstanceSourceMaterialOrganism(FHIRBaseModel):
     genus: fhir_types.CodeableConcept | None = None
     species: fhir_types.CodeableConcept | None = None
     intraspecificType: fhir_types.CodeableConcept | None = None
-    intraspecificDescription: StrictStr | None = None
+    intraspecificDescription: FHIRString | None = None
     author: Annotated[list[SubstanceSourceMaterialOrganismAuthor], Field(min_length=1)] | None = None
     hybrid: SubstanceSourceMaterialOrganismHybrid | None = None
     organismGeneral: SubstanceSourceMaterialOrganismOrganismGeneral | None = None
@@ -7206,11 +7207,11 @@ class SubstanceSourceMaterial(DomainResourceR4):
     sourceMaterialType: fhir_types.CodeableConcept | None = None
     sourceMaterialState: fhir_types.CodeableConcept | None = None
     organismId: fhir_types.Identifier | None = None
-    organismName: StrictStr | None = None
+    organismName: FHIRString | None = None
     parentSubstanceId: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    parentSubstanceName: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    parentSubstanceName: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     countryOfOrigin: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    geographicalLocation: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    geographicalLocation: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     developmentStage: fhir_types.CodeableConcept | None = None
     fractionDescription: Annotated[list[SubstanceSourceMaterialFractionDescription], Field(min_length=1)] | None = None
     organism: SubstanceSourceMaterialOrganism | None = None
@@ -7222,12 +7223,12 @@ class SubstanceSpecificationMoiety(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     role: fhir_types.CodeableConcept | None = None
     identifier: fhir_types.Identifier | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     stereochemistry: fhir_types.CodeableConcept | None = None
     opticalActivity: fhir_types.CodeableConcept | None = None
-    molecularFormula: StrictStr | None = None
+    molecularFormula: FHIRString | None = None
     amountQuantity: fhir_types.Quantity | None = None
-    amountString: StrictStr | None = None
+    amountString: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'SubstanceSpecificationMoiety':
@@ -7240,11 +7241,11 @@ class SubstanceSpecificationProperty(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     category: fhir_types.CodeableConcept | None = None
     code: fhir_types.CodeableConcept | None = None
-    parameters: StrictStr | None = None
+    parameters: FHIRString | None = None
     definingSubstanceReference: fhir_types.Reference | None = None
     definingSubstanceCodeableConcept: fhir_types.CodeableConcept | None = None
     amountQuantity: fhir_types.Quantity | None = None
-    amountString: StrictStr | None = None
+    amountString: FHIRString | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'SubstanceSpecificationProperty':
@@ -7274,7 +7275,7 @@ class SubstanceSpecificationStructureRepresentation(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    representation: StrictStr | None = None
+    representation: FHIRString | None = None
     attachment: fhir_types.Attachment | None = None
 class SubstanceSpecificationStructure(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7282,8 +7283,8 @@ class SubstanceSpecificationStructure(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     stereochemistry: fhir_types.CodeableConcept | None = None
     opticalActivity: fhir_types.CodeableConcept | None = None
-    molecularFormula: StrictStr | None = None
-    molecularFormulaByMoiety: StrictStr | None = None
+    molecularFormula: FHIRString | None = None
+    molecularFormulaByMoiety: FHIRString | None = None
     isotope: Annotated[list[SubstanceSpecificationStructureIsotope], Field(min_length=1)] | None = None
     molecularWeight: SubstanceSpecificationStructureIsotopeMolecularWeight | None = None
     source: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -7295,7 +7296,7 @@ class SubstanceSpecificationCode(FHIRBaseModel):
     code: fhir_types.CodeableConcept | None = None
     status: fhir_types.CodeableConcept | None = None
     statusDate: FHIRDateTime | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     source: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
 class SubstanceSpecificationNameOfficial(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7308,7 +7309,7 @@ class SubstanceSpecificationName(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
+    name: FHIRString
     type: fhir_types.CodeableConcept | None = None
     status: fhir_types.CodeableConcept | None = None
     preferred: StrictBool | None = None
@@ -7330,7 +7331,7 @@ class SubstanceSpecificationRelationship(FHIRBaseModel):
     amountQuantity: fhir_types.Quantity | None = None
     amountRange: fhir_types.Range | None = None
     amountRatio: fhir_types.Ratio | None = None
-    amountString: StrictStr | None = None
+    amountString: FHIRString | None = None
     amountRatioLowLimit: fhir_types.Ratio | None = None
     amountType: fhir_types.CodeableConcept | None = None
     source: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -7348,9 +7349,9 @@ class SubstanceSpecification(DomainResourceR4):
     type: fhir_types.CodeableConcept | None = None
     status: fhir_types.CodeableConcept | None = None
     domain: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     source: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    comment: StrictStr | None = None
+    comment: FHIRString | None = None
     moiety: Annotated[list[SubstanceSpecificationMoiety], Field(min_length=1)] | None = None
     property: Annotated[list[SubstanceSpecificationProperty], Field(min_length=1)] | None = None
     referenceInformation: fhir_types.Reference | None = None
@@ -7368,7 +7369,7 @@ class SupplyDeliverySuppliedItem(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     itemCodeableConcept: fhir_types.CodeableConcept | None = None
     itemReference: fhir_types.Reference | None = None
 
@@ -7468,7 +7469,7 @@ class TaskInput(FHIRBaseModel):
     valueMarkdown: StrictStr | None = None
     valueOid: StrictStr | None = None
     valuePositiveInt: FHIRPositiveInt | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueTime: FHIRTime | None = None
     valueUnsignedInt: FHIRUnsignedInt | None = None
     valueUri: StrictStr | None = None
@@ -7529,7 +7530,7 @@ class TaskOutput(FHIRBaseModel):
     valueMarkdown: StrictStr | None = None
     valueOid: StrictStr | None = None
     valuePositiveInt: FHIRPositiveInt | None = None
-    valueString: StrictStr | None = None
+    valueString: FHIRString | None = None
     valueTime: FHIRTime | None = None
     valueUnsignedInt: FHIRUnsignedInt | None = None
     valueUri: StrictStr | None = None
@@ -7586,7 +7587,7 @@ class Task(DomainResourceR4):
     intent: Literal['filler-order', 'instance-order', 'option', 'order', 'original-order', 'plan', 'proposal', 'reflex-order', 'unknown']
     priority: Literal['asap', 'routine', 'stat', 'urgent'] | None = None
     code: fhir_types.CodeableConcept | None = None
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     focus: fhir_types.Reference | None = None
     for_: fhir_types.Reference | None = Field(default=None, alias='for')
     encounter: fhir_types.Reference | None = None
@@ -7610,13 +7611,13 @@ class TerminologyCapabilitiesSoftware(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    version: StrictStr | None = None
+    name: FHIRString
+    version: FHIRString | None = None
 class TerminologyCapabilitiesImplementation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    description: StrictStr
+    description: FHIRString
     url: StrictStr | None = None
 class TerminologyCapabilitiesCodeSystemVersionFilter(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7628,7 +7629,7 @@ class TerminologyCapabilitiesCodeSystemVersion(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    code: StrictStr | None = None
+    code: FHIRString | None = None
     isDefault: StrictBool | None = None
     compositional: StrictBool | None = None
     language: Annotated[list[FHIRCode], Field(min_length=1)] | None = None
@@ -7646,7 +7647,7 @@ class TerminologyCapabilitiesExpansionParameter(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     name: FHIRCode
-    documentation: StrictStr | None = None
+    documentation: FHIRString | None = None
 class TerminologyCapabilitiesExpansion(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -7674,13 +7675,13 @@ class TerminologyCapabilitiesClosure(FHIRBaseModel):
 class TerminologyCapabilities(DomainResourceR4):
     resourceType: Literal['TerminologyCapabilities']
     url: StrictStr | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -7704,7 +7705,7 @@ class TestReportParticipant(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: Literal['client', 'server', 'test-engine']
     uri: StrictStr
-    display: StrictStr | None = None
+    display: FHIRString | None = None
 class TestReportSetupActionOperation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -7718,7 +7719,7 @@ class TestReportSetupActionAssert(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     result: Literal['error', 'fail', 'pass', 'skip', 'warning']
     message: StrictStr | None = None
-    detail: StrictStr | None = None
+    detail: FHIRString | None = None
 class TestReportSetupAction(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -7740,8 +7741,8 @@ class TestReportTest(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     action: Annotated[list[TestReportTestAction], Field(min_length=1)]
 class TestReportTeardownAction(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7756,12 +7757,12 @@ class TestReportTeardown(FHIRBaseModel):
 class TestReport(DomainResourceR4):
     resourceType: Literal['TestReport']
     identifier: fhir_types.Identifier | None = None
-    name: StrictStr | None = None
+    name: FHIRString | None = None
     status: Literal['completed', 'entered-in-error', 'in-progress', 'stopped', 'waiting']
     testScript: fhir_types.Reference
     result: Literal['fail', 'pass', 'pending']
     score: FHIRDecimal | None = None
-    tester: StrictStr | None = None
+    tester: FHIRString | None = None
     issued: FHIRDateTime | None = None
     participant: Annotated[list[TestReportParticipant], Field(min_length=1)] | None = None
     setup: TestReportSetup | None = None
@@ -7785,14 +7786,14 @@ class TestScriptMetadataLink(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     url: StrictStr
-    description: StrictStr | None = None
+    description: FHIRString | None = None
 class TestScriptMetadataCapability(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     required: StrictBool
     validated: StrictBool
-    description: StrictStr | None = None
+    description: FHIRString | None = None
     origin: Annotated[list[FHIRInteger], Field(min_length=1)] | None = None
     destination: FHIRInteger | None = None
     link: Annotated[list[StrictStr], Field(min_length=1)] | None = None
@@ -7814,66 +7815,66 @@ class TestScriptVariable(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    defaultValue: StrictStr | None = None
-    description: StrictStr | None = None
-    expression: StrictStr | None = None
-    headerField: StrictStr | None = None
-    hint: StrictStr | None = None
-    path: StrictStr | None = None
+    name: FHIRString
+    defaultValue: FHIRString | None = None
+    description: FHIRString | None = None
+    expression: FHIRString | None = None
+    headerField: FHIRString | None = None
+    hint: FHIRString | None = None
+    path: FHIRString | None = None
     sourceId: FHIRId | None = None
 class TestScriptSetupActionOperationRequestHeader(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    field: StrictStr
-    value: StrictStr
+    field: FHIRString
+    value: FHIRString
 class TestScriptSetupActionOperation(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.Coding | None = None
     resource: FHIRCode | None = None
-    label: StrictStr | None = None
-    description: StrictStr | None = None
+    label: FHIRString | None = None
+    description: FHIRString | None = None
     accept: FHIRCode | None = None
     contentType: FHIRCode | None = None
     destination: FHIRInteger | None = None
     encodeRequestUrl: StrictBool
     method: Literal['delete', 'get', 'head', 'options', 'patch', 'post', 'put'] | None = None
     origin: FHIRInteger | None = None
-    params: StrictStr | None = None
+    params: FHIRString | None = None
     requestHeader: Annotated[list[TestScriptSetupActionOperationRequestHeader], Field(min_length=1)] | None = None
     requestId: FHIRId | None = None
     responseId: FHIRId | None = None
     sourceId: FHIRId | None = None
     targetId: FHIRId | None = None
-    url: StrictStr | None = None
+    url: FHIRString | None = None
 class TestScriptSetupActionAssert(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    label: StrictStr | None = None
-    description: StrictStr | None = None
+    label: FHIRString | None = None
+    description: FHIRString | None = None
     direction: Literal['request', 'response'] | None = None
-    compareToSourceId: StrictStr | None = None
-    compareToSourceExpression: StrictStr | None = None
-    compareToSourcePath: StrictStr | None = None
+    compareToSourceId: FHIRString | None = None
+    compareToSourceExpression: FHIRString | None = None
+    compareToSourcePath: FHIRString | None = None
     contentType: FHIRCode | None = None
-    expression: StrictStr | None = None
-    headerField: StrictStr | None = None
-    minimumId: StrictStr | None = None
+    expression: FHIRString | None = None
+    headerField: FHIRString | None = None
+    minimumId: FHIRString | None = None
     navigationLinks: StrictBool | None = None
     operator: Literal['contains', 'empty', 'equals', 'eval', 'greaterThan', 'in', 'lessThan', 'notContains', 'notEmpty', 'notEquals', 'notIn'] | None = None
-    path: StrictStr | None = None
+    path: FHIRString | None = None
     requestMethod: Literal['delete', 'get', 'head', 'options', 'patch', 'post', 'put'] | None = None
-    requestURL: StrictStr | None = None
+    requestURL: FHIRString | None = None
     resource: FHIRCode | None = None
     response: Literal['bad', 'conflict', 'created', 'forbidden', 'gone', 'methodNotAllowed', 'noContent', 'notFound', 'notModified', 'okay', 'preconditionFailed', 'unprocessable'] | None = None
-    responseCode: StrictStr | None = None
+    responseCode: FHIRString | None = None
     sourceId: FHIRId | None = None
     validateProfileId: FHIRId | None = None
-    value: StrictStr | None = None
+    value: FHIRString | None = None
     warningOnly: StrictBool
 class TestScriptSetupAction(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7896,8 +7897,8 @@ class TestScriptTest(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr | None = None
-    description: StrictStr | None = None
+    name: FHIRString | None = None
+    description: FHIRString | None = None
     action: Annotated[list[TestScriptTestAction], Field(min_length=1)]
 class TestScriptTeardownAction(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7913,13 +7914,13 @@ class TestScript(DomainResourceR4):
     resourceType: Literal['TestScript']
     url: StrictStr
     identifier: fhir_types.Identifier | None = None
-    version: StrictStr | None = None
-    name: StrictStr
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -7942,13 +7943,13 @@ class ValueSetComposeIncludeConceptDesignation(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     language: FHIRCode | None = None
     use: fhir_types.Coding | None = None
-    value: StrictStr
+    value: FHIRString
 class ValueSetComposeIncludeConcept(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     code: FHIRCode
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     designation: Annotated[list[ValueSetComposeIncludeConceptDesignation], Field(min_length=1)] | None = None
 class ValueSetComposeIncludeFilter(FHIRBaseModel):
     id: StrictStr | None = None
@@ -7956,13 +7957,13 @@ class ValueSetComposeIncludeFilter(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     property: FHIRCode
     op: Literal['=', 'descendent-of', 'exists', 'generalizes', 'in', 'is-a', 'is-not-a', 'not-in', 'regex']
-    value: StrictStr
+    value: FHIRString
 class ValueSetComposeInclude(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     system: StrictStr | None = None
-    version: StrictStr | None = None
+    version: FHIRString | None = None
     concept: Annotated[list[ValueSetComposeIncludeConcept], Field(min_length=1)] | None = None
     filter: Annotated[list[ValueSetComposeIncludeFilter], Field(min_length=1)] | None = None
     valueSet: Annotated[list[StrictStr], Field(min_length=1)] | None = None
@@ -7978,8 +7979,8 @@ class ValueSetExpansionParameter(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    name: StrictStr
-    valueString: StrictStr | None = None
+    name: FHIRString
+    valueString: FHIRString | None = None
     valueBoolean: StrictBool | None = None
     valueInteger: FHIRInteger | None = None
     valueDecimal: FHIRDecimal | None = None
@@ -7999,9 +8000,9 @@ class ValueSetExpansionContains(FHIRBaseModel):
     system: StrictStr | None = None
     abstract: StrictBool | None = None
     inactive: StrictBool | None = None
-    version: StrictStr | None = None
+    version: FHIRString | None = None
     code: FHIRCode | None = None
-    display: StrictStr | None = None
+    display: FHIRString | None = None
     designation: Annotated[list[ValueSetComposeIncludeConceptDesignation], Field(min_length=1)] | None = None
     contains: Annotated[list[ValueSetExpansionContains], Field(min_length=1)] | None = None
 class ValueSetExpansion(FHIRBaseModel):
@@ -8018,13 +8019,13 @@ class ValueSet(DomainResourceR4):
     resourceType: Literal['ValueSet']
     url: StrictStr | None = None
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
-    version: StrictStr | None = None
-    name: StrictStr | None = None
-    title: StrictStr | None = None
+    version: FHIRString | None = None
+    name: FHIRString | None = None
+    title: FHIRString | None = None
     status: Literal['active', 'draft', 'retired', 'unknown']
     experimental: StrictBool | None = None
     date: FHIRDateTime | None = None
-    publisher: StrictStr | None = None
+    publisher: FHIRString | None = None
     contact: Annotated[list[fhir_types.ContactDetail], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     useContext: Annotated[list[fhir_types.UsageContext], Field(min_length=1)] | None = None
@@ -8054,8 +8055,8 @@ class VerificationResultAttestation(FHIRBaseModel):
     onBehalfOf: fhir_types.Reference | None = None
     communicationMethod: fhir_types.CodeableConcept | None = None
     date: FHIRDate | None = None
-    sourceIdentityCertificate: StrictStr | None = None
-    proxyIdentityCertificate: StrictStr | None = None
+    sourceIdentityCertificate: FHIRString | None = None
+    proxyIdentityCertificate: FHIRString | None = None
     proxySignature: fhir_types.Signature | None = None
     sourceSignature: fhir_types.Signature | None = None
 class VerificationResultValidator(FHIRBaseModel):
@@ -8063,12 +8064,12 @@ class VerificationResultValidator(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     organization: fhir_types.Reference
-    identityCertificate: StrictStr | None = None
+    identityCertificate: FHIRString | None = None
     attestationSignature: fhir_types.Signature | None = None
 class VerificationResult(DomainResourceR4):
     resourceType: Literal['VerificationResult']
     target: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
-    targetLocation: Annotated[list[StrictStr], Field(min_length=1)] | None = None
+    targetLocation: Annotated[list[FHIRString], Field(min_length=1)] | None = None
     need: fhir_types.CodeableConcept | None = None
     status: Literal['attested', 'in-process', 'req-revalid', 'reval-fail', 'val-fail', 'validated']
     statusDate: FHIRDateTime | None = None
@@ -8102,9 +8103,9 @@ class VisionPrescriptionLensSpecification(FHIRBaseModel):
     power: FHIRDecimal | None = None
     backCurve: FHIRDecimal | None = None
     diameter: FHIRDecimal | None = None
-    duration: fhir_types.Quantity | None = None
-    color: StrictStr | None = None
-    brand: StrictStr | None = None
+    duration: fhir_types.SimpleQuantity | None = None
+    color: FHIRString | None = None
+    brand: FHIRString | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
 class VisionPrescription(DomainResourceR4):
     resourceType: Literal['VisionPrescription']
