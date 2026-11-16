@@ -101,7 +101,7 @@ class ActivityDefinition(DomainResourceR4):
     participant: Annotated[list[ActivityDefinitionParticipant], Field(min_length=1)] | None = None
     productReference: fhir_types.Reference | None = None
     productCodeableConcept: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     dosage: Annotated[list[fhir_types.Dosage], Field(min_length=1)] | None = None
     bodySite: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     specimenRequirement: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -608,8 +608,8 @@ class CarePlanActivityDetail(FHIRBaseModel):
     performer: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     productCodeableConcept: fhir_types.CodeableConcept | None = None
     productReference: fhir_types.Reference | None = None
-    dailyAmount: fhir_types.Quantity | None = None
-    quantity: fhir_types.Quantity | None = None
+    dailyAmount: fhir_types.SimpleQuantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     description: StrictStr | None = None
 
     @model_validator(mode='after')
@@ -905,7 +905,7 @@ class ClaimItemDetailSubDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -920,7 +920,7 @@ class ClaimItemDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -945,7 +945,7 @@ class ClaimItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1029,7 +1029,7 @@ class ClaimResponseAddItemDetailSubDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1041,7 +1041,7 @@ class ClaimResponseAddItemDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1064,7 +1064,7 @@ class ClaimResponseAddItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -1703,7 +1703,7 @@ class ContractTermAssetValuedItem(FHIRBaseModel):
     entityReference: fhir_types.Reference | None = None
     identifier: fhir_types.Identifier | None = None
     effectiveTime: FHIRDateTime | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     points: FHIRDecimal | None = None
@@ -1908,7 +1908,7 @@ class CoverageCostToBeneficiary(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    valueQuantity: fhir_types.Quantity | None = None
+    valueQuantity: fhir_types.SimpleQuantity | None = None
     valueMoney: fhir_types.Money | None = None
     exception: Annotated[list[CoverageCostToBeneficiaryException], Field(min_length=1)] | None = None
 
@@ -1972,7 +1972,7 @@ class CoverageEligibilityRequestItem(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept | None = None
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     provider: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     facility: fhir_types.Reference | None = None
     diagnosis: Annotated[list[CoverageEligibilityRequestItemDiagnosis], Field(min_length=1)] | None = None
@@ -2990,7 +2990,7 @@ class ExplanationOfBenefitItemDetailSubDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3007,7 +3007,7 @@ class ExplanationOfBenefitItemDetail(FHIRBaseModel):
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     programCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3034,7 +3034,7 @@ class ExplanationOfBenefitItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3059,7 +3059,7 @@ class ExplanationOfBenefitAddItemDetailSubDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3071,7 +3071,7 @@ class ExplanationOfBenefitAddItemDetail(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     productOrService: fhir_types.CodeableConcept
     modifier: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3094,7 +3094,7 @@ class ExplanationOfBenefitAddItem(FHIRBaseModel):
     locationCodeableConcept: fhir_types.CodeableConcept | None = None
     locationAddress: fhir_types.Address | None = None
     locationReference: fhir_types.Reference | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     unitPrice: fhir_types.Money | None = None
     factor: FHIRDecimal | None = None
     net: fhir_types.Money | None = None
@@ -3596,7 +3596,7 @@ class Immunization(DomainResourceR4):
     expirationDate: FHIRDate | None = None
     site: fhir_types.CodeableConcept | None = None
     route: fhir_types.CodeableConcept | None = None
-    doseQuantity: fhir_types.Quantity | None = None
+    doseQuantity: fhir_types.SimpleQuantity | None = None
     performer: Annotated[list[ImmunizationPerformer], Field(min_length=1)] | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None
     reasonCode: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
@@ -4271,9 +4271,9 @@ class MedicationAdministrationDosage(FHIRBaseModel):
     site: fhir_types.CodeableConcept | None = None
     route: fhir_types.CodeableConcept | None = None
     method: fhir_types.CodeableConcept | None = None
-    dose: fhir_types.Quantity | None = None
+    dose: fhir_types.SimpleQuantity | None = None
     rateRatio: fhir_types.Ratio | None = None
-    rateQuantity: fhir_types.Quantity | None = None
+    rateQuantity: fhir_types.SimpleQuantity | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'MedicationAdministrationDosage':
@@ -4343,8 +4343,8 @@ class MedicationDispense(DomainResourceR4):
     location: fhir_types.Reference | None = None
     authorizingPrescription: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
-    daysSupply: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    daysSupply: fhir_types.SimpleQuantity | None = None
     whenPrepared: FHIRDateTime | None = None
     whenHandedOver: FHIRDateTime | None = None
     destination: fhir_types.Reference | None = None
@@ -4413,7 +4413,7 @@ class MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics(FHIRBase
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     characteristicCodeableConcept: fhir_types.CodeableConcept | None = None
-    characteristicQuantity: fhir_types.Quantity | None = None
+    characteristicQuantity: fhir_types.SimpleQuantity | None = None
     value: Annotated[list[StrictStr], Field(min_length=1)] | None = None
 
     @model_validator(mode='after')
@@ -4446,7 +4446,7 @@ class MedicationKnowledgePackaging(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     type: fhir_types.CodeableConcept | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
 class MedicationKnowledgeDrugCharacteristic(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -4454,7 +4454,7 @@ class MedicationKnowledgeDrugCharacteristic(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     valueCodeableConcept: fhir_types.CodeableConcept | None = None
     valueString: StrictStr | None = None
-    valueQuantity: fhir_types.Quantity | None = None
+    valueQuantity: fhir_types.SimpleQuantity | None = None
     valueBase64Binary: StrictStr | None = None
 
     @model_validator(mode='after')
@@ -4477,7 +4477,7 @@ class MedicationKnowledgeRegulatoryMaxDispense(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity
+    quantity: fhir_types.SimpleQuantity
     period: fhir_types.Duration | None = None
 class MedicationKnowledgeRegulatory(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4491,8 +4491,8 @@ class MedicationKnowledgeKinetics(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    areaUnderCurve: Annotated[list[fhir_types.Quantity], Field(min_length=1)] | None = None
-    lethalDose50: Annotated[list[fhir_types.Quantity], Field(min_length=1)] | None = None
+    areaUnderCurve: Annotated[list[fhir_types.SimpleQuantity], Field(min_length=1)] | None = None
+    lethalDose50: Annotated[list[fhir_types.SimpleQuantity], Field(min_length=1)] | None = None
     halfLifePeriod: fhir_types.Duration | None = None
 class MedicationKnowledge(DomainResourceR4):
     resourceType: Literal['MedicationKnowledge']
@@ -4500,7 +4500,7 @@ class MedicationKnowledge(DomainResourceR4):
     status: Literal['active', 'entered-in-error', 'inactive'] | None = None
     manufacturer: fhir_types.Reference | None = None
     doseForm: fhir_types.CodeableConcept | None = None
-    amount: fhir_types.Quantity | None = None
+    amount: fhir_types.SimpleQuantity | None = None
     synonym: Annotated[list[StrictStr], Field(min_length=1)] | None = None
     relatedMedicationKnowledge: Annotated[list[MedicationKnowledgeRelatedMedicationKnowledge], Field(min_length=1)] | None = None
     associatedMedication: Annotated[list[fhir_types.Reference], Field(min_length=1)] | None = None
@@ -4523,7 +4523,7 @@ class MedicationRequestDispenseRequestInitialFill(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     duration: fhir_types.Duration | None = None
 class MedicationRequestDispenseRequest(FHIRBaseModel):
     id: StrictStr | None = None
@@ -4533,7 +4533,7 @@ class MedicationRequestDispenseRequest(FHIRBaseModel):
     dispenseInterval: fhir_types.Duration | None = None
     validityPeriod: fhir_types.Period | None = None
     numberOfRepeatsAllowed: FHIRUnsignedInt | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     expectedSupplyDuration: fhir_types.Duration | None = None
     performer: fhir_types.Reference | None = None
 class MedicationRequestSubstitution(FHIRBaseModel):
@@ -5169,7 +5169,7 @@ class NutritionOrderOralDietNutrient(FHIRBaseModel):
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifier: fhir_types.CodeableConcept | None = None
-    amount: fhir_types.Quantity | None = None
+    amount: fhir_types.SimpleQuantity | None = None
 class NutritionOrderOralDietTexture(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -5193,15 +5193,15 @@ class NutritionOrderSupplement(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     productName: StrictStr | None = None
     schedule: Annotated[list[fhir_types.Timing], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     instruction: StrictStr | None = None
 class NutritionOrderEnteralFormulaAdministration(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     schedule: fhir_types.Timing | None = None
-    quantity: fhir_types.Quantity | None = None
-    rateQuantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
+    rateQuantity: fhir_types.SimpleQuantity | None = None
     rateRatio: fhir_types.Ratio | None = None
 
     @model_validator(mode='after')
@@ -5217,10 +5217,10 @@ class NutritionOrderEnteralFormula(FHIRBaseModel):
     baseFormulaProductName: StrictStr | None = None
     additiveType: fhir_types.CodeableConcept | None = None
     additiveProductName: StrictStr | None = None
-    caloricDensity: fhir_types.Quantity | None = None
+    caloricDensity: fhir_types.SimpleQuantity | None = None
     routeofAdministration: fhir_types.CodeableConcept | None = None
     administration: Annotated[list[NutritionOrderEnteralFormulaAdministration], Field(min_length=1)] | None = None
-    maxVolumeToDeliver: fhir_types.Quantity | None = None
+    maxVolumeToDeliver: fhir_types.SimpleQuantity | None = None
     administrationInstruction: StrictStr | None = None
 class NutritionOrder(DomainResourceR4):
     resourceType: Literal['NutritionOrder']
@@ -5246,8 +5246,8 @@ class ObservationReferenceRange(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    low: fhir_types.Quantity | None = None
-    high: fhir_types.Quantity | None = None
+    low: fhir_types.SimpleQuantity | None = None
+    high: fhir_types.SimpleQuantity | None = None
     type: fhir_types.CodeableConcept | None = None
     appliesTo: Annotated[list[fhir_types.CodeableConcept], Field(min_length=1)] | None = None
     age: fhir_types.Range | None = None
@@ -6613,7 +6613,7 @@ class SpecimenCollection(FHIRBaseModel):
     collectedDateTime: FHIRDateTime | None = None
     collectedPeriod: fhir_types.Period | None = None
     duration: fhir_types.Duration | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     method: fhir_types.CodeableConcept | None = None
     bodySite: fhir_types.CodeableConcept | None = None
     fastingStatusCodeableConcept: fhir_types.CodeableConcept | None = None
@@ -6648,8 +6648,8 @@ class SpecimenContainer(FHIRBaseModel):
     identifier: Annotated[list[fhir_types.Identifier], Field(min_length=1)] | None = None
     description: StrictStr | None = None
     type: fhir_types.CodeableConcept | None = None
-    capacity: fhir_types.Quantity | None = None
-    specimenQuantity: fhir_types.Quantity | None = None
+    capacity: fhir_types.SimpleQuantity | None = None
+    specimenQuantity: fhir_types.SimpleQuantity | None = None
     additiveCodeableConcept: fhir_types.CodeableConcept | None = None
     additiveReference: fhir_types.Reference | None = None
 
@@ -6694,8 +6694,8 @@ class SpecimenDefinitionTypeTestedContainer(FHIRBaseModel):
     type: fhir_types.CodeableConcept | None = None
     cap: fhir_types.CodeableConcept | None = None
     description: StrictStr | None = None
-    capacity: fhir_types.Quantity | None = None
-    minimumVolumeQuantity: fhir_types.Quantity | None = None
+    capacity: fhir_types.SimpleQuantity | None = None
+    minimumVolumeQuantity: fhir_types.SimpleQuantity | None = None
     minimumVolumeString: StrictStr | None = None
     additive: Annotated[list[SpecimenDefinitionTypeTestedContainerAdditive], Field(min_length=1)] | None = None
     preparation: StrictStr | None = None
@@ -6972,7 +6972,7 @@ class SubstanceInstance(FHIRBaseModel):
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     identifier: fhir_types.Identifier | None = None
     expiry: FHIRDateTime | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
 class SubstanceIngredient(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
@@ -7368,7 +7368,7 @@ class SupplyDeliverySuppliedItem(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
     modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] | None = None
-    quantity: fhir_types.Quantity | None = None
+    quantity: fhir_types.SimpleQuantity | None = None
     itemCodeableConcept: fhir_types.CodeableConcept | None = None
     itemReference: fhir_types.Reference | None = None
 
@@ -8102,7 +8102,7 @@ class VisionPrescriptionLensSpecification(FHIRBaseModel):
     power: FHIRDecimal | None = None
     backCurve: FHIRDecimal | None = None
     diameter: FHIRDecimal | None = None
-    duration: fhir_types.Quantity | None = None
+    duration: fhir_types.SimpleQuantity | None = None
     color: StrictStr | None = None
     brand: StrictStr | None = None
     note: Annotated[list[fhir_types.Annotation], Field(min_length=1)] | None = None

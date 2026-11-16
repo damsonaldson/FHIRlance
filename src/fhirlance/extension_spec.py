@@ -33,6 +33,9 @@ def _empty_node_spec() -> dict[str, Any]:
         "value_fixed": None,
         "has_value_fixed": False,
         "value_pattern": None,
+        "value_max_length": None,
+        "value_min": None,
+        "value_max": None,
         "extension_forbidden": False,
         "extension_required": False,
         "slicing_closed": False,
@@ -48,6 +51,17 @@ def _extract_fixed_or_pattern(el: dict[str, Any]) -> tuple[bool, Any, Any]:
         if key.startswith("pattern"):
             return False, None, val
     return False, None, None
+
+
+def _extract_min_max_value(el: dict[str, Any]) -> tuple[Any, Any]:
+    min_val: Any = None
+    max_val: Any = None
+    for key, val in el.items():
+        if key.startswith("minValue") and val is not None:
+            min_val = val
+        elif key.startswith("maxValue") and val is not None:
+            max_val = val
+    return min_val, max_val
 
 
 def _resolve_target_types(
@@ -90,6 +104,25 @@ def _extract_binding_spec(
     return spec
 
 
+def _apply_value_bounds(node: dict[str, Any], el: dict[str, Any]) -> None:
+    has_fixed, fixed_val, pattern_val = _extract_fixed_or_pattern(el)
+    if has_fixed:
+        node["has_value_fixed"] = True
+        node["value_fixed"] = fixed_val
+    if pattern_val is not None:
+        node["value_pattern"] = pattern_val
+
+    raw_max_len = el.get("maxLength")
+    if isinstance(raw_max_len, int) and not isinstance(raw_max_len, bool):
+        node["value_max_length"] = raw_max_len
+
+    min_val, max_val = _extract_min_max_value(el)
+    if min_val is not None:
+        node["value_min"] = min_val
+    if max_val is not None:
+        node["value_max"] = max_val
+
+
 def _apply_value_element(
     node: dict[str, Any],
     el: dict[str, Any],
@@ -118,12 +151,7 @@ def _apply_value_element(
     if binding_spec is not None:
         node["value_binding"] = binding_spec
 
-    has_fixed, fixed_val, pattern_val = _extract_fixed_or_pattern(el)
-    if has_fixed:
-        node["has_value_fixed"] = True
-        node["value_fixed"] = fixed_val
-    if pattern_val is not None:
-        node["value_pattern"] = pattern_val
+    _apply_value_bounds(node, el)
 
 
 def _apply_extension_list_element(node: dict[str, Any], el: dict[str, Any]) -> None:
@@ -286,6 +314,21 @@ def _merge_node_specs(parent: dict[str, Any], child: dict[str, Any]) -> dict[str
             child.get("value_pattern")
             if child.get("value_pattern") is not None
             else parent.get("value_pattern")
+        ),
+        "value_max_length": (
+            child.get("value_max_length")
+            if child.get("value_max_length") is not None
+            else parent.get("value_max_length")
+        ),
+        "value_min": (
+            child.get("value_min")
+            if child.get("value_min") is not None
+            else parent.get("value_min")
+        ),
+        "value_max": (
+            child.get("value_max")
+            if child.get("value_max") is not None
+            else parent.get("value_max")
         ),
         "extension_forbidden": bool(
             parent.get("extension_forbidden") or child.get("extension_forbidden")

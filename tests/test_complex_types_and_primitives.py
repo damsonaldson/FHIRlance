@@ -23,6 +23,7 @@ from fhirlance.base import (
     FHIRInstant,
     FHIRInteger,
     FHIRPositiveInt,
+    FHIRString,
     FHIRTime,
     FHIRUnsignedInt,
     StrictBool,
@@ -246,14 +247,23 @@ _PRIMITIVE_CASES: list[tuple[str, Any, Any, bool]] = [
     ("FHIRUnsignedInt_bool_false", FHIRUnsignedInt, False, False),
     ("FHIRUnsignedInt_float", FHIRUnsignedInt, 0.0, False),
     ("FHIRUnsignedInt_str", FHIRUnsignedInt, "0", False),
-    # FHIRInteger: any int, no bool, no float, no str
+    # FHIRInteger: 32-bit signed int [-2147483648, 2147483647], no bool, no float, no str
     ("FHIRInteger_neg", FHIRInteger, -42, True),
     ("FHIRInteger_0", FHIRInteger, 0, True),
     ("FHIRInteger_pos", FHIRInteger, 42, True),
+    ("FHIRInteger_min32", FHIRInteger, -2147483648, True),
+    ("FHIRInteger_max32", FHIRInteger, 2147483647, True),
+    ("FHIRInteger_under_min32", FHIRInteger, -2147483649, False),
+    ("FHIRInteger_over_max32", FHIRInteger, 2147483648, False),
     ("FHIRInteger_bool_true", FHIRInteger, True, False),
     ("FHIRInteger_bool_false", FHIRInteger, False, False),
     ("FHIRInteger_float", FHIRInteger, 42.0, False),
     ("FHIRInteger_str", FHIRInteger, "42", False),
+    # FHIRString: max 1048576 chars
+    ("FHIRString_ok", FHIRString, "hello", True),
+    ("FHIRString_max_len", FHIRString, "a" * 1048576, True),
+    ("FHIRString_over_max_len", FHIRString, "a" * 1048577, False),
+    ("FHIRString_int", FHIRString, 123, False),
     # FHIRDecimal: int or float, no bool, no NaN/Inf, no str
     ("FHIRDecimal_float", FHIRDecimal, 3.14159, True),
     ("FHIRDecimal_neg_float", FHIRDecimal, -0.005, True),

@@ -165,10 +165,10 @@ class DosageDoseAndRate(FHIRBaseModel):
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
     type: CodeableConcept | None = None
     doseRange: Range | None = None
-    doseQuantity: Quantity | None = None
+    doseQuantity: SimpleQuantity | None = None
     rateRatio: Ratio | None = None
     rateRange: Range | None = None
-    rateQuantity: Quantity | None = None
+    rateQuantity: SimpleQuantity | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'DosageDoseAndRate':
@@ -193,8 +193,8 @@ class Dosage(FHIRBaseModel):
     method: CodeableConcept | None = None
     doseAndRate: Annotated[list[DosageDoseAndRate], Field(min_length=1)] | None = None
     maxDosePerPeriod: Ratio | None = None
-    maxDosePerAdministration: Quantity | None = None
-    maxDosePerLifetime: Quantity | None = None
+    maxDosePerAdministration: SimpleQuantity | None = None
+    maxDosePerLifetime: SimpleQuantity | None = None
 
     @model_validator(mode='after')
     def _check_choices(self) -> 'Dosage':
@@ -729,8 +729,8 @@ class Quantity(FHIRBaseModel):
 class Range(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    low: Quantity | None = None
-    high: Quantity | None = None
+    low: SimpleQuantity | None = None
+    high: SimpleQuantity | None = None
 
 class Ratio(FHIRBaseModel):
     id: StrictStr | None = None
@@ -760,7 +760,7 @@ class RelatedArtifact(FHIRBaseModel):
 class SampledData(FHIRBaseModel):
     id: StrictStr | None = None
     extension: Annotated[list[Extension], Field(min_length=1)] | None = None
-    origin: Quantity
+    origin: SimpleQuantity
     period: FHIRDecimal
     factor: FHIRDecimal | None = None
     lowerLimit: FHIRDecimal | None = None
@@ -868,6 +868,14 @@ class UsageContext(FHIRBaseModel):
         if _present != 1: raise ValueError('value[x] requires exactly one value')
         return self
 
+class SimpleQuantity(FHIRBaseModel):
+    id: StrictStr | None = None
+    extension: Annotated[list[Extension], Field(min_length=1)] | None = None
+    value: FHIRDecimal | None = None
+    unit: StrictStr | None = None
+    system: StrictStr | None = None
+    code: FHIRCode | None = None
+
 Address.model_rebuild()
 Age.model_rebuild()
 Annotation.model_rebuild()
@@ -907,3 +915,4 @@ SubstanceAmount.model_rebuild()
 Timing.model_rebuild()
 TriggerDefinition.model_rebuild()
 UsageContext.model_rebuild()
+SimpleQuantity.model_rebuild()

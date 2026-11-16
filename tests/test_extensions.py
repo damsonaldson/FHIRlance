@@ -14,7 +14,7 @@ from fhirlance import (
     validate_resource,
 )
 from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
-from fhirlance.extensions import COMPILED_EXTENSIONS, validate_extensions
+from fhirlance.extensions import COMPILED_EXTENSIONS, compile_extensions, validate_extensions
 from fhirlance.resources import RESOURCE_MODELS
 
 if TYPE_CHECKING:
@@ -797,3 +797,126 @@ class TestRuntimeIGExtensionLoading:
         assert (
             "Patient" in resolved[parent_url]["node"]["sub_extensions"]["a"]["value_target_types"]
         )
+
+
+class TestExtensionValueBounds:
+    def test_max_length_and_numeric_bounds(self) -> None:
+        str_url = "http://example.org/StructureDefinition/ext-str-maxlen"
+        num_url = "http://example.org/StructureDefinition/ext-num-bounds"
+        qty_url = "http://example.org/StructureDefinition/ext-qty-bounds"
+        date_url = "http://example.org/StructureDefinition/ext-date-bounds"
+
+        raw = {
+            str_url: extract_extension_spec(
+                {
+                    "url": str_url,
+                    "type": "Extension",
+                    "differential": {
+                        "element": [
+                            {
+                                "id": "Extension.value[x]",
+                                "path": "Extension.value[x]",
+                                "type": [{"code": "string"}],
+                                "maxLength": 5,
+                            }
+                        ]
+                    },
+                },
+                {},
+                {},
+            ),
+            num_url: extract_extension_spec(
+                {
+                    "url": num_url,
+                    "type": "Extension",
+                    "differential": {
+                        "element": [
+                            {
+                                "id": "Extension.value[x]",
+                                "path": "Extension.value[x]",
+                                "type": [{"code": "integer"}],
+                                "minValueInteger": 1,
+                                "maxValueInteger": 10,
+                            }
+                        ]
+                    },
+                },
+                {},
+                {},
+            ),
+            qty_url: extract_extension_spec(
+                {
+                    "url": qty_url,
+                    "type": "Extension",
+                    "differential": {
+                        "element": [
+                            {
+                                "id": "Extension.value[x]",
+                                "path": "Extension.value[x]",
+                                "type": [{"code": "Quantity"}],
+                                "minValueQuantity": {"value": 0.5, "unit": "mg"},
+                                "maxValueQuantity": {"value": 5.0, "unit": "mg"},
+                            }
+                        ]
+                    },
+                },
+                {},
+                {},
+            ),
+            date_url: extract_extension_spec(
+                {
+                    "url": date_url,
+                    "type": "Extension",
+                    "differential": {
+                        "element": [
+                            {
+                                "id": "Extension.value[x]",
+                                "path": "Extension.value[x]",
+                                "type": [{"code": "date"}],
+                                "minValueDate": "2020-01-01",
+                                "maxValueDate": "2025-12-31",
+                            }
+                        ]
+                    },
+                },
+                {},
+                {},
+            ),
+        }
+        compiled = compile_extensions(raw)
+
+        # Valid cases
+        valid_patient = _patient(
+            extension=[
+                {"url": str_url, "valueString": "hello"},
+                {"url": num_url, "valueInteger": 5},
+                {"url": qty_url, "valueQuantity": {"value": 2.5, "unit": "mg"}},
+                {"url": date_url, "valueDate": "2022-06-15"},
+            ]
+        )
+        assert (
+            validate_extensions(
+                valid_patient, RESOURCE_MODELS["Patient"], "Patient", compiled_extensions=compiled
+            )
+            == []
+        )
+
+        # Invalid cases
+        invalid_patient = _patient(
+            extension=[
+                {"url": str_url, "valueString": "too long"},
+                {"url": num_url, "valueInteger": 0},
+                {"url": num_url, "valueInteger": 11},
+                {"url": qty_url, "valueQuantity": {"value": 0.1, "unit": "mg"}},
+                {"url": date_url, "valueDate": "2026-01-01"},
+            ]
+        )
+        issues = validate_extensions(
+            invalid_patient, RESOURCE_MODELS["Patient"], "Patient", compiled_extensions=compiled
+        )
+        assert len(issues) == 5
+        assert any("maxLength 5" in m for m in issues)
+        assert any(">= 1" in m for m in issues)
+        assert any("<= 10" in m for m in issues)
+        assert any(">= {'value': 0.5" in m for m in issues)
+        assert any("<= '2025-12-31'" in m for m in issues)

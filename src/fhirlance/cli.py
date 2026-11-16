@@ -66,6 +66,11 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--enforce-must-support",
+        action="store_true",
+        help="Require all profile mustSupport elements to be present",
+    )
+    parser.add_argument(
         "--format",
         choices=SUPPORTED_OUTPUT_FORMATS,
         default=None,
@@ -121,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             tx=args.tx,
             strict_extensible=args.strict_extensible,
             best_practice=args.best_practice,
+            enforce_must_support=args.enforce_must_support,
         )
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)

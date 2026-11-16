@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from fhirlance import PROFILE_CONSTRAINTS, RESOURCE_MODELS
+from fhirlance import types as fhir_types
 from fhirlance.profile_engine import (
     COMPILED_PROFILES,
     AllowedValuesRule,
@@ -106,15 +107,18 @@ _SLICE_CASES: list[tuple[str, str, CompiledSlice]] = [
 
 
 def test_all_183_ig_profiles_compiled_across_five_igs() -> None:
-    """Verify all 183 StructureDefinition profiles across the 5 IGs are compiled."""
-    assert len(PROFILE_CONSTRAINTS) == 183
-    assert len(COMPILED_PROFILES) == 183
-    ca_base = [u for u in COMPILED_PROFILES if "ca/baseline" in u]
-    ca_core = [u for u in COMPILED_PROFILES if "infoway" in u or "ca-core" in u]
-    ips = [u for u in COMPILED_PROFILES if "/uv/ips/" in u]
-    us_core = [u for u in COMPILED_PROFILES if "/us/core/" in u]
-    r4_core = [u for u in COMPILED_PROFILES if u not in (*ca_base, *ca_core, *ips, *us_core)]
-    assert len(r4_core) == 44
+    """Verify all 183 resource + 15 datatype/extra StructureDefinition profiles are compiled."""
+    assert len(PROFILE_CONSTRAINTS) == 198
+    assert len(COMPILED_PROFILES) == 198
+    resource_profiles = {
+        u: s for u, s in PROFILE_CONSTRAINTS.items() if s["base_type"] in RESOURCE_MODELS
+    }
+    ca_base = [u for u in resource_profiles if "ca/baseline" in u]
+    ca_core = [u for u in resource_profiles if "infoway" in u or "ca-core" in u]
+    ips = [u for u in resource_profiles if "/uv/ips/" in u]
+    us_core = [u for u in resource_profiles if "/us/core/" in u]
+    r4_core = [u for u in resource_profiles if u not in (*ca_base, *ca_core, *ips, *us_core)]
+    assert len(r4_core) == 46
     assert len(ca_base) == 27
     assert len(ca_core) == 31
     assert len(ips) == 27
@@ -169,7 +173,8 @@ def test_every_compiled_ig_profile_type_guard_max_one_and_targets(
     prof: CompiledProfile,
 ) -> None:
     """Every compiled IG profile enforces base_type, max_one cardinality, and targetProfile."""
-    assert prof.base_type in RESOURCE_MODELS
+    assert prof.base_type is not None
+    assert prof.base_type in RESOURCE_MODELS or hasattr(fhir_types, prof.base_type)
     rtype = prof.base_type
     wrong_rtype = "Observation" if rtype != "Observation" else "Patient"
     mismatch = validate_single_profile({"resourceType": wrong_rtype}, wrong_rtype, url)

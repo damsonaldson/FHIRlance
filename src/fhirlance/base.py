@@ -105,8 +105,11 @@ FHIRId = Annotated[StrictStr, StringConstraints(pattern=_FHIR_ID_PATTERN)]
 FHIRCode = Annotated[StrictStr, StringConstraints(pattern=_FHIR_CODE_PATTERN)]
 FHIRPositiveInt = Annotated[StrictInt, Field(ge=1), AfterValidator(_check_int_not_bool)]
 FHIRUnsignedInt = Annotated[StrictInt, Field(ge=0), AfterValidator(_check_int_not_bool)]
-FHIRInteger = Annotated[StrictInt, AfterValidator(_check_int_not_bool)]
-FHIRDecimal = StrictFloat | FHIRInteger
+FHIRInteger = Annotated[
+    StrictInt, Field(ge=-2147483648, le=2147483647), AfterValidator(_check_int_not_bool)
+]
+FHIRDecimal = StrictFloat | Annotated[StrictInt, AfterValidator(_check_int_not_bool)]
+FHIRString = Annotated[StrictStr, StringConstraints(max_length=1048576)]
 
 # Re-export StrictBool alongside primitives so generated models share one base module.
 __all__ = [
@@ -122,6 +125,7 @@ __all__ = [
     "FHIRInstant",
     "FHIRInteger",
     "FHIRPositiveInt",
+    "FHIRString",
     "FHIRTime",
     "FHIRUnsignedInt",
     "StrictBool",

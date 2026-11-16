@@ -45,6 +45,25 @@ class ValueRule:
 
 
 @dataclass(frozen=True, slots=True)
+class MaxLengthRule:
+    """A maxLength constraint on a string/primitive FHIR element path."""
+
+    path: str
+    parts: tuple[str, ...]
+    max_length: int
+
+
+@dataclass(frozen=True, slots=True)
+class ValueBoundsRule:
+    """A minValue[x] / maxValue[x] constraint on a FHIR element path."""
+
+    path: str
+    parts: tuple[str, ...]
+    min_val: Any = None
+    max_val: Any = None
+
+
+@dataclass(frozen=True, slots=True)
 class AllowedValuesRule:
     """A Reference targetProfile or required ValueSet binding rule."""
 
@@ -208,6 +227,10 @@ class CompiledProfile:
     target_aggregations: tuple[AllowedValuesRule, ...] = ()
     constraints: tuple[CompiledConstraint, ...] = ()
     preferred_bindings: tuple[CompiledBindingRule, ...] = ()
+    max_length: tuple[MaxLengthRule, ...] = ()
+    value_bounds: tuple[ValueBoundsRule, ...] = ()
+    element_profiles: tuple[AllowedValuesRule, ...] = ()
+    must_support: tuple[PathRule, ...] = ()
 
 
 def pattern_matches(actual: Any, pattern: Any) -> bool:
@@ -292,16 +315,24 @@ def resolve_nodes(obj: Any, parts: tuple[str, ...] | list[str]) -> list[Any]:
     return resolve_nodes(obj[head], tail)
 
 
+def _is_non_empty_value(val: Any) -> bool:
+    if val is None:
+        return False
+    if isinstance(val, list):
+        return any(x is not None for x in val)
+    return True
+
+
 def _check_child_present(parent_val: Any, child_seg: str) -> bool:
     if not isinstance(parent_val, dict):
         return False
     if child_seg.endswith(_CHOICE_SUFFIX):
         stem = child_seg[:-_CHOICE_SUFFIX_LEN]
         return any(
-            k.startswith(stem) and not k.startswith("_") and parent_val[k] is not None
+            k.startswith(stem) and not k.startswith("_") and _is_non_empty_value(parent_val[k])
             for k in parent_val
         )
-    return child_seg in parent_val and parent_val[child_seg] is not None
+    return child_seg in parent_val and _is_non_empty_value(parent_val[child_seg])
 
 
 def _extract_ref_resource_type(ref_str: str) -> str | None:
@@ -504,6 +535,21 @@ def _compile_preferred_bindings(
     return _compile_binding_specs(base_type, raw_specs, {})
 
 
+def _compile_value_bounds(
+    min_values: dict[str, Any], max_values: dict[str, Any]
+) -> tuple[ValueBoundsRule, ...]:
+    all_paths = sorted(set(min_values) | set(max_values))
+    return tuple(
+        ValueBoundsRule(
+            path=p,
+            parts=tuple(p.split(".")[1:]),
+            min_val=min_values.get(p),
+            max_val=max_values.get(p),
+        )
+        for p in all_paths
+    )
+
+
 def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
     base_type = spec.get("base_type")
     return CompiledProfile(
@@ -573,6 +619,21 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
         preferred_bindings=_compile_preferred_bindings(
             base_type, spec.get("preferred_bindings", {})
         ),
+        max_length=tuple(
+            MaxLengthRule(p, tuple(p.split(".")[1:]), ml)
+            for p, ml in spec.get("max_length", {}).items()
+        ),
+        value_bounds=_compile_value_bounds(
+            spec.get("min_values", {}),
+            spec.get("max_values", {}),
+        ),
+        element_profiles=tuple(
+            AllowedValuesRule(p, tuple(p.split(".")[1:]), frozenset(profiles))
+            for p, profiles in spec.get("element_profiles", {}).items()
+        ),
+        must_support=tuple(
+            PathRule(p, tuple(p.split(".")[1:])) for p in spec.get("must_support", ())
+        ),
     )
 
 
@@ -597,14 +658,125 @@ def _check_required(
     return issues
 
 
+def _check_forbidden_present(parent_val: Any, child_seg: str) -> bool:
+    if not isinstance(parent_val, dict):
+        return False
+    if child_seg.endswith(_CHOICE_SUFFIX):
+        stem = child_seg[:-_CHOICE_SUFFIX_LEN]
+        return any(
+            k.startswith(stem) and not k.startswith("_") and parent_val[k] is not None
+            for k in parent_val
+        )
+    return child_seg in parent_val and parent_val[child_seg] is not None
+
+
 def _check_forbidden(
     resource: dict[str, Any], prof_url: str, rules: tuple[PathRule, ...]
 ) -> list[str]:
-    return [
-        f"Profile[{prof_url}]: forbidden element '{rule.path}' (max=0) is present"
-        for rule in rules
-        if resolve_nodes(resource, rule.parts)
-    ]
+    issues: list[str] = []
+    for rule in rules:
+        if not rule.parts:
+            continue
+        parents = [resource] if len(rule.parts) == 1 else resolve_nodes(resource, rule.parts[:-1])
+        if any(_check_forbidden_present(p, rule.parts[-1]) for p in parents):
+            issues.append(
+                f"Profile[{prof_url}]: forbidden element '{rule.path}' (max=0) is present"
+            )
+    return issues
+
+
+def _check_max_length(
+    resource: dict[str, Any], prof_url: str, rules: tuple[MaxLengthRule, ...]
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        issues.extend(
+            f"Profile[{prof_url}]: '{rule.path}' length {len(val)} "
+            f"exceeds maxLength {rule.max_length}"
+            for val in resolve_nodes(resource, rule.parts)
+            if isinstance(val, str) and len(val) > rule.max_length
+        )
+    return issues
+
+
+def _unwrap_comparable(val: Any) -> int | float | str | None:
+    if isinstance(val, dict):
+        val = val.get("value")
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float, str)):
+        return val
+    return None
+
+
+def _compare_lt(a: int | float | str, b: int | float | str) -> bool:
+    if isinstance(a, str) and isinstance(b, str):
+        min_len = min(len(a), len(b))
+        return a[:min_len] < b[:min_len]
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return a < b
+    return False
+
+
+def _check_single_bound(val: Any, rule: ValueBoundsRule, prof_url: str) -> list[str]:
+    comp_val = _unwrap_comparable(val)
+    if comp_val is None:
+        return []
+    issues: list[str] = []
+    if rule.min_val is not None:
+        comp_min = _unwrap_comparable(rule.min_val)
+        if comp_min is not None and _compare_lt(comp_val, comp_min):
+            issues.append(
+                f"Profile[{prof_url}]: '{rule.path}' must be >= {rule.min_val!r}, got {val!r}"
+            )
+    if rule.max_val is not None:
+        comp_max = _unwrap_comparable(rule.max_val)
+        if comp_max is not None and _compare_lt(comp_max, comp_val):
+            issues.append(
+                f"Profile[{prof_url}]: '{rule.path}' must be <= {rule.max_val!r}, got {val!r}"
+            )
+    return issues
+
+
+def _check_value_bounds(
+    resource: dict[str, Any], prof_url: str, rules: tuple[ValueBoundsRule, ...]
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        for val in resolve_nodes(resource, rule.parts):
+            issues.extend(_check_single_bound(val, rule, prof_url))
+    return issues
+
+
+def _check_element_profiles(
+    resource: dict[str, Any],
+    prof_url: str,
+    rules: tuple[AllowedValuesRule, ...],
+    ctx: _SliceEvalContext,
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        issues.extend(
+            f"Profile[{prof_url}]: '{rule.path}' does not conform to "
+            f"required profile(s) {sorted(rule.allowed)}"
+            for val in resolve_nodes(resource, rule.parts)
+            if isinstance(val, dict)
+            and not any(_node_conforms_to_profile(val, p, ctx) for p in rule.allowed)
+        )
+    return issues
+
+
+def _check_must_support(
+    resource: dict[str, Any], prof_url: str, rules: tuple[PathRule, ...]
+) -> list[str]:
+    issues: list[str] = []
+    for rule in rules:
+        if not rule.parts:
+            continue
+        parents = [resource] if len(rule.parts) == 1 else resolve_nodes(resource, rule.parts[:-1])
+        if parents and not all(_check_child_present(p, rule.parts[-1]) for p in parents):
+            issues.append(f"Profile[{prof_url}]: mustSupport element '{rule.path}' is missing")
+    return issues
 
 
 def _check_max_one(
@@ -1324,6 +1496,7 @@ def validate_single_profile(
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
     best_practice = bool(kwargs.get("best_practice", False))
+    enforce_must_support = bool(kwargs.get("enforce_must_support", False))
     _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     tx_options = (
         tx_raw
@@ -1359,7 +1532,7 @@ def validate_single_profile(
             _warnings_out=_warnings_out,
         )
 
-    return [
+    issues = [
         *_check_required(resource, prof_url, spec.required),
         *_check_forbidden(resource, prof_url, spec.forbidden),
         *_check_max_one(resource, prof_url, spec.max_one),
@@ -1384,3 +1557,12 @@ def validate_single_profile(
         ),
         *slice_issues,
     ]
+    if spec.max_length:
+        issues.extend(_check_max_length(resource, prof_url, spec.max_length))
+    if spec.value_bounds:
+        issues.extend(_check_value_bounds(resource, prof_url, spec.value_bounds))
+    if spec.element_profiles:
+        issues.extend(_check_element_profiles(resource, prof_url, spec.element_profiles, ctx))
+    if enforce_must_support and spec.must_support:
+        issues.extend(_check_must_support(resource, prof_url, spec.must_support))
+    return issues

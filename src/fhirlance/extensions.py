@@ -49,6 +49,9 @@ class ExtensionNodeSpec:
     extension_required: bool
     slicing_closed: bool
     sub_extensions: dict[str, ExtensionNodeSpec]
+    value_max_length: int | None = None
+    value_min: Any = None
+    value_max: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +129,9 @@ def _compile_node(raw: dict[str, Any], path_prefix: str) -> ExtensionNodeSpec:
         extension_required=bool(raw.get("extension_required")),
         slicing_closed=bool(raw.get("slicing_closed")),
         sub_extensions=sub_compiled,
+        value_max_length=raw.get("value_max_length"),
+        value_min=raw.get("value_min"),
+        value_max=raw.get("value_max"),
     )
 
 
@@ -236,6 +242,41 @@ def _validate_value_binding(
         env.warnings.extend(res.warnings)
 
 
+def _unwrap_comparable(val: Any) -> int | float | str | None:
+    if isinstance(val, dict):
+        val = val.get("value")
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float, str)):
+        return val
+    return None
+
+
+def _lt(a: int | float | str, b: int | float | str) -> bool:
+    if isinstance(a, str) and isinstance(b, str):
+        min_len = min(len(a), len(b))
+        return a[:min_len] < b[:min_len]
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return a < b
+    return False
+
+
+def _check_value_bounds(val: Any, min_val: Any, max_val: Any, label: str) -> list[str]:
+    comp_val = _unwrap_comparable(val)
+    if comp_val is None:
+        return []
+    errors: list[str] = []
+    if min_val is not None:
+        comp_min = _unwrap_comparable(min_val)
+        if comp_min is not None and _lt(comp_val, comp_min):
+            errors.append(f"{label} must be >= {min_val!r}, got {val!r}")
+    if max_val is not None:
+        comp_max = _unwrap_comparable(max_val)
+        if comp_max is not None and _lt(comp_max, comp_val):
+            errors.append(f"{label} must be <= {max_val!r}, got {val!r}")
+    return errors
+
+
 def _validate_single_value_item(
     val_key: str,
     val: Any,
@@ -267,6 +308,24 @@ def _validate_single_value_item(
             )
     if node.value_binding is not None:
         _validate_value_binding(val, f"{ext_path}.{val_key}", node.value_binding, env)
+    if (
+        node.value_max_length is not None
+        and isinstance(val, str)
+        and len(val) > node.value_max_length
+    ):
+        env.issues.append(
+            f"Extension[{ext_path}]: '{val_key}' length {len(val)} exceeds "
+            f"maxLength {node.value_max_length}"
+        )
+    if node.value_min is not None or node.value_max is not None:
+        env.issues.extend(
+            _check_value_bounds(
+                val,
+                node.value_min,
+                node.value_max,
+                f"Extension[{ext_path}]: '{val_key}'",
+            )
+        )
 
 
 def _validate_value_constraints(
