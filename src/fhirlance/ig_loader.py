@@ -1048,7 +1048,7 @@ _CACHE_LOCK = threading.Lock()
 
 def _load_ig_resources(paths: Sequence[Path]) -> _IGResources:
     container = _IGResources()
-    for path in resolve_transitive_packages(paths):
+    for path in reversed(paths):
         _load_source(path, container)
     return container
 
