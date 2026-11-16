@@ -324,10 +324,14 @@ def _is_non_empty_value(val: Any) -> bool:
     return True
 
 
+def _is_not_none(val: Any) -> bool:
+    return val is not None
+
+
 def _check_child_present(parent_val: Any, child_seg: str, *, allow_empty: bool = False) -> bool:
     if not isinstance(parent_val, dict):
         return False
-    is_present = (lambda v: v is not None) if allow_empty else _is_non_empty_value
+    is_present = _is_not_none if allow_empty else _is_non_empty_value
     if child_seg.endswith(_CHOICE_SUFFIX):
         stem = child_seg[:-_CHOICE_SUFFIX_LEN]
         return any(
