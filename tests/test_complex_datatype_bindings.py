@@ -179,7 +179,8 @@ def test_expression_language_binding() -> None:
                             "kind": "applicability",
                             "expression": {"language": lang, "expression": "true"},
                         }
-                    ]
+                    ],
+                    "resource": {"reference": "Task/1"},
                 }
             ],
         }

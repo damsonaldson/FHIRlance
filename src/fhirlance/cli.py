@@ -58,6 +58,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Treat extensible binding violations with unknown code systems as errors",
     )
     parser.add_argument(
+        "--best-practice",
+        action="store_true",
+        help=(
+            "Emit best-practice warnings "
+            "(dom-6 narrative, Observation.performer, preferred bindings)"
+        ),
+    )
+    parser.add_argument(
         "--format",
         choices=SUPPORTED_OUTPUT_FORMATS,
         default=None,
@@ -112,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             ig_sources=args.ig_sources,
             tx=args.tx,
             strict_extensible=args.strict_extensible,
+            best_practice=args.best_practice,
         )
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)

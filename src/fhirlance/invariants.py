@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
+from fhirlance.profile_engine import CompiledConstraint, check_constraints, compile_constraints
+from fhirlance.profiles import BASE_RESOURCE_CONSTRAINTS
 from fhirlance.specialized_invariants import SPECIALIZED_INVARIANT_CHECKS
 
 _OBS_VALUE_FIELDS = (
@@ -216,10 +219,98 @@ _RESOURCE_INVARIANT_CHECKS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
 }
 
 
-def check_fhirpath_invariants(resource: dict[str, Any], rtype: str) -> list[str]:
+@lru_cache(maxsize=256)
+def _compiled_base_constraints(rtype: str) -> tuple[CompiledConstraint, ...]:
+    raw = BASE_RESOURCE_CONSTRAINTS.get(rtype)
+    if not raw:
+        return ()
+    return compile_constraints(raw)
+
+
+_HASH_REF_KEYS = frozenset(
+    {"reference", "url", "uri", "canonical", "valueUri", "valueUrl", "valueCanonical"}
+)
+
+
+def _collect_hash_refs(root: dict[str, Any]) -> set[str]:
+    """Collect all '#...' reference/URI strings in a resource subtree iteratively."""
+    refs: set[str] = set()
+    stack: list[Any] = [root]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if isinstance(v, str):
+                    if v.startswith("#") and k in _HASH_REF_KEYS:
+                        refs.add(v)
+                elif isinstance(v, (dict, list)):
+                    stack.append(v)
+        elif isinstance(node, list):
+            stack.extend(elem for elem in node if isinstance(elem, (dict, list)))
+    return refs
+
+
+def _check_contained_invariants(resource: dict[str, Any]) -> list[str]:
+    """Fast-path dom-2..5 checks for DomainResource.contained."""
+    contained = resource.get("contained")
+    if not isinstance(contained, list) or not contained:
+        return []
+    issues: list[str] = []
+    all_hash_refs = _collect_hash_refs(resource)
+    for idx, item in enumerate(contained):
+        if not isinstance(item, dict):
+            continue
+        if item.get("contained"):
+            issues.append(
+                f"Invariant[dom-2] contained[{idx}]: "
+                "contained resource SHALL NOT contain nested Resources"
+            )
+        meta = item.get("meta")
+        if isinstance(meta, dict):
+            if meta.get("versionId") is not None or meta.get("lastUpdated") is not None:
+                issues.append(
+                    f"Invariant[dom-4] contained[{idx}]: "
+                    "contained resource SHALL NOT have meta.versionId or meta.lastUpdated"
+                )
+            if meta.get("security"):
+                issues.append(
+                    f"Invariant[dom-5] contained[{idx}]: "
+                    "contained resource SHALL NOT have a security label"
+                )
+        cid = item.get("id")
+        ref_key = f"#{cid}" if isinstance(cid, str) and cid else None
+        if (ref_key is None or ref_key not in all_hash_refs) and "#" not in _collect_hash_refs(
+            item
+        ):
+            issues.append(
+                f"Invariant[dom-3] contained[{idx}]: "
+                "contained resource SHALL be referred to from elsewhere in the resource"
+            )
+    return issues
+
+
+def check_fhirpath_invariants(
+    resource: dict[str, Any],
+    rtype: str,
+    *,
+    warnings_out: list[str] | None = None,
+    bundle_index: dict[str, dict[str, Any]] | None = None,
+) -> list[str]:
     """Evaluate core FHIRPath invariants beyond structural schema and cardinality."""
     issues = _check_narrative_txt_1(resource)
+    if "contained" in resource:
+        issues.extend(_check_contained_invariants(resource))
     checker = _RESOURCE_INVARIANT_CHECKS.get(rtype)
     if checker is not None:
         issues.extend(checker(resource))
+    base_constraints = _compiled_base_constraints(rtype)
+    if base_constraints:
+        issues.extend(
+            check_constraints(
+                resource,
+                base_constraints,
+                bundle_index=bundle_index,
+                warnings_out=warnings_out,
+            )
+        )
     return issues

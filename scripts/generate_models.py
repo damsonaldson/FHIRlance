@@ -29,6 +29,34 @@ _MAX_LITERAL_CODES = 60
 _MAX_SNAPSHOT_TYPE_NARROWING = 4
 _CHOICE_SUFFIX = "[x]"
 _CHOICE_SUFFIX_LEN = len(_CHOICE_SUFFIX)
+_R4_SKIP_CONSTRAINT_KEYS = frozenset(
+    {
+        "ele-1",
+        "txt-1",
+        "ext-1",
+        "pat-1",
+        "obs-6",
+        "obs-7",
+        "con-4",
+        "qrs-1",
+        "dom-2",
+        "dom-3",
+        "dom-4",
+        "dom-5",
+        "dom-6",
+    }
+)
+_R4_SKIP_CONSTRAINT_PREFIXES = (
+    "bdl-",
+    "que-",
+    "cpb-",
+    "opd-",
+    "spd-",
+    "cmd-",
+    "tst-",
+    "smp-",
+    "msq-",
+)
 
 PRIMITIVE_MAP: dict[str, str] = {
     "boolean": "StrictBool",
@@ -138,6 +166,7 @@ class _ProfileAccumulator:
     target_aggregations: dict[str, list[str]] = field(default_factory=dict)
     bindings: dict[str, list[str]] = field(default_factory=dict)
     binding_specs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    preferred_bindings: dict[str, str] = field(default_factory=dict)
     slices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -759,6 +788,10 @@ def _record_element_binding(
         vs_url = raw_vs.split("|")[0]
         rel_path = path.split(".", 1)[1]
         acc.binding_specs[rel_path] = {"strength": strength, "value_set": vs_url}
+    elif strength == "preferred" and raw_vs:
+        vs_url = raw_vs.split("|")[0]
+        rel_path = path.split(".", 1)[1]
+        acc.preferred_bindings[rel_path] = vs_url
 
 
 def _record_differential_element(
@@ -789,6 +822,62 @@ def _record_differential_element(
 
     _record_element_types(el, path, sd_type_by_url, acc)
     _record_element_binding(el, path, value_sets, acc)
+
+
+def _should_skip_constraint(
+    key: str,
+    skip_keys: frozenset[str],
+    skip_prefixes: tuple[str, ...],
+    *,
+    skip_name_warnings: bool,
+) -> bool:
+    if key in skip_keys:
+        return True
+    if skip_prefixes and key.startswith(skip_prefixes):
+        return True
+    return skip_name_warnings and key.endswith("-0")
+
+
+def _extract_constraints(
+    elements: list[dict[str, Any]],
+    skip_keys: frozenset[str],
+    skip_prefixes: tuple[str, ...] = (),
+    *,
+    skip_name_warnings: bool = False,
+) -> list[dict[str, str]]:
+    """Extract deduplicated ElementDefinition.constraint rules."""
+    constraints: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for el in elements:
+        path = el.get("path", "")
+        if not path:
+            continue
+        for c in el.get("constraint", []):
+            key = str(c.get("key") or "")
+            severity = str(c.get("severity") or "")
+            expression = str(c.get("expression") or "").strip()
+            if not key or not expression or severity not in ("error", "warning"):
+                continue
+            if _should_skip_constraint(
+                key,
+                skip_keys,
+                skip_prefixes,
+                skip_name_warnings=skip_name_warnings,
+            ):
+                continue
+            if (path, key) in seen:
+                continue
+            seen.add((path, key))
+            constraints.append(
+                {
+                    "key": key,
+                    "severity": severity,
+                    "human": str(c.get("human") or ""),
+                    "expression": expression,
+                    "path": path,
+                }
+            )
+    return constraints
 
 
 def _extract_profile_spec(
@@ -823,11 +912,26 @@ def _extract_profile_spec(
         "target_aggregations": acc.target_aggregations,
         "bindings": acc.bindings,
         "binding_specs": acc.binding_specs,
+        "preferred_bindings": acc.preferred_bindings,
+        "constraints": _extract_constraints(diff_elements, frozenset({"ele-1"})),
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
         "slice_groups": extract_slice_groups(
             diff_elements if diff_elements else snap_elements,
         ),
     }
+
+
+def _merge_constraints(
+    parent_constraints: list[dict[str, str]],
+    child_constraints: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Merge parent and child constraints, deduplicated by (path, key)."""
+    merged: dict[tuple[str, str], dict[str, str]] = {
+        (c["path"], c["key"]): c for c in parent_constraints
+    }
+    for c in child_constraints:
+        merged[(c["path"], c["key"])] = c
+    return list(merged.values())
 
 
 def _merge_binding_specs(
@@ -874,6 +978,14 @@ def _resolve_all_profiles(profiles: dict[str, dict[str, Any]]) -> dict[str, dict
                 parent.get("binding_specs", {}) if parent else {},
                 spec.get("binding_specs", {}),
             ),
+            "preferred_bindings": {
+                **(parent.get("preferred_bindings", {}) if parent else {}),
+                **spec.get("preferred_bindings", {}),
+            },
+            "constraints": _merge_constraints(
+                parent.get("constraints", []) if parent else [],
+                spec.get("constraints", []),
+            ),
             "slices": [*(parent["slices"] if parent else []), *spec["slices"]],
             "slice_groups": merge_slice_groups(
                 parent.get("slice_groups", []) if parent else [],
@@ -909,6 +1021,8 @@ class _CompiledTerminology:
     vs_specs: dict[str, ValueSetSpec]
     base_bindings: dict[str, dict[str, dict[str, str]]]
     complex_bindings: dict[str, dict[str, dict[str, str]]]
+    preferred_bindings: dict[str, dict[str, str]]
+    base_constraints: dict[str, list[dict[str, str]]]
 
 
 def _extract_complex_element_bindings(
@@ -964,19 +1078,26 @@ def _extract_complex_type_bindings(
     return bindings
 
 
+def _load_base_resource_sds(r4_pkg: Path) -> list[dict[str, Any]]:
+    """Load non-abstract base R4 resource StructureDefinitions."""
+    sds: list[dict[str, Any]] = []
+    for path in _glob_json(r4_pkg, "StructureDefinition-"):
+        sd = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            sd.get("kind") == "resource"
+            and not sd.get("abstract")
+            and sd.get("derivation") == "specialization"
+        ):
+            sds.append(sd)
+    return sds
+
+
 def _extract_base_resource_bindings(
     r4_pkg: Path,
 ) -> dict[str, dict[str, dict[str, str]]]:
     """Extract required/extensible bindings for CodeableConcept/Coding elements."""
     bindings: dict[str, dict[str, dict[str, str]]] = {}
-    for path in _glob_json(r4_pkg, "StructureDefinition-"):
-        sd = json.loads(path.read_text(encoding="utf-8"))
-        if (
-            sd.get("kind") != "resource"
-            or sd.get("abstract")
-            or sd.get("derivation") != "specialization"
-        ):
-            continue
+    for sd in _load_base_resource_sds(r4_pkg):
         rtype = sd["id"]
         res_bindings: dict[str, dict[str, str]] = {}
         for el in sd.get("snapshot", {}).get("element", []):
@@ -997,6 +1118,46 @@ def _extract_base_resource_bindings(
                 res_bindings[rel_path] = {"strength": b["strength"], "value_set": vs_url}
         bindings[rtype] = res_bindings
     return bindings
+
+
+def _extract_preferred_resource_bindings(
+    r4_pkg: Path,
+) -> dict[str, dict[str, str]]:
+    """Extract preferred ValueSet bindings for base R4 resource elements."""
+    preferred: dict[str, dict[str, str]] = {}
+    for sd in _load_base_resource_sds(r4_pkg):
+        rtype = sd["id"]
+        res_preferred: dict[str, str] = {}
+        for el in sd.get("snapshot", {}).get("element", []):
+            el_path = el.get("path", "")
+            if "." not in el_path:
+                continue
+            b = el.get("binding")
+            if not b or b.get("strength") != "preferred" or not b.get("valueSet"):
+                continue
+            rel_path = el_path.split(".", 1)[1]
+            res_preferred[rel_path] = str(b["valueSet"]).split("|", 1)[0]
+        if res_preferred:
+            preferred[rtype] = res_preferred
+    return preferred
+
+
+def _extract_base_resource_constraints(
+    r4_pkg: Path,
+) -> dict[str, list[dict[str, str]]]:
+    """Extract core ElementDefinition.constraint rules for base R4 resources."""
+    constraints: dict[str, list[dict[str, str]]] = {}
+    for sd in _load_base_resource_sds(r4_pkg):
+        rtype = sd["id"]
+        res_constraints = _extract_constraints(
+            sd.get("snapshot", {}).get("element", []),
+            _R4_SKIP_CONSTRAINT_KEYS,
+            _R4_SKIP_CONSTRAINT_PREFIXES,
+            skip_name_warnings=True,
+        )
+        if res_constraints:
+            constraints[rtype] = res_constraints
+    return constraints
 
 
 def _generate_all_ig_profiles(
@@ -1034,12 +1195,16 @@ def _generate_all_ig_profiles(
     )
     bb_table = terminology.base_bindings if terminology is not None else {}
     cb_table = terminology.complex_bindings if terminology is not None else {}
+    pref_table = terminology.preferred_bindings if terminology is not None else {}
+    bc_table = terminology.base_constraints if terminology is not None else {}
     return (
         header
         + f"COMPLETE_CODE_SYSTEMS: dict[str, list[str]] = {cs_table!r}\n\n"
         + f"VALUE_SET_SPECS: dict[str, dict[str, Any]] = {vs_table!r}\n\n"
         + f"BASE_RESOURCE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {bb_table!r}\n\n"
         + f"COMPLEX_TYPE_BINDINGS: dict[str, dict[str, dict[str, str]]] = {cb_table!r}\n\n"
+        + f"PREFERRED_RESOURCE_BINDINGS: dict[str, dict[str, str]] = {pref_table!r}\n\n"
+        + f"BASE_RESOURCE_CONSTRAINTS: dict[str, list[dict[str, str]]] = {bc_table!r}\n\n"
         + f"PROFILE_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved!r}\n\n"
         + f"EXTENSION_CONSTRAINTS: dict[str, dict[str, Any]] = {resolved_extensions!r}\n"
     )
@@ -1150,6 +1315,8 @@ def main() -> None:
     res_names = _write_resources(resource_sds, r4_vs_codes, known_types)
     base_bindings = _extract_base_resource_bindings(R4_PKG)
     complex_bindings = _extract_complex_type_bindings(R4_PKG, r4_vs_codes)
+    preferred_bindings = _extract_preferred_resource_bindings(R4_PKG)
+    base_constraints = _extract_base_resource_constraints(R4_PKG)
 
     profiles_content = _generate_all_ig_profiles(
         IG_PKGS,
@@ -1159,6 +1326,8 @@ def main() -> None:
             vs_specs=vs_specs,
             base_bindings=base_bindings,
             complex_bindings=complex_bindings,
+            preferred_bindings=preferred_bindings,
+            base_constraints=base_constraints,
         ),
     )
     (OUT_DIR / "profiles.py").write_text(profiles_content, encoding="utf-8")

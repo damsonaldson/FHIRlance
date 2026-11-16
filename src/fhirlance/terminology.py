@@ -1154,9 +1154,9 @@ def _record_binding_issue(
             and system in ctx.vs_spec.get("system_codes", {})
         )
         msg_str = f"{prefix}'{ctx.path}' code '{code}' not in extensible ValueSet '{ctx.vs_url}'"
-        if is_known or ctx.options.strict_extensible:
-            return [msg_str], []
-        return [], [msg_str]
+        return ([msg_str], []) if (is_known or ctx.options.strict_extensible) else ([], [msg_str])
+    if ctx.strength == "preferred":
+        return [], [f"{prefix}'{ctx.path}' code '{code}' not in preferred ValueSet '{ctx.vs_url}'"]
     return [], []
 
 

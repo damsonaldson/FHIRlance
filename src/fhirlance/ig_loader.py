@@ -77,6 +77,7 @@ class _ProfileAccumulator:
     target_aggregations: dict[str, list[str]] = field(default_factory=dict)
     bindings: dict[str, list[str]] = field(default_factory=dict)
     binding_specs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    preferred_bindings: dict[str, str | dict[str, Any]] = field(default_factory=dict)
     slices: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -310,6 +311,13 @@ def _record_element_binding(
         }
         if strength == "required" and vs_url in value_sets:
             acc.bindings[path] = value_sets[vs_url]
+    elif strength == "preferred" and raw_vs:
+        vs_url = raw_vs.split("|", maxsplit=1)[0]
+        rel_path = path.split(".", 1)[1] if "." in path else path
+        spec_entry = vs_specs.get(vs_url) or VALUE_SET_SPECS.get(vs_url)
+        acc.preferred_bindings[rel_path] = (
+            {"value_set": vs_url, "vs_spec": spec_entry} if spec_entry else vs_url
+        )
 
 
 def _record_differential_element(
@@ -408,6 +416,50 @@ def _get_base_elements(
     return base_map
 
 
+def _extract_constraints(elements: Sequence[Any]) -> list[dict[str, str]]:
+    constraints: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        path = el.get("path", "")
+        if not path:
+            continue
+        for c in el.get("constraint") or ():
+            if not isinstance(c, dict):
+                continue
+            key = str(c.get("key") or "")
+            severity = str(c.get("severity") or "")
+            expression = str(c.get("expression") or "").strip()
+            if not key or key == "ele-1" or not expression or severity not in ("error", "warning"):
+                continue
+            if (path, key) in seen:
+                continue
+            seen.add((path, key))
+            constraints.append(
+                {
+                    "key": key,
+                    "severity": severity,
+                    "human": str(c.get("human") or ""),
+                    "expression": expression,
+                    "path": path,
+                }
+            )
+    return constraints
+
+
+def _merge_constraints(
+    parent_constraints: list[dict[str, str]],
+    child_constraints: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    merged: dict[tuple[str, str], dict[str, str]] = {
+        (c["path"], c["key"]): c for c in parent_constraints
+    }
+    for c in child_constraints:
+        merged[(c["path"], c["key"])] = c
+    return list(merged.values())
+
+
 def _extract_profile_spec(
     sd: dict[str, Any],
     sd_type_by_url: dict[str, str],
@@ -453,6 +505,10 @@ def _extract_profile_spec(
         "target_aggregations": acc.target_aggregations,
         "bindings": acc.bindings,
         "binding_specs": acc.binding_specs,
+        "preferred_bindings": acc.preferred_bindings,
+        "constraints": _extract_constraints(
+            diff_elements if diff_elements else (snap.get("element") or []),
+        ),
         "slices": [s for s in acc.slices.values() if s["min"] >= 1 and s["matchers"]],
         "slice_groups": extract_slice_groups(
             diff_elements if diff_elements else (snap.get("element") or []),
@@ -497,6 +553,14 @@ def _merge_profile_with_parent(
         "target_aggregations": {**p_ta, **spec.get("target_aggregations", {})},
         "bindings": {**p_bind, **spec.get("bindings", {})},
         "binding_specs": merged_bs,
+        "preferred_bindings": {
+            **(parent.get("preferred_bindings", {}) if parent else {}),
+            **spec.get("preferred_bindings", {}),
+        },
+        "constraints": _merge_constraints(
+            parent.get("constraints", []) if parent else [],
+            spec.get("constraints", []),
+        ),
         "slices": [*p_sl, *spec.get("slices", [])],
         "slice_groups": merge_slice_groups(
             parent.get("slice_groups", []) if parent else [],

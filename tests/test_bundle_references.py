@@ -416,7 +416,11 @@ class TestBundleSymbolTableAndResolution:
                 },
                 {
                     "fullUrl": "urn:uuid:org-1",
-                    "resource": {"resourceType": "Organization", "id": "org-1"},
+                    "resource": {
+                        "resourceType": "Organization",
+                        "id": "org-1",
+                        "identifier": [{"value": "org-1"}],
+                    },
                 },
             ],
         }
@@ -492,6 +496,7 @@ class TestTargetProfilesAndAggregations:
                     "resource": {
                         "resourceType": "Organization",
                         "id": "o1",
+                        "identifier": [{"value": "o1"}],
                         "telecom": [{"system": "phone", "value": "555-0100"}],
                     },
                 },
@@ -588,7 +593,7 @@ class TestTargetProfilesAndAggregations:
             validate_resource(
                 _valid_patient(
                     managing_org={"reference": "#org-1"},
-                    contained=[{"resourceType": "Organization", "id": "org-1"}],
+                    contained=[{"resourceType": "Organization", "id": "org-1", "name": "Org 1"}],
                     profiles=[contained_prof],
                 ),
                 ig_sources=profiles,
@@ -639,7 +644,7 @@ class TestTargetProfilesAndAggregations:
                 },
                 {
                     "fullUrl": "urn:uuid:o1",
-                    "resource": {"resourceType": "Organization", "id": "o1"},
+                    "resource": {"resourceType": "Organization", "id": "o1", "name": "Bundled Org"},
                 },
             ],
         }

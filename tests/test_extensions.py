@@ -616,6 +616,7 @@ class TestRuntimeIGExtensionLoading:
                 {
                     "resource": _patient(
                         extension=[race_ext],
+                        generalPractitioner=[{"reference": "#c1"}],
                         contained=[
                             _patient(id="c1", extension=[race_ext]),
                         ],

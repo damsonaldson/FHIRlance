@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -104,3 +105,139 @@ def test_codegen_builds_resource_model_with_choice_and_backbone() -> None:
     assert "valueString: StrictStr | None = None" in rendered
     assert "valueInteger: FHIRInteger | None = None" in rendered
     assert "def _check_choices" in rendered
+
+
+def test_codegen_extracts_and_merges_constraints_and_preferred_bindings(tmp_path: Path) -> None:
+    mod = _load_codegen_module()
+    sd_parent = {
+        "type": "Observation",
+        "differential": {
+            "element": [
+                {
+                    "path": "Observation",
+                    "constraint": [
+                        {
+                            "key": "ele-1",
+                            "severity": "error",
+                            "human": "All FHIR elements must have a @value or children",
+                            "expression": "hasValue() or (children().count() > id.count())",
+                        },
+                        {
+                            "key": "obs-parent",
+                            "severity": "warning",
+                            "human": "Parent rule",
+                            "expression": "status.exists()",
+                        },
+                    ],
+                },
+                {
+                    "path": "Observation.category",
+                    "binding": {
+                        "strength": "preferred",
+                        "valueSet": "http://example.org/vs/pref|1.0",
+                    },
+                },
+            ]
+        },
+    }
+    sd_child = {
+        "type": "Observation",
+        "baseDefinition": "http://example.org/parent",
+        "differential": {
+            "element": [
+                {
+                    "path": "Observation",
+                    "constraint": [
+                        {
+                            "key": "obs-parent",
+                            "severity": "error",
+                            "human": "Overridden parent rule",
+                            "expression": "status.exists()",
+                        },
+                        {
+                            "key": "obs-empty",
+                            "severity": "error",
+                            "human": "No expression",
+                            "expression": "",
+                        },
+                    ],
+                },
+                {
+                    "path": "Observation.code",
+                    "binding": {
+                        "strength": "extensible",
+                        "valueSet": "http://example.org/vs/ext",
+                    },
+                },
+            ]
+        },
+    }
+    profiles = {
+        "http://example.org/parent": mod._extract_profile_spec(sd_parent, {}, {}),
+        "http://example.org/child": mod._extract_profile_spec(sd_child, {}, {}),
+    }
+    resolved = mod._resolve_all_profiles(profiles)
+    child = resolved["http://example.org/child"]
+    assert child["preferred_bindings"] == {"category": "http://example.org/vs/pref"}
+    assert child["binding_specs"] == {
+        "code": {"strength": "extensible", "value_set": "http://example.org/vs/ext"}
+    }
+    assert child["constraints"] == [
+        {
+            "key": "obs-parent",
+            "severity": "error",
+            "human": "Overridden parent rule",
+            "expression": "status.exists()",
+            "path": "Observation",
+        }
+    ]
+
+    r4_sd = {
+        "id": "DemoRes",
+        "kind": "resource",
+        "abstract": False,
+        "derivation": "specialization",
+        "snapshot": {
+            "element": [
+                {
+                    "path": "DemoRes",
+                    "constraint": [
+                        {
+                            "key": "dom-6",
+                            "severity": "warning",
+                            "human": "Best practice",
+                            "expression": "text.exists()",
+                        },
+                        {
+                            "key": "demo-1",
+                            "severity": "error",
+                            "human": "Demo rule",
+                            "expression": "code.exists()",
+                        },
+                    ],
+                },
+                {
+                    "path": "DemoRes.language",
+                    "binding": {
+                        "strength": "preferred",
+                        "valueSet": "http://hl7.org/fhir/ValueSet/languages|4.0.1",
+                    },
+                },
+            ]
+        },
+    }
+    (tmp_path / "StructureDefinition-DemoRes.json").write_text(json.dumps(r4_sd), encoding="utf-8")
+    assert mod._extract_preferred_resource_bindings(tmp_path) == {
+        "DemoRes": {"language": "http://hl7.org/fhir/ValueSet/languages"}
+    }
+    assert mod._extract_base_resource_constraints(tmp_path) == {
+        "DemoRes": [
+            {
+                "key": "demo-1",
+                "severity": "error",
+                "human": "Demo rule",
+                "expression": "code.exists()",
+                "path": "DemoRes",
+            }
+        ]
+    }

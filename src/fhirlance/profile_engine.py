@@ -7,6 +7,12 @@ from itertools import pairwise
 from typing import Any
 from urllib.parse import urlsplit
 
+from fhirlance.fhirpath import (
+    CompiledExpr,
+    EvalContext,
+    compile_fhirpath,
+    evaluate_compiled_invariant,
+)
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.terminology import (
@@ -18,6 +24,7 @@ from fhirlance.terminology import (
 
 _CHOICE_SUFFIX = "[x]"
 _CHOICE_SUFFIX_LEN = len(_CHOICE_SUFFIX)
+_CONTAINED_CONSTRAINT_KEYS = frozenset({"dom-2", "dom-3", "dom-4", "dom-5"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +176,19 @@ class CompiledBindingRule:
 
 
 @dataclass(frozen=True, slots=True)
+class CompiledConstraint:
+    """A pre-compiled FHIRPath invariant constraint on a StructureDefinition."""
+
+    key: str
+    severity: str
+    path: str
+    parts: tuple[str, ...]
+    human: str
+    evaluator: CompiledExpr
+    requires_contained: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class CompiledProfile:
     """Pre-compiled StructureDefinition constraint set for fast validation."""
 
@@ -186,6 +206,8 @@ class CompiledProfile:
     slice_groups: tuple[CompiledSliceGroup, ...] = ()
     target_profiles: tuple[AllowedValuesRule, ...] = ()
     target_aggregations: tuple[AllowedValuesRule, ...] = ()
+    constraints: tuple[CompiledConstraint, ...] = ()
+    preferred_bindings: tuple[CompiledBindingRule, ...] = ()
 
 
 def pattern_matches(actual: Any, pattern: Any) -> bool:
@@ -432,6 +454,56 @@ def _compile_slice_group(raw: dict[str, Any], *, is_sub_group: bool = False) -> 
     )
 
 
+def compile_constraints(
+    raw_constraints: list[dict[str, str]] | tuple[dict[str, str], ...],
+) -> tuple[CompiledConstraint, ...]:
+    """Pre-compile raw ElementDefinition.constraint dicts into CompiledConstraints."""
+    compiled: list[CompiledConstraint] = []
+    for c in raw_constraints:
+        key = str(c.get("key") or "")
+        severity = str(c.get("severity") or "")
+        expr = str(c.get("expression") or "").strip()
+        if not key or not expr or severity not in ("error", "warning"):
+            continue
+        try:
+            evaluator = compile_fhirpath(expr)
+        except ValueError:
+            continue
+        path = str(c.get("path") or "")
+        parts = tuple(seg.split(":")[0] for seg in path.split(".")[1:]) if "." in path else ()
+        compiled.append(
+            CompiledConstraint(
+                key=key,
+                severity=severity,
+                path=path,
+                parts=parts,
+                human=str(c.get("human") or ""),
+                evaluator=evaluator,
+                requires_contained=key in _CONTAINED_CONSTRAINT_KEYS,
+            )
+        )
+    return tuple(compiled)
+
+
+def _compile_preferred_bindings(
+    base_type: str | None,
+    raw_preferred: dict[str, Any],
+) -> tuple[CompiledBindingRule, ...]:
+    if not raw_preferred:
+        return ()
+    raw_specs: dict[str, Any] = {}
+    for rel_path, raw_val in raw_preferred.items():
+        if isinstance(raw_val, dict):
+            raw_specs[rel_path] = {
+                "strength": "preferred",
+                "value_set": raw_val.get("value_set", ""),
+                "vs_spec": raw_val.get("vs_spec"),
+            }
+        else:
+            raw_specs[rel_path] = {"strength": "preferred", "value_set": str(raw_val)}
+    return _compile_binding_specs(base_type, raw_specs, {})
+
+
 def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
     base_type = spec.get("base_type")
     return CompiledProfile(
@@ -496,6 +568,10 @@ def _compile_single_profile(spec: dict[str, Any]) -> CompiledProfile:
         target_aggregations=tuple(
             AllowedValuesRule(p, tuple(p.split(".")[1:]), frozenset(aggs))
             for p, aggs in spec.get("target_aggregations", {}).items()
+        ),
+        constraints=compile_constraints(spec.get("constraints", ())),
+        preferred_bindings=_compile_preferred_bindings(
+            base_type, spec.get("preferred_bindings", {})
         ),
     )
 
@@ -1192,6 +1268,42 @@ def _check_slice_groups(
     return issues
 
 
+def _has_first_segment(resource: dict[str, Any], seg: str) -> bool:
+    if not seg.endswith(_CHOICE_SUFFIX):
+        return seg in resource
+    stem = seg[:-_CHOICE_SUFFIX_LEN]
+    stem_len = len(stem)
+    return any(k.startswith(stem) and len(k) > stem_len and k[stem_len].isupper() for k in resource)
+
+
+def check_constraints(
+    resource: dict[str, Any],
+    constraints: tuple[CompiledConstraint, ...],
+    *,
+    bundle_index: dict[str, dict[str, Any]] | None = None,
+    warnings_out: list[str] | None = None,
+) -> list[str]:
+    """Evaluate pre-compiled FHIRPath constraints with O(1) field short-circuits."""
+    if not constraints:
+        return []
+    issues: list[str] = []
+    ctx = EvalContext(resource=resource, root_resource=resource, bundle_index=bundle_index)
+    for c in constraints:
+        if c.requires_contained and "contained" not in resource:
+            continue
+        if c.parts and not _has_first_segment(resource, c.parts[0]):
+            continue
+        nodes = [resource] if not c.parts else resolve_nodes(resource, c.parts)
+        for node in nodes:
+            if not evaluate_compiled_invariant(c.evaluator, node, ctx):
+                if c.severity == "error":
+                    issues.append(f"Invariant[{c.key}] {c.path}: {c.human}")
+                elif c.severity == "warning" and warnings_out is not None:
+                    warnings_out.append(f"Warning: Invariant[{c.key}] {c.path}: {c.human}")
+                break
+    return issues
+
+
 def validate_single_profile(
     resource: dict[str, Any],
     rtype: str,
@@ -1211,6 +1323,7 @@ def validate_single_profile(
 
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
+    best_practice = bool(kwargs.get("best_practice", False))
     _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     tx_options = (
         tx_raw
@@ -1237,6 +1350,15 @@ def validate_single_profile(
         else _check_slices(resource, prof_url, spec.slices)
     )
 
+    if best_practice and _warnings_out is not None and tx_options.mode != "off":
+        _check_bindings(
+            resource,
+            prof_url,
+            spec.preferred_bindings,
+            tx_options,
+            _warnings_out=_warnings_out,
+        )
+
     return [
         *_check_required(resource, prof_url, spec.required),
         *_check_forbidden(resource, prof_url, spec.forbidden),
@@ -1253,6 +1375,12 @@ def validate_single_profile(
             spec.binding_specs,
             tx_options,
             _warnings_out=_warnings_out,
+        ),
+        *check_constraints(
+            resource,
+            spec.constraints,
+            bundle_index=bundle_index,
+            warnings_out=_warnings_out,
         ),
         *slice_issues,
     ]
