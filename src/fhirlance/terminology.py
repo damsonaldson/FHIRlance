@@ -1312,6 +1312,21 @@ def _format_trail_path(trail: list[tuple[int, str | int]], idx: int) -> str:
     return "".join(segs)
 
 
+def _subtree_has_extension_key(root: dict[str, Any]) -> bool:
+    stack: list[Any] = [root]
+    while stack:
+        curr = stack.pop()
+        if isinstance(curr, dict):
+            for k, v in curr.items():
+                if k in ("extension", "modifierExtension") or (len(k) > 1 and k[0] == "_"):
+                    return True
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+        elif isinstance(curr, list):
+            stack.extend(item for item in curr if isinstance(item, (dict, list)))
+    return False
+
+
 def _scan_codings_and_extensions(
     resource: dict[str, Any],
     root_path: str,
@@ -1325,6 +1340,7 @@ def _scan_codings_and_extensions(
         node_idx, node = stack.pop()
         if isinstance(node, dict):
             if node is not resource and isinstance(node.get("resourceType"), str):
+                has_extensions = has_extensions or _subtree_has_extension_key(node)
                 continue
             if (
                 "url" not in node

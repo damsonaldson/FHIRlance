@@ -44,7 +44,12 @@ from fhirlance.formatters import (
 from fhirlance.ig_loader import load_compiled_ig_profiles, load_raw_ig_profiles
 from fhirlance.profile_engine import CompiledBindingRule, _compile_binding_specs
 from fhirlance.profiles import BASE_RESOURCE_BINDINGS, COMPLETE_CODE_SYSTEMS
-from fhirlance.resource_validator import validate_resource
+from fhirlance.resource_validator import (
+    _apply_direct_binding,
+    _BindingValidationCtx,
+    _CompiledBindingEntry,
+    validate_resource,
+)
 from fhirlance.terminology import (
     _evaluate_code_in_valueset,
     _evaluate_grammar_in_valueset,
@@ -1233,3 +1238,57 @@ def test_deduplicate_base_binding_vs_active_profile_binding() -> None:
     assert status_errors[0].startswith(
         "Profile[http://hl7.org/fhir/StructureDefinition/vitalsigns]:"
     )
+
+
+def test_parameters_nested_resource_extension_parity_local_vs_off() -> None:
+    params = {
+        "resourceType": "Parameters",
+        "parameter": [
+            {
+                "name": "patient",
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": "p1",
+                    "modifierExtension": [
+                        {
+                            "url": "http://example.org/fhir/StructureDefinition/unknown-mod-ext",
+                            "valueString": "bad",
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+    local_issues = validate_resource(params, tx="local")
+    off_issues = validate_resource(params, tx="off")
+    assert any("unknown-mod-ext" in i for i in off_issues)
+    assert [i for i in local_issues if "unknown-mod-ext" in i] == [
+        i for i in off_issues if "unknown-mod-ext" in i
+    ]
+
+
+def test_extensions_precheck_and_direct_binding_none_branches() -> None:
+    # Exercise _has_any_extension_key nested list/dict path via tx="off"
+    patient_with_nested_ext = {
+        "resourceType": "Patient",
+        "name": [
+            {"family": "Doe", "extension": [{"url": "http://example.org/ext", "valueString": "x"}]}
+        ],
+    }
+    issues_off = validate_resource(patient_with_nested_ext, tx="off")
+    assert isinstance(issues_off, list)
+
+    # Exercise _apply_direct_binding None and [None] branches
+    ctx = _BindingValidationCtx(
+        tx_options=TxOptions(mode="local"), issues=[], warnings=[], skip_paths=None
+    )
+    entry = _CompiledBindingEntry(
+        rel_path="maritalStatus",
+        first_key="maritalStatus",
+        parts=("maritalStatus",),
+        value_set="http://hl7.org/fhir/ValueSet/marital-status",
+        strength="extensible",
+    )
+    _apply_direct_binding(None, "Patient.maritalStatus", entry, ctx)
+    _apply_direct_binding([None], "Patient.maritalStatus", entry, ctx)
+    assert ctx.issues == []
