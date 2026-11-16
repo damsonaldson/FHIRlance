@@ -1,6 +1,15 @@
 """High-performance FHIR R4 structural and multi-IG profile validator."""
 
 from fhirlance.base import DomainResourceBase, FHIRBaseModel
+from fhirlance.conceptmap import (
+    ConceptMapRegistry,
+    ConceptMapSpec,
+    TranslateMatch,
+    TranslateRequest,
+    TranslateResult,
+    parse_concept_map,
+    translate_code,
+)
 from fhirlance.dataset import loads_strict_json, validate_dataset
 from fhirlance.formatters import (
     SUPPORTED_OUTPUT_FORMATS,
@@ -15,6 +24,7 @@ from fhirlance.ig_loader import (
     clear_ig_cache,
     load_compiled_ig_extensions,
     load_compiled_ig_profiles,
+    load_ig_concept_maps,
     load_raw_ig_extensions,
     load_raw_ig_profiles,
     register_ig,
@@ -40,9 +50,14 @@ __all__ = [
     "PROFILE_CONSTRAINTS",
     "RESOURCE_MODELS",
     "SUPPORTED_OUTPUT_FORMATS",
+    "ConceptMapRegistry",
+    "ConceptMapSpec",
     "DomainResourceBase",
     "FHIRBaseModel",
     "TerminologyResult",
+    "TranslateMatch",
+    "TranslateRequest",
+    "TranslateResult",
     "TxClient",
     "TxOptions",
     "__version__",
@@ -54,11 +69,14 @@ __all__ = [
     "issues_to_operation_outcome",
     "load_compiled_ig_extensions",
     "load_compiled_ig_profiles",
+    "load_ig_concept_maps",
     "load_raw_ig_extensions",
     "load_raw_ig_profiles",
     "loads_strict_json",
+    "parse_concept_map",
     "parse_tx_options",
     "register_ig",
+    "translate_code",
     "validate_binding_value",
     "validate_dataset",
     "validate_dataset_structural",

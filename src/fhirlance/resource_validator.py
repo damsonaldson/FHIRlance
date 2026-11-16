@@ -28,6 +28,10 @@ from fhirlance.profiles import (
     COMPLEX_TYPE_BINDINGS,
     VALUE_SET_SPECS,
 )
+from fhirlance.questionnaire import (
+    validate_questionnaire_response_against_questionnaire,
+    validate_questionnaire_semantics,
+)
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.terminology import (
     TerminologyResult,
@@ -400,6 +404,62 @@ def _resolve_compiled_maps(
     return None, ext_override if ext_override is not None else COMPILED_EXTENSIONS
 
 
+def _resolve_questionnaire(
+    canonical: str,
+    bundle_index: dict[str, dict[str, Any]] | None,
+    contained: Any,
+) -> dict[str, Any] | None:
+    if canonical.startswith("#"):
+        target_id = canonical[1:]
+        if isinstance(contained, list):
+            for item in contained:
+                if (
+                    isinstance(item, dict)
+                    and item.get("resourceType") == "Questionnaire"
+                    and item.get("id") == target_id
+                ):
+                    return item
+        return None
+
+    if bundle_index is None:
+        return None
+
+    canonical_no_ver = canonical.split("|", 1)[0]
+    direct = bundle_index.get(canonical) or bundle_index.get(canonical_no_ver)
+    if isinstance(direct, dict) and direct.get("resourceType") == "Questionnaire":
+        return direct
+
+    for res in bundle_index.values():
+        if res.get("resourceType") == "Questionnaire" and res.get("url") == canonical_no_ver:
+            return res
+    return None
+
+
+def _validate_specialized_semantics(
+    resource: dict[str, Any],
+    rtype: str,
+    tx_options: TxOptions,
+    bundle_index: dict[str, dict[str, Any]] | None,
+    kwargs: dict[str, Any],
+) -> list[str]:
+    if rtype == "Questionnaire":
+        return validate_questionnaire_semantics(
+            resource,
+            tx_options=tx_options,
+            warnings_out=kwargs.get("_warnings_out"),
+        )
+    if rtype == "QuestionnaireResponse":
+        q_override = kwargs.get("questionnaire_resource")
+        q_res = q_override if isinstance(q_override, dict) else None
+        if q_res is None and isinstance(q_ref := resource.get("questionnaire"), str) and q_ref:
+            q_res = _resolve_questionnaire(q_ref, bundle_index, resource.get("contained"))
+        if q_res is not None:
+            return validate_questionnaire_response_against_questionnaire(
+                resource, q_res, tx_options=tx_options
+            )
+    return []
+
+
 def validate_resource(
     resource: Any,
     *,
@@ -502,6 +562,10 @@ def validate_resource(
                 bundle_index=bundle_index,
             )
         )
+
+    issues.extend(
+        _validate_specialized_semantics(resource, rtype, tx_options, bundle_index, kwargs)
+    )
 
     issues.extend(
         _validate_nested_resources(
