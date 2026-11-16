@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from fhirlance.specialized_invariants import SPECIALIZED_INVARIANT_CHECKS
+
 _OBS_VALUE_FIELDS = (
     "valueQuantity",
     "valueCodeableConcept",
@@ -206,6 +208,7 @@ def _check_bundle_invariants(resource: dict[str, Any]) -> list[str]:
 
 
 _RESOURCE_INVARIANT_CHECKS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
+    **SPECIALIZED_INVARIANT_CHECKS,
     "Patient": _check_patient_invariants,
     "Observation": _check_observation_invariants,
     "Condition": _check_condition_invariants,

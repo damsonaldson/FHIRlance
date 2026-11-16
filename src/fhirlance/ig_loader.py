@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from fhirlance.conceptmap import ConceptMapRegistry
 from fhirlance.extension_spec import extract_extension_spec, resolve_all_extensions
 from fhirlance.extensions import (
     _RAW_BUILTIN_EXTENSIONS,
@@ -30,6 +31,7 @@ __all__ = [
     "load_compiled_ig_bundle",
     "load_compiled_ig_extensions",
     "load_compiled_ig_profiles",
+    "load_ig_concept_maps",
     "load_raw_ig_extensions",
     "load_raw_ig_profiles",
     "register_ig",
@@ -59,6 +61,7 @@ class _IGResources:
     code_systems: list[dict[str, Any]] = field(default_factory=list)
     value_sets: list[dict[str, Any]] = field(default_factory=list)
     structure_definitions: list[dict[str, Any]] = field(default_factory=list)
+    concept_maps: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -555,6 +558,8 @@ def _ingest_resource(data: dict[str, Any], container: _IGResources) -> None:
         container.value_sets.append(data)
     elif rt == "StructureDefinition":
         container.structure_definitions.append(data)
+    elif rt == "ConceptMap":
+        container.concept_maps.append(data)
 
 
 def _load_from_tarball(path: Path, container: _IGResources) -> None:
@@ -706,7 +711,15 @@ _BASE_COMPILED_PROFILES: dict[str, CompiledProfile] = dict(COMPILED_PROFILES)
 _BASE_COMPILED_EXTENSIONS: dict[str, CompiledExtension] = dict(COMPILED_EXTENSIONS)
 _COMPILED_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledProfile]] = {}
 _COMPILED_EXT_CACHE: dict[tuple[tuple[str, int, int], ...], dict[str, CompiledExtension]] = {}
+_CONCEPT_MAP_CACHE: dict[tuple[tuple[str, int, int], ...], ConceptMapRegistry] = {}
 _CACHE_LOCK = threading.Lock()
+
+
+def _load_ig_resources(paths: Sequence[Path]) -> _IGResources:
+    container = _IGResources()
+    for path in paths:
+        _load_source(path, container)
+    return container
 
 
 def _load_ig_sds(
@@ -717,9 +730,7 @@ def _load_ig_sds(
     dict[str, dict[str, Any]],
     dict[str, str],
 ]:
-    container = _IGResources()
-    for path in paths:
-        _load_source(path, container)
+    container = _load_ig_resources(paths)
 
     code_systems = _extract_code_systems(container.code_systems)
     vs_specs: dict[str, dict[str, Any]] = {}
@@ -806,10 +817,30 @@ def clear_ig_cache() -> None:
     with _CACHE_LOCK:
         _COMPILED_CACHE.clear()
         _COMPILED_EXT_CACHE.clear()
+        _CONCEPT_MAP_CACHE.clear()
         COMPILED_PROFILES.clear()
         COMPILED_PROFILES.update(_BASE_COMPILED_PROFILES)
         COMPILED_EXTENSIONS.clear()
         COMPILED_EXTENSIONS.update(_BASE_COMPILED_EXTENSIONS)
+
+
+def load_ig_concept_maps(ig_sources: Sequence[str | Path]) -> ConceptMapRegistry:
+    """Load ConceptMap resources from IG sources into a cached ConceptMapRegistry."""
+    resolved_sources = [_resolve_source_path(s) for s in ig_sources]
+    cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
+    with _CACHE_LOCK:
+        cached = _CONCEPT_MAP_CACHE.get(cache_key)
+        if cached is not None:
+            return cached.copy()
+
+    container = _load_ig_resources(resolved_sources)
+    registry = ConceptMapRegistry()
+    for cm in container.concept_maps:
+        registry.register_dict(cm)
+
+    with _CACHE_LOCK:
+        _CONCEPT_MAP_CACHE[cache_key] = registry
+    return registry.copy()
 
 
 def register_ig(sources: Sequence[str | Path]) -> dict[str, CompiledProfile]:

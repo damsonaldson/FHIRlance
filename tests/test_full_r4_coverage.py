@@ -118,6 +118,11 @@ def build_minimal_valid(model_cls: type[FHIRBaseModel]) -> dict[str, Any]:
             ann = hints.get(first_var, info.annotation)
             out[info.alias or first_var] = sample_value_for_field(ann, info.metadata)
 
+    if out.get("resourceType") == "CapabilityStatement":
+        out["kind"] = "capability"
+        out["software"] = {"name": "sample-sw"}
+        out["rest"] = [{"mode": "server"}]
+
     _MINIMAL_VALID_CACHE[model_cls] = dict(out)
     return out
 
