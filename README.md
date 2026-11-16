@@ -24,14 +24,14 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 Auto-updated on build via [`scripts/benchmark_performance.py`](scripts/benchmark_performance.py) (raw JSON: [`docs/benchmark-results.json`](docs/benchmark-results.json); full methodology: **[Equivalence & Testing](docs/equivalence-and-testing.md)**).
 
 <!-- PERFORMANCE_BENCHMARK_START -->
-**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,993` pytest items (`2,983` offline, `96.44%` coverage) | **Updated**: `2026-11-16 19:55 UTC`
+**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,996` pytest items (`2,986` offline, `96.52%` coverage) | **Updated**: `2026-11-16 20:48 UTC`
 
 #### 1. Master Equivalence Dataset (`325` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
 
 | Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |
 | :--- | ---: | ---: | ---: | ---: |
-| **FHIRlance — Standard Mode** | **`40.84 ms`** | **`125.7 µs`** | **`7,958 /s`** | **`860.1x`** |
-| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`42.77 ms`** | **`131.6 µs`** | **`7,599 /s`** | **`821.4x`** |
+| **FHIRlance — Standard Mode** | **`44.60 ms`** | **`137.2 µs`** | **`7,287 /s`** | **`787.6x`** |
+| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`49.13 ms`** | **`151.2 µs`** | **`6,615 /s`** | **`715.1x`** |
 | **Official HL7 Baseline Validator** | `35.13 s` | `108.1 ms` | `9.25 /s` | `1.0x` |
 
 <sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` · HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>
@@ -40,9 +40,9 @@ Auto-updated on build via [`scripts/benchmark_performance.py`](scripts/benchmark
 
 | Workload | Volume | Elapsed | Throughput |
 | :--- | ---: | ---: | ---: |
-| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`154.93 ms`** | **`6,455 /s`** |
-| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`157.22 ms`** | **`6,361 /s`** |
-| **Offline Pytest Suite** (`not hl7_live`) | `2,983` items (`96.44%` cov) | `24.61 s` | **`121.2 items/s`** |
+| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`166.71 ms`** | **`5,998 /s`** |
+| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`162.91 ms`** | **`6,138 /s`** |
+| **Offline Pytest Suite** (`not hl7_live`) | `2,986` items (`96.52%` cov) | `26.08 s` | **`114.5 items/s`** |
 <!-- PERFORMANCE_BENCHMARK_END -->
 
 ## HL7 Equivalence & Testing (TL;DR)
