@@ -466,6 +466,16 @@ def _apply_exclude_entry(
             state.remove_codes("", imported)
 
 
+def _expand_from_contains(vs: dict[str, Any]) -> tuple[frozenset[str], frozenset[str]]:
+    contains = (vs.get("expansion") or {}).get("contains") or []
+    if not isinstance(contains, list):
+        return frozenset(), frozenset()
+    codes: set[str] = set()
+    systems: set[str] = set()
+    _collect_expansion_contains(contains, codes, systems)
+    return frozenset(codes), frozenset(systems)
+
+
 def expand_value_set_codes(
     vs: dict[str, Any],
     hierarchies: Mapping[str, CodeSystemHierarchy],
@@ -474,20 +484,21 @@ def expand_value_set_codes(
     """Expand a ValueSet into (codes, systems, complete_flag)."""
     compose = vs.get("compose")
     if not isinstance(compose, dict):
-        codes: set[str] = set()
-        systems: set[str] = set()
-        contains = vs.get("expansion", {}).get("contains", [])
-        if isinstance(contains, list):
-            _collect_expansion_contains(contains, codes, systems)
-        return frozenset(codes), frozenset(systems), True
+        exp_codes, exp_systems = _expand_from_contains(vs)
+        return exp_codes, exp_systems, True
 
     state = _ExpansionState(sys_codes={}, untracked=set(), systems=set())
-    for inc in compose.get("include", []):
+    for inc in compose.get("include") or []:
         if isinstance(inc, dict):
             _apply_include_entry(inc, hierarchies, resolved_vs, state)
-    for exc in compose.get("exclude", []):
+    for exc in compose.get("exclude") or []:
         if isinstance(exc, dict):
             _apply_exclude_entry(exc, hierarchies, resolved_vs, state)
 
     all_codes = frozenset(state.untracked).union(*state.sys_codes.values())
-    return all_codes, frozenset(state.systems), state.complete
+    all_systems = frozenset(state.systems)
+    if not all_codes:
+        exp_codes, exp_systems = _expand_from_contains(vs)
+        if exp_codes:
+            return exp_codes, all_systems | exp_systems, True
+    return all_codes, all_systems, state.complete

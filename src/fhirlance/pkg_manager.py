@@ -1,8 +1,7 @@
-"""FHIR IG package resolution, safe installation, and persistent disk caching."""
+"""FHIR IG package resolution and safe installation."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -17,13 +16,21 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 _MAX_TAR_MEMBER_BYTES = 25 * 1024 * 1024  # 25 MB
+_MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024  # 128 MB
 _MAX_TAR_MEMBERS = 5000
 _HTTP_TIMEOUT_SECONDS = 30
+_SAFE_PKG_PART_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _REGISTRY_URLS = (
     "https://packages.fhir.org",
     "https://packages.simplifier.net",
 )
 _SKIPPED_CORE_PACKAGES = frozenset({"hl7.fhir.r4.core", "hl7.fhir.r4.examples"})
+
+
+def _validate_pkg_part(value: str, label: str) -> str:
+    if not value or ".." in value or not _SAFE_PKG_PART_RE.fullmatch(value):
+        raise ValueError(f"Invalid package {label}: {value!r}")
+    return value
 
 
 def default_cache_dir() -> Path:
@@ -51,6 +58,10 @@ def find_package_dir(
     cache_dir: Path | None = None,
 ) -> Path | None:
     """Locate an installed FHIR package directory in FHIRlance or ~/.fhir caches."""
+    _validate_pkg_part(pkg_id, "id")
+    if version is not None:
+        _validate_pkg_part(version, "version")
+
     base_cache = cache_dir if cache_dir is not None else default_cache_dir()
     search_roots = (
         base_cache / "packages",
@@ -78,7 +89,11 @@ def _extract_deps_dict(raw_data: Any) -> dict[str, str]:
     deps = raw_data.get("dependencies")
     if not isinstance(deps, dict):
         return {}
-    return {k: v for k, v in deps.items() if isinstance(k, str) and isinstance(v, str) and k and v}
+    validated: dict[str, str] = {}
+    for k, v in deps.items():
+        if isinstance(k, str) and isinstance(v, str) and k and v:
+            validated[_validate_pkg_part(k, "id")] = _validate_pkg_part(v, "version")
+    return validated
 
 
 def _read_json_bytes(raw_bytes: bytes) -> dict[str, str]:
@@ -170,8 +185,10 @@ def _download_bytes(url: str) -> bytes:
     _validate_https_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": "fhirlance"})  # noqa: S310
     with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_SECONDS) as resp:  # noqa: S310
-        data: bytes = resp.read()
-        return data
+        data: bytes = resp.read(_MAX_DOWNLOAD_BYTES + 1)
+    if len(data) > _MAX_DOWNLOAD_BYTES:
+        raise ValueError(f"Download exceeds maximum size of {_MAX_DOWNLOAD_BYTES} bytes: {url}")
+    return data
 
 
 def _resolve_latest_version(pkg_id: str) -> str:
@@ -246,7 +263,12 @@ def _install_single_package(
     version: str,
     base_cache: Path,
 ) -> Path:
+    _validate_pkg_part(pkg_id, "id")
+    _validate_pkg_part(version, "version")
+    packages_root = (base_cache / "packages").resolve()
     dest_dir = base_cache / "packages" / f"{pkg_id}#{version}"
+    if not dest_dir.resolve().is_relative_to(packages_root):
+        raise ValueError(f"Package destination escapes cache directory: {dest_dir}")
     if (dest_dir / "package" / "package.json").is_file():
         return dest_dir / "package"
 
@@ -266,14 +288,15 @@ def _install_single_package(
 
 
 def _parse_pkg_spec(pkg_spec: str) -> tuple[str, str]:
+    if not pkg_spec:
+        raise ValueError("Package spec must not be empty")
     if "#" in pkg_spec:
         pkg_id, version = pkg_spec.split("#", 1)
         if not pkg_id or not version:
             raise ValueError(f"Invalid package spec: {pkg_spec!r}")
-        return pkg_id, version
-    if not pkg_spec:
-        raise ValueError("Package spec must not be empty")
-    return pkg_spec, _resolve_latest_version(pkg_spec)
+        return _validate_pkg_part(pkg_id, "id"), _validate_pkg_part(version, "version")
+    _validate_pkg_part(pkg_spec, "id")
+    return pkg_spec, _validate_pkg_part(_resolve_latest_version(pkg_spec), "version")
 
 
 def install_package(
@@ -306,28 +329,3 @@ def install_package(
                 queue.append((dep_id, dep_version))
 
     return installed
-
-
-def _ig_cache_file(key: str, cache_dir: Path | None) -> Path:
-    base_cache = cache_dir if cache_dir is not None else default_cache_dir()
-    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
-    return base_cache / "ig" / f"{digest}.json"
-
-
-def load_ig_disk_cache(key: str, cache_dir: Path | None = None) -> dict[str, Any] | None:
-    """Load a cached compiled IG JSON payload from disk, or return None on miss/corruption."""
-    cache_file = _ig_cache_file(key, cache_dir)
-    if not cache_file.is_file():
-        return None
-    try:
-        parsed = json.loads(cache_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return parsed if isinstance(parsed, dict) else None
-
-
-def save_ig_disk_cache(key: str, data: dict[str, Any], cache_dir: Path | None = None) -> None:
-    """Persist a compiled IG JSON payload to disk under <cache_dir>/ig/."""
-    cache_file = _ig_cache_file(key, cache_dir)
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(data), encoding="utf-8")

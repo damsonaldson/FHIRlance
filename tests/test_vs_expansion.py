@@ -336,3 +336,32 @@ def test_edge_cases_for_properties_supplements_and_exclude() -> None:
     b_codes, b_sys, _ = expand_value_set_codes(exp_bad, {})
     assert b_codes == frozenset({"OK"})
     assert b_sys == frozenset()
+
+
+def test_expand_value_set_codes_none_expansion_and_compose_fallback() -> None:
+    none_exp_vs: dict[str, object] = {"expansion": None}
+    codes, systems, complete = expand_value_set_codes(none_exp_vs, {})
+    assert codes == frozenset()
+    assert systems == frozenset()
+    assert complete is True
+
+    compose_with_exp: dict[str, object] = {
+        "compose": {
+            "include": [
+                {
+                    "system": "http://snomed.info/sct",
+                    "filter": [{"property": "concept", "op": "is-a", "value": "12345"}],
+                }
+            ]
+        },
+        "expansion": {
+            "contains": [
+                {"system": "http://snomed.info/sct", "code": "12345"},
+                {"system": "http://snomed.info/sct", "code": "67890"},
+            ]
+        },
+    }
+    f_codes, f_systems, f_complete = expand_value_set_codes(compose_with_exp, {})
+    assert f_codes == frozenset({"12345", "67890"})
+    assert f_systems == frozenset({"http://snomed.info/sct"})
+    assert f_complete is True

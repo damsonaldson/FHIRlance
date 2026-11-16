@@ -215,20 +215,31 @@ def test_install_package_rejects_oversized_tar_member(
         pkg_manager.install_package("big.ig#1.0.0", cache_dir=tmp_path / "cache")
 
 
-def test_ig_disk_cache_roundtrip_and_corruption(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "bad_part",
+    ["../../evil", "foo/bar", "foo\\bar", "foo..bar", "foo\x00bar", ".leadingdot", "a" * 129],
+)
+def test_rejects_unsafe_pkg_id_and_version(tmp_path: Path, bad_part: str) -> None:
     cache_dir = tmp_path / "cache"
-    assert pkg_manager.load_ig_disk_cache("missing-key", cache_dir=cache_dir) is None
+    with pytest.raises(ValueError, match="Invalid package id"):
+        pkg_manager.find_package_dir(bad_part, cache_dir=cache_dir)
+    with pytest.raises(ValueError, match="Invalid package version"):
+        pkg_manager.find_package_dir("valid.ig", bad_part, cache_dir=cache_dir)
+    with pytest.raises(ValueError, match="Invalid package id"):
+        pkg_manager.install_package(f"{bad_part}#1.0.0", cache_dir=cache_dir)
+    with pytest.raises(ValueError, match="Invalid package version"):
+        pkg_manager.install_package(f"valid.ig#{bad_part}", cache_dir=cache_dir)
+    with pytest.raises(ValueError, match="Invalid package id"):
+        pkg_manager._install_single_package(bad_part, "1.0.0", cache_dir)
 
-    payload: dict[str, Any] = {"profiles": {"http://example.org/p": {"required": ["id"]}}}
-    pkg_manager.save_ig_disk_cache("ig-key-1", payload, cache_dir=cache_dir)
-    assert pkg_manager.load_ig_disk_cache("ig-key-1", cache_dir=cache_dir) == payload
-
-    cache_file = next((cache_dir / "ig").glob("*.json"))
-    cache_file.write_text("{broken json", encoding="utf-8")
-    assert pkg_manager.load_ig_disk_cache("ig-key-1", cache_dir=cache_dir) is None
-
-    cache_file.write_text("[1, 2, 3]", encoding="utf-8")
-    assert pkg_manager.load_ig_disk_cache("ig-key-1", cache_dir=cache_dir) is None
+    malicious_dir = tmp_path / "malicious_pkg"
+    malicious_dir.mkdir()
+    (malicious_dir / "package.json").write_text(
+        json.dumps({"name": "valid.ig", "dependencies": {bad_part: "1.0.0"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Invalid package id"):
+        pkg_manager.read_package_dependencies(malicious_dir)
 
 
 def test_cli_pkg_install_and_unknown_profile(
@@ -269,7 +280,10 @@ def test_cli_pkg_install_and_unknown_profile(
     assert mock_val_default.call_args.kwargs["unknown_profile"] == "ignore"
 
 
-def test_download_bytes_and_registry_failures(tmp_path: Path) -> None:
+def test_download_bytes_and_registry_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with pytest.raises(ValueError, match="non-HTTPS"):
         pkg_manager._download_bytes("http://example.com/pkg.tgz")
 
@@ -283,11 +297,18 @@ def test_download_bytes_and_registry_failures(tmp_path: Path) -> None:
         def __exit__(self, *_args: object) -> None:
             return None
 
-        def read(self) -> bytes:
-            return self._payload
+        def read(self, amt: int = -1) -> bytes:
+            return self._payload if amt < 0 else self._payload[:amt]
 
     with patch("urllib.request.urlopen", return_value=_FakeResp(b"ok")):
         assert pkg_manager._download_bytes("https://packages.fhir.org/x") == b"ok"
+
+    monkeypatch.setattr(pkg_manager, "_MAX_DOWNLOAD_BYTES", 4)
+    with (
+        patch("urllib.request.urlopen", return_value=_FakeResp(b"12345")),
+        pytest.raises(ValueError, match="maximum size"),
+    ):
+        pkg_manager._download_bytes("https://packages.fhir.org/big")
 
     with (
         patch("fhirlance.pkg_manager._download_bytes", side_effect=urllib.error.URLError("down")),
