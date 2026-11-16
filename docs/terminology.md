@@ -1,6 +1,6 @@
 # FHIRlance Terminology Validation Engine & TX Reference
 
-This document provides a comprehensive technical reference for the **FHIRlance Terminology Validation Engine** (`src/fhirlance/terminology.py` and compiled terminology tables in `src/fhirlance/profiles.py`).
+This document provides a comprehensive technical reference for the **FHIRlance Terminology Validation Engine** (`src/fhirlance/terminology.py`, `src/fhirlance/vs_expansion.py`, `src/fhirlance/conceptmap.py`, and compiled terminology tables in `src/fhirlance/profiles.py`).
 
 FHIRlance delivers an ultra-fast, zero-network-by-default terminology engine that validates FHIR R4 codes, units, languages, media types, and country codes in microseconds without sacrificing conformance or requiring a running Java terminology server.
 
@@ -20,7 +20,7 @@ The FHIRlance terminology validation pipeline operates across **4 layered valida
 ```mermaid
 graph TD
     Resource["Input FHIR Resource / Bundle"] --> Layer1["1. Standalone Coding & Grammar Walk<br/>(validate_standalone_codings)"]
-    Layer1 --> CS["Complete CodeSystems (1,161 systems)<br/>Checks Coding.system + Coding.code"]
+    Layer1 --> CS["Complete CodeSystems (3,061 systems)<br/>Checks Coding.system + Coding.code"]
     Layer1 --> Grammars["Built-In Offline Grammars<br/>UCUM · BCP-47 · BCP-13 · ISO-3166"]
     
     Resource --> Layer2["2. Base R4 Resource Bindings<br/>(BASE_RESOURCE_BINDINGS)"]
@@ -33,7 +33,7 @@ graph TD
     SkipBase --> EvaluateVS
     Layer3 --> EvaluateVS
     
-    EvaluateVS --> Specs["VALUE_SET_SPECS (3,297 Specs)<br/>frozenset[str] Fast Path"]
+    EvaluateVS --> Specs["VALUE_SET_SPECS (7,139 Specs)<br/>url|version + frozenset[str] Fast Path"]
     Specs --> Match{"Code in Set /<br/>Grammar Match?"}
     Match -->|Valid| OK["Valid (Pass)"]
     Match -->|Unknown / Remote Required| Layer4["4. Remote TxClient & Two-Tier Cache<br/>(--tx remote / <url>)"]
@@ -48,7 +48,7 @@ graph TD
 1. **Standalone Coding & Quantity Validation (`validate_standalone_codings`)**:
    - Walks all `Coding`, `CodeableConcept`, `Quantity`, and bound `code` elements recursively across the entire resource structure.
    - Embedded sub-resources (`DomainResource.contained[]` and `Bundle.entry[].resource`) are deliberately skipped during the parent walk to prevent duplicate reporting; they are independently validated with explicit path prefixes (e.g. `contained[0].code`, `entry[1].resource:Observation.status`).
-   - Validates codes against **`COMPLETE_CODE_SYSTEMS`** (`1,161` systems where `content == "complete"`).
+   - Validates codes against **`COMPLETE_CODE_SYSTEMS`** (`3,061` systems where `content == "complete"`).
    - Validates systems with formal grammar specifications against native offline grammars.
 2. **Built-In Offline Grammar Validators**:
    - Evaluates syntactically defined code systems entirely in memory without external tables:
@@ -58,8 +58,8 @@ graph TD
      - **ISO-3166-1/2** (`urn:iso:std:iso:3166`, `urn:iso:std:iso:3166:-2`) for countries and regional subdivisions.
 3. **Base Resource & Multi-IG Profile ValueSet Bindings (`validate_binding_value`)**:
    - Evaluates **`BASE_RESOURCE_BINDINGS`** across all 146 base FHIR R4 resource types.
-   - Evaluates **`PROFILE_CONSTRAINTS["binding_specs"]`** across 183 precompiled profiles and any dynamic `-ig` profiles.
-   - Matches codes against **`3,297` precompiled `VALUE_SET_SPECS`** containing frozen concept sets, system groupings, and external system declarations.
+   - Evaluates **`PROFILE_CONSTRAINTS["binding_specs"]`** across **198** precompiled profiles and any dynamic `-ig` profiles.
+   - Matches codes against **`7,139` precompiled `VALUE_SET_SPECS`** (with `url|version` indexing and unversioned `url` fallback) containing frozen concept sets, system groupings, and external system declarations.
    - **Binding Deduplication**: If an active profile binding governs a resource element (e.g. `Observation.status` in the `vitalsigns` profile), the base resource binding check for that path is automatically skipped to prevent duplicate issues.
 4. **Remote `$validate-code` Client & Two-Tier Cache (`TxClient`)**:
    - Used when `--tx remote` or `--tx <url>` is enabled and a code cannot be resolved locally.
@@ -75,7 +75,7 @@ FHIRlance supports flexible terminology execution modes via the CLI and Python A
 
 | Mode | CLI Syntax | TxOptions / API | Behavior & Network Scope |
 | :--- | :--- | :--- | :--- |
-| **`local`** *(Default)* | `-tx local` or `--tx local` | `TxOptions(mode="local")` | **100% Offline & Zero Network I/O**. Validates built-in grammars, 1,161 complete CodeSystems, and 3,297 precompiled ValueSets. Unresolved codes in external systems (e.g. SNOMED CT, LOINC) pass without error on extensible bindings. |
+| **`local`** *(Default)* | `-tx local` or `--tx local` | `TxOptions(mode="local")` | **100% Offline & Zero Network I/O**. Validates built-in grammars, 3,061 complete CodeSystems, and 7,139 precompiled ValueSets. Unresolved codes in external systems (e.g. SNOMED CT, LOINC) pass without error on extensible bindings. |
 | **`remote`** | `-tx remote` or `--tx remote` | `TxOptions(mode="remote")` | Validates locally first. If a code belongs to an external system or incomplete ValueSet, queries `https://tx.fhir.org/r4` via `$validate-code` with two-tier L1/L2 SQLite caching. |
 | **`<custom-url>`** | `-tx https://my-tx.org/r4` | `TxOptions(mode="remote", server_url="https://my-tx.org/r4")` | Validates locally first, querying the specified custom FHIR R4 terminology server with two-tier L1/L2 SQLite caching. |
 | **`off`** | `-tx off`, `-tx none`, `-tx n/a` | `TxOptions(mode="off")` | Disables all standalone coding and ValueSet binding validation. Pure structural, primitive, and invariant validation only. |
@@ -201,25 +201,25 @@ Evaluates geographic codes on `Address.country`, jurisdiction elements, and coun
 
 FHIRlance compiles complete terminology models ahead-of-time during build via `scripts/generate_models.py`, storing frozen lookups in `src/fhirlance/profiles.py`.
 
-### 4.1 Complete CodeSystems (`COMPLETE_CODE_SYSTEMS`)
-- **`1,161` CodeSystems** are precompiled across the 5 standard FHIR packages (`hl7.fhir.r4.core#4.0.1`, `hl7.fhir.ca.baseline#1.2.0`, `ca.infoway.io.core#1.1.0-dft-preballot`, `hl7.fhir.uv.ips#1.0.0`, `hl7.fhir.us.core.r4#8.0.1`) plus **`hl7.terminology.r4#6.2.0`** (UTG).
+### 4.1 Complete CodeSystems (`COMPLETE_CODE_SYSTEMS`) & Supplements
+- **`3,061` CodeSystems** are precompiled across the 5 standard FHIR packages (`hl7.fhir.r4.core#4.0.1`, `hl7.fhir.ca.baseline#1.2.0`, `ca.infoway.io.core#1.1.0-dft-preballot`, `hl7.fhir.uv.ips#1.0.0`, `hl7.fhir.us.core.r4#8.0.1`) plus **`hl7.terminology.r4#6.2.0`** (UTG).
 - Only CodeSystems with **`content == "complete"`** are treated as closed local systems.
 - CodeSystems with `content == "not-present"` or `content == "fragment"` (such as SNOMED CT `http://snomed.info/sct` or LOINC `http://loinc.org`) are categorized as external systems and are never falsely flagged as invalid in local mode.
+- **`CodeSystem.supplements`**: Supplement CodeSystems (`content == "supplement"`) are merged onto their target base CodeSystems (`supplements` URL, with `url|version` and unversioned fallback) in `vs_expansion.py` so supplemental properties and designations participate in ValueSet filter evaluation.
 
-### 4.2 ValueSet Composition (`VALUE_SET_SPECS`)
-- **`3,297` ValueSet specifications** are compiled into frozen lookup dictionaries containing:
+### 4.2 ValueSet Composition & Expansion (`VALUE_SET_SPECS` & `vs_expansion.py`)
+- **`7,139` ValueSet specifications** are compiled into frozen lookup dictionaries (indexed by both `url|version` and unversioned `url`, with automatic unversioned fallback when a pinned version is not found) containing:
   - `codes`: `frozenset[str]` of explicitly declared concepts.
   - `system_codes`: `dict[str, frozenset[str]]` mapping individual CodeSystem URIs to their allowed concepts within that ValueSet.
   - `external_systems`: `tuple[str, ...]` list of external system URIs (e.g. SNOMED CT, LOINC) included in the expansion.
-- **Supported `compose` Features**:
-  - Direct concept inclusions (`compose.include[].concept[].code`).
+- **Supported `compose` & `expansion` Features (`src/fhirlance/vs_expansion.py`)**:
+  - Direct concept inclusions (`compose.include[].concept[].code`) and pre-expanded `expansion.contains` hierarchies.
   - Full system inclusions (`compose.include[].system` without concepts).
-  - CodeSystem hierarchy and filter evaluation:
-    - `concept is-a <parent>` and `concept descendent-of <parent>`.
-    - `concept = <value>` and `concept in <value>`.
-    - `concept regex <pattern>`.
+  - CodeSystem hierarchy and filter evaluation (`compose.include[].filter`):
+    - Hierarchy operators: `is-a`, `descendent-of`, `is-not-a`, `generalizes`, and `child-of`.
+    - Property & value operators: `=`, `in`, `not-in`, `regex`, and `exists`.
   - Transitive ValueSet imports (`compose.include[].valueSet`).
-  - ValueSet subtraction (`compose.exclude`).
+  - ValueSet subtraction (`compose.exclude`, including filter and nested `valueSet` exclusions).
 
 ### 4.3 Runtime Dynamic IG Terminology (`ig_loader.py`)
 When custom IGs are loaded dynamically at runtime via `-ig <path>`, `src/fhirlance/ig_loader.py` extracts custom `CodeSystem` and `ValueSet` definitions on the fly from NPM `.tgz` tarballs, unpacked directories, or FHIR `Bundle` JSON files, adding them to the active validation session without requiring a restart or model re-generation.
@@ -236,7 +236,8 @@ FHIR defines 4 binding strengths: `required`, `extensible`, `preferred`, and `ex
 | :--- | :--- | :--- | :--- |
 | **`required`** | Code **must** be present in the ValueSet specification or valid according to the grammar. Missing codes or invalid codes produce a blocking **validation error** (`severity: "error"`). | Code must match locally or validate via remote `$validate-code`. Unmatched codes produce a blocking **validation error**. | Same as local/remote. |
 | **`extensible`** | 1. If code belongs to a CodeSystem covered by the ValueSet (`system in system_codes`): code must be valid; an invalid code produces a blocking **validation error**.<br/>2. If code belongs to an alternate/external system: produces a non-blocking diagnostic **warning** (`severity: "warning"`). | Same local evaluation, querying remote Tx server for external systems. | Uncovered external codes produce a blocking **validation error** instead of a warning. |
-| **`preferred` / `example`** | Informational; not evaluated as blocking validation errors. | Informational. | Informational. |
+| **`preferred`** | Informational by default; emits a non-blocking `Warning: BestPractice[...]` when `--best-practice` (`best_practice=True`) is enabled and the code is not in the ValueSet. | Same as local, querying remote Tx server when `--best-practice` is enabled. | Informational by default; emits best-practice warning under `--best-practice`. |
+| **`example`** | Informational; not evaluated as blocking validation errors. | Informational. | Informational. |
 
 ### 5.2 Multi-Coding `CodeableConcept` Semantics
 
@@ -416,3 +417,13 @@ Terminology validation results seamlessly integrate into all FHIRlance output fo
 
 ### 7.3 JUnit XML
 - Emits `<failure type="code-invalid" message="...">` for terminology errors inside test report suites.
+
+---
+
+## 8. `ConceptMap` & `$translate` (`src/fhirlance/conceptmap.py`)
+
+FHIRlance provides a local-first, remote-fallback `ConceptMap` `$translate` engine:
+
+- **Parsing & Registry**: `parse_concept_map(data)` compiles FHIR R4 `ConceptMap` resources (including `group[].element[].target[]`, `equivalence`, `dependsOn`, and `product`) into frozen `ConceptMapSpec` dataclasses indexed by `ConceptMapRegistry` (by canonical `url`, `url|version`, and `(source, target)` URI pairs).
+- **IG Loading**: `load_ig_concept_maps(ig_sources)` extracts all `ConceptMap` resources from `.tgz` packages, unpacked directories, `Bundle`s, or cached IG specifiers into a `ConceptMapRegistry`.
+- **Translation (`translate_code`)**: Evaluates `TranslateRequest` (supporting forward and `reverse=True` lookups, `target_system`, `source`/`target` ValueSet scoping, and `depends_on` matching) against the local `ConceptMapRegistry` first, optionally falling back to a remote `TxClient` (`$translate`) when no local `ConceptMap` matches. Returns a `TranslateResult` containing `result: bool`, optional `message`, and `matches: tuple[TranslateMatch, ...]`.

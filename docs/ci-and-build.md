@@ -15,7 +15,7 @@ flowchart LR
         PKGS["HL7 FHIR Packages (~/.fhir/packages)<br/>• R4 Core 4.0.1<br/>• CA-Baseline 1.2.0 & Infoway 1.1.0<br/>• HL7 IPS 1.0.0 & US Core 8.0.1"]
         CODEGEN["Schema Compiler<br/>(scripts/generate_models.py)"]
         GEN["Generated Modules (Zero Runtime I/O)<br/>• src/fhirlance/types.py (39 types)<br/>• src/fhirlance/resources.py (146 resources)<br/>• src/fhirlance/profiles.py (IG constraints)"]
-        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py,<br/>extensions.py, invariants.py, resource_validator.py, cli.py)"]
+        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py, extension_spec.py,<br/>extensions.py, invariants.py, specialized_invariants.py, fhirpath.py,<br/>questionnaire.py, terminology.py, vs_expansion.py, conceptmap.py,<br/>pkg_manager.py, ig_loader.py, resource_validator.py, dataset.py, formatters.py, cli.py)"]
         PRE["Local Pre-Commit Gate<br/>(.pre-commit-config.yaml)<br/>• ruff --fix & ruff-format<br/>• mypy (strict + pydantic.mypy)"]
 
         PKGS --> CODEGEN --> GEN --> PRE
@@ -66,9 +66,9 @@ FHIRlance avoids parsing multi-megabyte FHIR StructureDefinition JSON files at r
    - `hl7.fhir.uv.ips#1.0.0` (HL7 International Patient Summary)
    - `hl7.fhir.us.core.r4#8.0.1` (HL7 US Core)
 2. **Generated Artifacts (Committed to `src/fhirlance/`)**:
-   - `types.py`: All **39 FHIR R4 complex datatypes** (`Coding`, `CodeableConcept`, `Identifier`, `Period`, `Reference`, etc.).
-   - `resources.py`: All **146 FHIR R4 base resources** (`Patient`, `Observation`, `Bundle`, etc.) subclasses of `DomainResourceBase` / `FHIRBaseModel` (`extra="forbid"`, strict R4 regex primitives).
-   - `profiles.py`: Pre-compiled Implementation Guide profile constraints with resolved `baseDefinition` inheritance chains (cardinality, `max=0` forbidden elements, `fixed[x]`, `pattern[x]`, `[x]` type narrowing, `Reference.targetProfile`, `binding_specs` preserving parent `required` strength, and slicing definitions), plus precompiled terminology tables: **1,161 `COMPLETE_CODE_SYSTEMS`** (incl. `hl7.terminology.r4#6.2.0`), **3,297 `VALUE_SET_SPECS`**, and **146 `BASE_RESOURCE_BINDINGS`**.
+   - `types.py`: All **57 FHIR R4 complex datatype models** (39 core datatypes + `SimpleQuantity` and nested element models).
+   - `resources.py`: All **146 FHIR R4 base resources** (`608` resource & backbone models, `664` total distinct `BaseModel` subclasses across `types.py` + `resources.py`) with `extra="forbid"`, strict R4 regex primitives, 32-bit `FHIRInteger`, and 1 MB `FHIRString`.
+   - `profiles.py`: Pre-compiled Implementation Guide profile constraints (**198 `PROFILE_CONSTRAINTS`**, `3,579` rules, **441 `EXTENSION_CONSTRAINTS`**, **38 `BASE_RESOURCE_CONSTRAINTS`**) with resolved `baseDefinition` inheritance chains, plus precompiled terminology tables: **3,061 `COMPLETE_CODE_SYSTEMS`** (incl. `hl7.terminology.r4#6.2.0` and `url|version` keys), **7,139 `VALUE_SET_SPECS`**, and **146 `BASE_RESOURCE_BINDINGS`**.
 
 > [!IMPORTANT]
 > **Engineering Guardrails**:
