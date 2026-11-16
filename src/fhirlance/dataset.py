@@ -365,9 +365,6 @@ def validate_dataset(
     parallel: bool = False,
     profile_urls: list[str] | None = None,
     ig_sources: Sequence[str | Path] | None = None,
-    *,
-    enforce_must_support: bool = False,
-    unknown_profile: str = "ignore",
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Validate a single file or all FHIR bundles / NDJSON files in a directory."""
@@ -380,7 +377,6 @@ def validate_dataset(
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
     best_practice = bool(kwargs.get("best_practice", False))
-    enforce_must_support = bool(kwargs.get("enforce_must_support", False))
     tx_options = (
         tx_raw
         if isinstance(tx_raw, TxOptions)
@@ -394,8 +390,8 @@ def validate_dataset(
         compiled_profiles=compiled_map,
         tx_options=tx_options,
         best_practice=best_practice,
-        enforce_must_support=enforce_must_support,
-        unknown_profile=unknown_profile,
+        enforce_must_support=bool(kwargs.get("enforce_must_support", False)),
+        unknown_profile=str(kwargs.get("unknown_profile", "ignore")),
     )
     total_resources = 0
     valid_resources = 0
