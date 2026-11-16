@@ -102,7 +102,7 @@ def test_codegen_builds_resource_model_with_choice_and_backbone() -> None:
     assert "class SampleResItem(FHIRBaseModel):" in rendered
     assert "class SampleRes(FHIRBaseModel):" in rendered
     assert "resourceType: Literal['SampleRes']" in rendered
-    assert "valueString: StrictStr | None = None" in rendered
+    assert "valueString: FHIRString | None = None" in rendered
     assert "valueInteger: FHIRInteger | None = None" in rendered
     assert "def _check_choices" in rendered
 
@@ -284,7 +284,7 @@ def test_codegen_simple_quantity_mapping() -> None:
     rendered = "\n".join(emitted)
     assert "dose: fhir_types.SimpleQuantity | None = None" in rendered
     assert "valQuantity: fhir_types.SimpleQuantity | None = None" in rendered
-    assert "valString: StrictStr | None = None" in rendered
+    assert "valString: FHIRString | None = None" in rendered
 
 
 def test_codegen_extracts_bounds_profiles_and_must_support() -> None:
