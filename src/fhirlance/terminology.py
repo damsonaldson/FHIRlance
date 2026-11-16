@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from fhirlance.profiles import COMPLETE_CODE_SYSTEMS
+from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, VALUE_SET_SPECS
 
 DEFAULT_TX_SERVER = "https://tx.fhir.org/r4"
 
@@ -85,6 +85,28 @@ def _get_frozen_complete_systems(
     if systems is COMPLETE_CODE_SYSTEMS:
         return _DEFAULT_FROZEN_COMPLETE_SYSTEMS
     return {k: (v if isinstance(v, frozenset) else frozenset(v)) for k, v in systems.items()}
+
+
+def _lookup_value_set(
+    vs_url: str,
+    specs: Mapping[str, Any] = VALUE_SET_SPECS,
+) -> Any | None:
+    if vs_url in specs:
+        return specs[vs_url]
+    if "|" in vs_url:
+        return specs.get(vs_url.split("|", 1)[0])
+    return None
+
+
+def _lookup_code_system(
+    system_url: str,
+    systems: Mapping[str, Collection[str]] = COMPLETE_CODE_SYSTEMS,
+) -> Collection[str] | None:
+    if system_url in systems:
+        return systems[system_url]
+    if "|" in system_url:
+        return systems.get(system_url.split("|", 1)[0])
+    return None
 
 
 def _resolve_tx_mode_and_server(
@@ -1080,8 +1102,9 @@ def _evaluate_grammar_in_valueset(
         return True, None
     sys_codes = vs_spec.get("system_codes", {})
     ext = vs_spec.get("external_systems", ())
-    if system in sys_codes:
-        return (code in sys_codes[system]), None
+    matched_sys = _lookup_code_system(system, sys_codes)
+    if matched_sys is not None:
+        return (code in matched_sys), None
     if system in ext or "*" in ext:
         return True, None
     if vs_spec.get("codes"):
@@ -1123,8 +1146,9 @@ def _evaluate_code_in_valueset(
     if vs_spec is not None:
         if system:
             sys_codes = vs_spec.get("system_codes", {})
-            if system in sys_codes:
-                return (code in sys_codes[system]), None
+            matched_sys = _lookup_code_system(system, sys_codes)
+            if matched_sys is not None:
+                return (code in matched_sys), None
         else:
             plain_res = _evaluate_plain_code_in_valueset(code, vs_spec)
             if plain_res is not None:
@@ -1277,6 +1301,8 @@ def validate_binding_value(
         return TerminologyResult(errors=[], warnings=[])
 
     raw_spec = kwargs.get("vs_spec")
+    if raw_spec is None:
+        raw_spec = _lookup_value_set(vs_url)
     vs_spec = _normalize_vs_spec(raw_spec)
     prefix = str(kwargs.get("profile_prefix", ""))
     ctx = _BindingContext(
@@ -1383,16 +1409,18 @@ def _check_standalone_item(
             None,
         )
 
-    if ctx.complete_systems is not None and system in ctx.complete_systems:
-        err = (
-            None
-            if code in ctx.complete_systems[system]
-            else (
-                f"Terminology[{_format_trail_path(trail, node_idx)}]: "
-                f"code '{code}' is not defined in CodeSystem '{system}'"
+    if ctx.complete_systems is not None:
+        sys_codes = _lookup_code_system(system, ctx.complete_systems)
+        if sys_codes is not None:
+            err = (
+                None
+                if code in sys_codes
+                else (
+                    f"Terminology[{_format_trail_path(trail, node_idx)}]: "
+                    f"code '{code}' is not defined in CodeSystem '{system}'"
+                )
             )
-        )
-        return err, None
+            return err, None
 
     if ctx.options.mode == "remote" and system in _REMOTE_EXTERNAL_SYSTEMS:
         res, msg = validate_remote_code(options=ctx.options, system=system, code=code)

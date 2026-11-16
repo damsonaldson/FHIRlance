@@ -18,13 +18,19 @@ from fhirlance.extensions import (
     CompiledExtension,
     compile_extensions,
 )
+from fhirlance.pkg_manager import find_package_dir, resolve_transitive_packages
 from fhirlance.profile_engine import COMPILED_PROFILES, CompiledProfile, compile_profiles
 from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE_SET_SPECS
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.slicing_spec import extract_slice_groups, merge_slice_groups
+from fhirlance.vs_expansion import (
+    CodeSystemHierarchy,
+    expand_value_set_codes,
+    merge_code_system_supplements,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 __all__ = [
     "clear_ig_cache",
@@ -112,77 +118,185 @@ def _collect_expansion_codes(contains: Sequence[Any], out: list[str]) -> None:
             _collect_expansion_codes(sub_contains, out)
 
 
+_BUILTIN_CS_HIERARCHIES: dict[str, CodeSystemHierarchy] = {
+    url: CodeSystemHierarchy(
+        codes=frozenset(codes),
+        descendants={},
+        children={},
+        ancestors={},
+        property_values={},
+    )
+    for url, codes in COMPLETE_CODE_SYSTEMS.items()
+}
+
+
 def _extract_code_systems(cs_list: list[dict[str, Any]]) -> dict[str, list[str]]:
     code_systems: dict[str, list[str]] = {}
     for cs in cs_list:
         url = cs.get("url")
-        if not url:
+        if not isinstance(url, str) or not url:
             continue
         codes: list[str] = []
         concepts = cs.get("concept") or []
         _collect_concepts(concepts, codes)
         if codes:
-            code_systems[url] = codes
+            base_url, _, embedded_ver = url.partition("|")
+            raw_ver = cs.get("version")
+            ver = raw_ver if isinstance(raw_ver, str) and raw_ver else embedded_ver
+            code_systems[base_url] = codes
+            if ver:
+                code_systems[f"{base_url}|{ver}"] = codes
     return code_systems
 
 
-def _extract_include_spec(
-    inc: dict[str, Any],
-    code_systems: dict[str, list[str]],
-    codes: list[str],
-    system_codes: dict[str, list[str]],
-    external_systems: list[str],
-) -> None:
-    system = inc.get("system")
-    concepts = inc.get("concept") or []
-    if concepts:
-        c_codes = [c["code"] for c in concepts if isinstance(c, dict) and "code" in c]
-        codes.extend(c_codes)
-        if system:
-            system_codes.setdefault(system, []).extend(c_codes)
-    elif system and not inc.get("filter"):
-        sys_c = code_systems.get(system) or COMPLETE_CODE_SYSTEMS.get(system, [])
-        if sys_c:
-            codes.extend(sys_c)
-            system_codes.setdefault(system, []).extend(sys_c)
-        else:
-            external_systems.append(system)
+def _build_hierarchies_from_codes(
+    code_systems: Mapping[str, Sequence[str]],
+) -> dict[str, CodeSystemHierarchy]:
+    hierarchies = dict(_BUILTIN_CS_HIERARCHIES)
+    for url, codes in code_systems.items():
+        if url not in hierarchies:
+            hierarchies[url] = CodeSystemHierarchy(
+                codes=frozenset(codes),
+                descendants={},
+                children={},
+                ancestors={},
+                property_values={},
+            )
+    return hierarchies
+
+
+def _collect_explicit_include_codes(
+    vs: dict[str, Any],
+    all_codes: frozenset[str],
+) -> tuple[dict[str, set[str]], dict[str, str]]:
+    explicit_by_sys: dict[str, set[str]] = {}
+    sys_versions: dict[str, str] = {}
+    compose = vs.get("compose")
+    if isinstance(compose, dict):
+        for inc in compose.get("include") or []:
+            if not isinstance(inc, dict):
+                continue
+            raw_sys = inc.get("system")
+            if not isinstance(raw_sys, str) or not raw_sys:
+                continue
+            sys_url, _, embedded_ver = raw_sys.partition("|")
+            inc_ver = inc.get("version")
+            effective_ver = inc_ver if isinstance(inc_ver, str) and inc_ver else embedded_ver
+            if effective_ver:
+                sys_versions[sys_url] = effective_ver
+            concepts = inc.get("concept")
+            if isinstance(concepts, list):
+                c_codes = {
+                    c["code"]
+                    for c in concepts
+                    if isinstance(c, dict) and isinstance(c.get("code"), str) and c["code"]
+                }
+                kept = c_codes & all_codes
+                if kept:
+                    explicit_by_sys.setdefault(sys_url, set()).update(kept)
+    return explicit_by_sys, sys_versions
+
+
+def _build_vs_spec(
+    vs: dict[str, Any],
+    all_codes: frozenset[str],
+    systems: frozenset[str],
+    hierarchies: Mapping[str, CodeSystemHierarchy],
+) -> dict[str, Any]:
+    explicit_by_sys, sys_versions = _collect_explicit_include_codes(vs, all_codes)
+    system_codes: dict[str, list[str]] = {
+        s: sorted(codes) for s, codes in explicit_by_sys.items() if codes
+    }
+    external_systems: list[str] = []
+
+    for sys_url in sorted(systems):
+        ver = sys_versions.get(sys_url, "")
+        cs_hier = hierarchies.get(f"{sys_url}|{ver}") if ver else None
+        if cs_hier is None:
+            cs_hier = hierarchies.get(sys_url)
+        if cs_hier is not None:
+            matched = all_codes & cs_hier.codes
+            if matched:
+                merged = set(system_codes.get(sys_url, ())) | matched
+                system_codes[sys_url] = sorted(merged)
+        elif sys_url not in system_codes:
+            external_systems.append(sys_url)
+
+    return {
+        "codes": sorted(all_codes),
+        "system_codes": system_codes,
+        "external_systems": sorted(set(external_systems)),
+    }
+
+
+def _vs_index_keys(vs: dict[str, Any]) -> list[str]:
+    raw_url = vs.get("url")
+    if not isinstance(raw_url, str) or not raw_url:
+        return []
+    base_url, _, embedded_ver = raw_url.partition("|")
+    raw_ver = vs.get("version")
+    ver = raw_ver if isinstance(raw_ver, str) and raw_ver else embedded_ver
+    keys = [base_url]
+    if ver:
+        keys.append(f"{base_url}|{ver}")
+    return keys
 
 
 def _extract_value_sets(
     vs_list: list[dict[str, Any]],
     code_systems: dict[str, list[str]],
     vs_specs: dict[str, dict[str, Any]] | None = None,
+    *,
+    hierarchies: Mapping[str, CodeSystemHierarchy] | None = None,
 ) -> dict[str, list[str]]:
+    eff_hierarchies = (
+        hierarchies if hierarchies is not None else _build_hierarchies_from_codes(code_systems)
+    )
     value_sets: dict[str, list[str]] = {}
-    for vs in vs_list:
-        url = vs.get("url")
-        if not url:
+    resolved_vs: dict[str, frozenset[str]] = {}
+    incomplete_indices: list[int] = []
+
+    for idx, vs in enumerate(vs_list):
+        keys = _vs_index_keys(vs)
+        if not keys:
             continue
-        codes: list[str] = []
-        system_codes: dict[str, list[str]] = {}
-        external_systems: list[str] = []
-        for inc in (vs.get("compose") or {}).get("include") or []:
-            if isinstance(inc, dict):
-                _extract_include_spec(inc, code_systems, codes, system_codes, external_systems)
-        if not codes:
-            _collect_expansion_codes((vs.get("expansion") or {}).get("contains") or [], codes)
-        if codes:
-            sorted_codes = sorted(set(codes))
-            value_sets[url] = sorted_codes
-            if vs_specs is not None:
-                vs_specs[url] = {
-                    "codes": sorted_codes,
-                    "system_codes": {s: sorted(set(c)) for s, c in system_codes.items()},
-                    "external_systems": sorted(set(external_systems)),
-                }
-        elif vs_specs is not None and (system_codes or external_systems):
-            vs_specs[url] = {
-                "codes": [],
-                "system_codes": {s: sorted(set(c)) for s, c in system_codes.items()},
-                "external_systems": sorted(set(external_systems)),
-            }
+        all_codes, systems, complete = expand_value_set_codes(vs, eff_hierarchies, resolved_vs)
+        if not complete:
+            incomplete_indices.append(idx)
+        for key in keys:
+            if all_codes:
+                resolved_vs[key] = all_codes
+        spec = _build_vs_spec(vs, all_codes, systems, eff_hierarchies)
+        _store_vs_entry(keys, spec, value_sets, vs_specs)
+
+    for idx in incomplete_indices:
+        vs = vs_list[idx]
+        keys = _vs_index_keys(vs)
+        all_codes, systems, _ = expand_value_set_codes(vs, eff_hierarchies, resolved_vs)
+        for key in keys:
+            if all_codes:
+                resolved_vs[key] = all_codes
+        spec = _build_vs_spec(vs, all_codes, systems, eff_hierarchies)
+        _store_vs_entry(keys, spec, value_sets, vs_specs)
+
     return value_sets
+
+
+def _store_vs_entry(
+    keys: list[str],
+    spec: dict[str, Any],
+    value_sets: dict[str, list[str]],
+    vs_specs: dict[str, dict[str, Any]] | None,
+) -> None:
+    codes: list[str] = spec["codes"]
+    if codes:
+        for key in keys:
+            value_sets[key] = codes
+            if vs_specs is not None:
+                vs_specs[key] = spec
+    elif vs_specs is not None and (spec["system_codes"] or spec["external_systems"]):
+        for key in keys:
+            vs_specs[key] = spec
 
 
 def _extract_fixed_or_pattern(el: dict[str, Any] | None) -> tuple[Any | None, Any | None]:
@@ -338,23 +452,28 @@ def _record_element_binding(
     binding = el.get("binding") or {}
     strength = binding.get("strength")
     raw_vs = binding.get("valueSet")
-    if strength in ("required", "extensible") and raw_vs:
-        vs_url = raw_vs.split("|", maxsplit=1)[0]
-        rel_path = path.split(".", 1)[1] if "." in path else path
-        spec_entry = vs_specs.get(vs_url) or VALUE_SET_SPECS.get(vs_url)
+    if not isinstance(raw_vs, str) or not raw_vs:
+        return
+    vs_url = raw_vs.split("|", maxsplit=1)[0]
+    rel_path = path.split(".", 1)[1] if "." in path else path
+    spec_entry = (
+        vs_specs.get(raw_vs)
+        or vs_specs.get(vs_url)
+        or VALUE_SET_SPECS.get(raw_vs)
+        or VALUE_SET_SPECS.get(vs_url)
+    )
+    if strength in ("required", "extensible"):
         acc.binding_specs[rel_path] = {
             "strength": strength,
-            "value_set": vs_url,
+            "value_set": raw_vs,
             "vs_spec": spec_entry,
         }
-        if strength == "required" and vs_url in value_sets:
-            acc.bindings[path] = value_sets[vs_url]
-    elif strength == "preferred" and raw_vs:
-        vs_url = raw_vs.split("|", maxsplit=1)[0]
-        rel_path = path.split(".", 1)[1] if "." in path else path
-        spec_entry = vs_specs.get(vs_url) or VALUE_SET_SPECS.get(vs_url)
+        vs_codes = value_sets.get(raw_vs) or value_sets.get(vs_url)
+        if strength == "required" and vs_codes is not None:
+            acc.bindings[path] = vs_codes
+    elif strength == "preferred":
         acc.preferred_bindings[rel_path] = (
-            {"value_set": vs_url, "vs_spec": spec_entry} if spec_entry else vs_url
+            {"value_set": raw_vs, "vs_spec": spec_entry} if spec_entry else raw_vs
         )
 
 
@@ -860,16 +979,27 @@ def _resolve_source_path(source: str | Path) -> Path:
     if local_path.exists():
         return local_path.resolve()
 
-    cached = _find_cached_package(str(source))
+    source_str = str(source)
+    cached = _find_cached_package(source_str)
     if cached is not None:
         return cached
+
+    pkg_id, _, pkg_ver = source_str.partition("#")
+    pkg_cached = find_package_dir(pkg_id, pkg_ver or None)
+    if pkg_cached is not None:
+        return pkg_cached
 
     raise FileNotFoundError(f"IG source not found: {source}")
 
 
+def _resolve_sources_with_deps(sources: Sequence[str | Path]) -> list[Path]:
+    direct = [_resolve_source_path(s) for s in sources]
+    return resolve_transitive_packages(direct)
+
+
 def load_raw_ig_profiles(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
     """Load StructureDefinition profiles from IG sources and resolve inheritance."""
-    resolved_paths = [_resolve_source_path(s) for s in sources]
+    resolved_paths = _resolve_sources_with_deps(sources)
     value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
     raw_profiles: dict[str, dict[str, Any]] = {}
     for url, sd in all_sds.items():
@@ -918,7 +1048,7 @@ _CACHE_LOCK = threading.Lock()
 
 def _load_ig_resources(paths: Sequence[Path]) -> _IGResources:
     container = _IGResources()
-    for path in paths:
+    for path in reversed(paths):
         _load_source(path, container)
     return container
 
@@ -934,8 +1064,12 @@ def _load_ig_sds(
     container = _load_ig_resources(paths)
 
     code_systems = _extract_code_systems(container.code_systems)
+    hierarchies = _build_hierarchies_from_codes(code_systems)
+    hierarchies.update(merge_code_system_supplements(container.code_systems))
     vs_specs: dict[str, dict[str, Any]] = {}
-    value_sets = _extract_value_sets(container.value_sets, code_systems, vs_specs)
+    value_sets = _extract_value_sets(
+        container.value_sets, code_systems, vs_specs, hierarchies=hierarchies
+    )
 
     all_sds: dict[str, dict[str, Any]] = {}
     sd_type_by_url: dict[str, str] = {}
@@ -954,7 +1088,7 @@ def _load_ig_sds(
 
 def load_raw_ig_extensions(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
     """Load Extension StructureDefinitions from IG sources and resolve inheritance."""
-    resolved_paths = [_resolve_source_path(s) for s in sources]
+    resolved_paths = _resolve_sources_with_deps(sources)
     value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
     raw_exts: dict[str, dict[str, Any]] = {}
     for url, sd in all_sds.items():
@@ -987,7 +1121,7 @@ def load_compiled_ig_bundle(
     sources: Sequence[str | Path],
 ) -> tuple[dict[str, CompiledProfile], dict[str, CompiledExtension]]:
     """Load and compile both IG profiles and Extension StructureDefinitions in one pass."""
-    resolved_sources = [_resolve_source_path(s) for s in sources]
+    resolved_sources = _resolve_sources_with_deps(sources)
     cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
     with _CACHE_LOCK:
         if cache_key in _COMPILED_CACHE and cache_key in _COMPILED_EXT_CACHE:
@@ -1027,7 +1161,7 @@ def clear_ig_cache() -> None:
 
 def load_ig_concept_maps(ig_sources: Sequence[str | Path]) -> ConceptMapRegistry:
     """Load ConceptMap resources from IG sources into a cached ConceptMapRegistry."""
-    resolved_sources = [_resolve_source_path(s) for s in ig_sources]
+    resolved_sources = _resolve_sources_with_deps(ig_sources)
     cache_key = tuple(_fingerprint_source(p) for p in resolved_sources)
     with _CACHE_LOCK:
         cached = _CONCEPT_MAP_CACHE.get(cache_key)

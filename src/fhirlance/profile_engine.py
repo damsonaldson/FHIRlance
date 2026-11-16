@@ -18,6 +18,7 @@ from fhirlance.profiles import COMPLETE_CODE_SYSTEMS, PROFILE_CONSTRAINTS, VALUE
 from fhirlance.resources import RESOURCE_MODELS
 from fhirlance.terminology import (
     TxOptions,
+    _lookup_value_set,
     _normalize_vs_spec,
     parse_tx_options,
     validate_binding_value,
@@ -388,7 +389,7 @@ def _compile_binding_specs(
         seen.add(full_path)
         seen.add(rel_path)
         vs_url = b_info.get("value_set", "")
-        raw_vs = b_info.get("vs_spec") or VALUE_SET_SPECS.get(vs_url)
+        raw_vs = b_info.get("vs_spec") or _lookup_value_set(vs_url, VALUE_SET_SPECS)
         vs_spec = _normalize_vs_spec(raw_vs)
         rules.append(
             CompiledBindingRule(
@@ -1432,19 +1433,36 @@ def check_constraints(
     return issues
 
 
+def _handle_unknown_profile(
+    prof_url: str,
+    unknown_profile: str,
+    warnings_out: list[str] | None,
+) -> list[str]:
+    if unknown_profile == "error":
+        return [f"Profile[{prof_url}]: unknown profile '{prof_url}'"]
+    if unknown_profile == "warning" and warnings_out is not None:
+        warnings_out.append(f"Profile[{prof_url}]: unknown profile '{prof_url}'")
+    return []
+
+
 def validate_single_profile(
     resource: dict[str, Any],
     rtype: str,
     prof_url: str,
     compiled_profiles: dict[str, CompiledProfile] = COMPILED_PROFILES,
+    *,
+    unknown_profile: str = "ignore",
     **kwargs: Any,
 ) -> list[str]:
     """Validate a resource against a single compiled IG StructureDefinition constraint set."""
     compiled_map: dict[str, CompiledProfile] | None = kwargs.get("compiled_map")
     effective_profiles = compiled_map if compiled_map is not None else compiled_profiles
+    _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     spec = effective_profiles.get(prof_url)
+    if spec is None and "|" in prof_url:
+        spec = effective_profiles.get(prof_url.split("|", 1)[0])
     if spec is None:
-        return []
+        return _handle_unknown_profile(prof_url, unknown_profile, _warnings_out)
 
     if spec.base_type and spec.base_type != rtype:
         return [f"Profile[{prof_url}]: profile applies to '{spec.base_type}', got '{rtype}'"]
@@ -1453,7 +1471,6 @@ def validate_single_profile(
     strict_extensible = bool(kwargs.get("strict_extensible", False))
     best_practice = bool(kwargs.get("best_practice", False))
     enforce_must_support = bool(kwargs.get("enforce_must_support", False))
-    _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     tx_options = (
         tx_raw
         if isinstance(tx_raw, TxOptions)
