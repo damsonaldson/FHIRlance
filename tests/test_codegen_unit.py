@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 
 def _load_codegen_module() -> Any:
@@ -348,3 +351,122 @@ def test_codegen_extracts_bounds_profiles_and_must_support() -> None:
             "http://hl7.org/fhir/uv/ips/StructureDefinition/Quantity-uv-ips"
         ]
     }
+
+
+def _patch_codegen_pipeline(
+    mod: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rendered: dict[str, str],
+) -> None:
+    r4_pkg = tmp_path / "r4_pkg"
+    r4_pkg.mkdir()
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    monkeypatch.setattr(mod, "R4_PKG", r4_pkg)
+    monkeypatch.setattr(mod, "OUT_DIR", out_dir)
+    monkeypatch.setattr(mod, "_load_complete_code_systems", lambda _pkgs: ({}, {}))
+    monkeypatch.setattr(mod, "_load_all_value_sets", lambda _pkgs, _cs, _h: {})
+    monkeypatch.setattr(mod, "_glob_json", lambda _pkg, _prefix: [])
+    monkeypatch.setattr(mod, "_render_complex_types", lambda *_a: rendered["types.py"])
+    monkeypatch.setattr(mod, "_render_resources", lambda *_a: (rendered["resources.py"], []))
+    monkeypatch.setattr(mod, "_extract_base_resource_bindings", lambda _pkg: {})
+    monkeypatch.setattr(mod, "_extract_complex_type_bindings", lambda _pkg, _vs: {})
+    monkeypatch.setattr(mod, "_extract_preferred_resource_bindings", lambda _pkg: {})
+    monkeypatch.setattr(mod, "_extract_base_resource_constraints", lambda _pkg: {})
+    monkeypatch.setattr(mod, "_generate_all_ig_profiles", lambda *_a: rendered["profiles.py"])
+
+
+def test_codegen_check_in_sync_returns_zero(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    mod = _load_codegen_module()
+    rendered = {
+        "types.py": "# types\n",
+        "resources.py": "# resources\n",
+        "profiles.py": "# profiles\n",
+    }
+    _patch_codegen_pipeline(mod, monkeypatch, tmp_path, rendered)
+    for name, content in rendered.items():
+        (tmp_path / "out" / name).write_text(content, encoding="utf-8")
+
+    rc = mod.main(["--check"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "up to date" in captured.out
+    assert captured.err == ""
+
+
+def test_codegen_check_drifted_or_missing_returns_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    mod = _load_codegen_module()
+    rendered = {
+        "types.py": "# types\n",
+        "resources.py": "# resources\n",
+        "profiles.py": "# profiles\n",
+    }
+    _patch_codegen_pipeline(mod, monkeypatch, tmp_path, rendered)
+    (tmp_path / "out" / "types.py").write_text("# stale\n", encoding="utf-8")
+    (tmp_path / "out" / "resources.py").write_text("# resources\n", encoding="utf-8")
+    # profiles.py intentionally missing
+
+    rc = mod.main(["--check"])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "types.py" in captured.err
+    assert "profiles.py" in captured.err
+    assert "resources.py" not in captured.err
+
+
+def test_codegen_missing_r4_pkg_returns_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    mod = _load_codegen_module()
+    missing_pkg = tmp_path / "does_not_exist"
+    monkeypatch.setattr(mod, "R4_PKG", missing_pkg)
+
+    rc = mod.main(["--check"])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "not found" in captured.err
+
+
+def test_fhir_base_model_has_no_before_model_validator() -> None:
+    base_path = Path(__file__).resolve().parents[1] / "src" / "fhirlance" / "base.py"
+    tree = ast.parse(base_path.read_text(encoding="utf-8"), filename=str(base_path))
+
+    fhir_base_cls = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "FHIRBaseModel"
+        ),
+        None,
+    )
+    assert fhir_base_cls is not None
+
+    def _is_before_model_validator(dec: ast.expr) -> bool:
+        if not isinstance(dec, ast.Call):
+            return False
+        func_name = (
+            dec.func.id
+            if isinstance(dec.func, ast.Name)
+            else dec.func.attr
+            if isinstance(dec.func, ast.Attribute)
+            else None
+        )
+        if func_name != "model_validator":
+            return False
+        if dec.args and isinstance(dec.args[0], ast.Constant) and dec.args[0].value == "before":
+            return True
+        return any(
+            kw.arg == "mode" and isinstance(kw.value, ast.Constant) and kw.value.value == "before"
+            for kw in dec.keywords
+        )
+
+    assert not any(_is_before_model_validator(dec) for dec in fhir_base_cls.decorator_list)
+    for item in fhir_base_cls.body:
+        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            assert not any(_is_before_model_validator(dec) for dec in item.decorator_list)
