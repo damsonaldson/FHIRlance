@@ -555,11 +555,25 @@ def test_record_binding_issue_branches() -> None:
     assert len(warns) == 1
     assert "could not validate code" in warns[0]
 
+    # preferred strength -> warning
+    ctx_pref = _BindingContext(
+        path="status",
+        vs_url="http://vs",
+        strength="preferred",
+        options=TxOptions(),
+        vs_spec=None,
+        profile_prefix="",
+    )
+    errs_pref, warns_pref = _record_binding_issue("http://sys", "code", False, None, ctx_pref)
+    assert errs_pref == []
+    assert len(warns_pref) == 1
+    assert "preferred ValueSet" in warns_pref[0]
+
     # unknown strength -> empty
     ctx_other = _BindingContext(
         path="status",
         vs_url="http://vs",
-        strength="preferred",
+        strength="example",
         options=TxOptions(),
         vs_spec=None,
         profile_prefix="",

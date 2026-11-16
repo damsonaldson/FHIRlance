@@ -26,6 +26,7 @@ from fhirlance.profiles import (
     BASE_RESOURCE_BINDINGS,
     COMPLETE_CODE_SYSTEMS,
     COMPLEX_TYPE_BINDINGS,
+    PREFERRED_RESOURCE_BINDINGS,
     VALUE_SET_SPECS,
 )
 from fhirlance.questionnaire import (
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
     from fhirlance.profile_engine import CompiledProfile
 
 _MAX_RECURSION_DEPTH = 16
+_NON_DOMAIN_RESOURCES = frozenset({"Bundle", "Binary", "Parameters"})
 
 
 def _format_validation_errors(exc: ValidationError) -> list[str]:
@@ -197,6 +199,45 @@ def _compiled_base_bindings(rtype: str) -> tuple[_CompiledBindingEntry, ...]:
 @cache
 def _compiled_complex_bindings(type_name: str) -> tuple[_CompiledBindingEntry, ...]:
     return _compile_binding_map(COMPLEX_TYPE_BINDINGS.get(type_name))
+
+
+@cache
+def _compiled_preferred_bindings(rtype: str) -> tuple[_CompiledBindingEntry, ...]:
+    raw = PREFERRED_RESOURCE_BINDINGS.get(rtype)
+    if not raw:
+        return ()
+    return _compile_binding_map(
+        {
+            rel_path: {"strength": "preferred", "value_set": vs_url}
+            for rel_path, vs_url in raw.items()
+        }
+    )
+
+
+def _check_best_practice_warnings(
+    resource: dict[str, Any],
+    rtype: str,
+    ctx: _BindingValidationCtx,
+    *,
+    best_practice: bool,
+) -> None:
+    if not best_practice or ctx.warnings is None:
+        return
+    text_obj = resource.get("text")
+    if rtype not in _NON_DOMAIN_RESOURCES and not (
+        isinstance(text_obj, dict) and text_obj.get("div")
+    ):
+        ctx.warnings.append(
+            "Warning: BestPractice[dom-6]: DomainResource should have a narrative (text.div)"
+        )
+    if rtype == "Observation" and not resource.get("performer"):
+        ctx.warnings.append(
+            "Warning: BestPractice[obs-performer]: Observation should have a performer"
+        )
+    if ctx.tx_options.mode != "off":
+        pref_bindings = _compiled_preferred_bindings(rtype)
+        if pref_bindings:
+            _check_bindings_for_node(resource, pref_bindings, rtype, ctx)
 
 
 def _apply_binding_values(
@@ -355,6 +396,7 @@ def _validate_nested_resources(
     compiled_extensions = kwargs.get("_compiled_extensions")
     bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index")
     skip_nested_entries = bool(kwargs.get("_skip_nested_entries", False))
+    best_practice = bool(kwargs.get("best_practice", False))
     issues: list[str] = []
     contained = resource.get("contained")
     if isinstance(contained, list):
@@ -368,6 +410,7 @@ def _validate_nested_resources(
                 _warnings_out=sub_warnings,
                 _compiled_extensions=compiled_extensions,
                 _bundle_index=bundle_index,
+                best_practice=best_practice,
             )
             issues.extend(f"contained[{idx}]: {msg}" for msg in sub_issues)
             if warnings_out is not None and sub_warnings:
@@ -385,6 +428,7 @@ def _validate_nested_resources(
                     _warnings_out=sub_warnings,
                     _compiled_extensions=compiled_extensions,
                     _bundle_index=bundle_index,
+                    best_practice=best_practice,
                 )
                 issues.extend(f"entry[{idx}].resource: {msg}" for msg in sub_issues)
                 if warnings_out is not None and sub_warnings:
@@ -460,6 +504,22 @@ def _validate_specialized_semantics(
     return []
 
 
+def _resolve_bundle_index(
+    resource: dict[str, Any],
+    rtype: str,
+    kwargs: dict[str, Any],
+) -> dict[str, dict[str, Any]] | None:
+    bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
+        "bundle_index"
+    )
+    if rtype != "Bundle":
+        return bundle_index
+    inner_index = _build_bundle_index(resource)
+    if inner_index is None:
+        return bundle_index
+    return {**bundle_index, **inner_index} if bundle_index is not None else inner_index
+
+
 def validate_resource(
     resource: Any,
     *,
@@ -484,15 +544,24 @@ def validate_resource(
 
     tx_raw = kwargs.get("tx", "local")
     strict_extensible = bool(kwargs.get("strict_extensible", False))
+    best_practice = bool(kwargs.get("best_practice", False))
     _warnings_out: list[str] | None = kwargs.get("_warnings_out")
     tx_options = (
         tx_raw
         if isinstance(tx_raw, TxOptions)
         else parse_tx_options(tx_raw, strict_extensible=strict_extensible)
     )
+    bundle_index = _resolve_bundle_index(resource, rtype, kwargs)
 
     issues = _validate_structure(resource, model_cls)
-    issues.extend(check_fhirpath_invariants(resource, rtype))
+    issues.extend(
+        check_fhirpath_invariants(
+            resource,
+            rtype,
+            warnings_out=_warnings_out,
+            bundle_index=bundle_index,
+        )
+    )
 
     declared_profiles = _extract_declared_profiles(resource)
 
@@ -539,15 +608,17 @@ def validate_resource(
             )
         )
 
-    bundle_index: dict[str, dict[str, Any]] | None = kwargs.get("_bundle_index") or kwargs.get(
-        "bundle_index"
+    _check_best_practice_warnings(
+        resource,
+        rtype,
+        _BindingValidationCtx(
+            tx_options=tx_options,
+            issues=[],
+            warnings=_warnings_out,
+            skip_paths=profile_bound_paths,
+        ),
+        best_practice=best_practice,
     )
-    if rtype == "Bundle":
-        inner_index = _build_bundle_index(resource)
-        if inner_index is not None:
-            bundle_index = (
-                {**bundle_index, **inner_index} if bundle_index is not None else inner_index
-            )
 
     for prof_url in effective_profiles:
         issues.extend(
@@ -560,6 +631,7 @@ def validate_resource(
                 tx=tx_options,
                 _warnings_out=_warnings_out,
                 bundle_index=bundle_index,
+                best_practice=best_practice,
             )
         )
 
@@ -578,6 +650,7 @@ def validate_resource(
             _compiled_extensions=ext_dict,
             _bundle_index=bundle_index,
             _skip_nested_entries=bool(kwargs.get("_skip_nested_entries", False)),
+            best_practice=best_practice,
         )
     )
     return issues

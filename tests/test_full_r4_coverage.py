@@ -95,6 +95,44 @@ def _sample_primitive(ann: Any, meta_str: str) -> Any:
     return "sample-str"
 
 
+_INVARIANT_MINIMAL_OVERRIDES: dict[str, dict[str, Any]] = {
+    "CapabilityStatement": {
+        "kind": "capability",
+        "software": {"name": "sample-sw"},
+        "rest": [{"mode": "server"}],
+    },
+    "AllergyIntolerance": {"clinicalStatus": {"coding": [{"code": "active"}]}},
+    "Appointment": {
+        "status": "proposed",
+        "participant": [{"status": "accepted", "actor": {"reference": "Patient/1"}}],
+    },
+    "AppointmentResponse": {"actor": {"reference": "Patient/1"}},
+    "Consent": {"policyRule": {"text": "opt-in"}},
+    "InsurancePlan": {"name": "Sample Org"},
+    "Organization": {"name": "Sample Org"},
+    "Linkage": {
+        "item": [
+            {"type": "source", "resource": {"reference": "Patient/1"}},
+            {"type": "alternate", "resource": {"reference": "Patient/2"}},
+        ]
+    },
+    "StructureDefinition": {
+        "type": "Patient",
+        "differential": {"element": [{"id": "Patient", "path": "Patient"}]},
+    },
+    "TerminologyCapabilities": {"kind": "capability", "software": {"name": "sample-sw"}},
+}
+
+
+def _apply_invariant_defaults(out: dict[str, Any]) -> None:
+    rtype = str(out.get("resourceType") or "")
+    overrides = _INVARIANT_MINIMAL_OVERRIDES.get(rtype)
+    if overrides:
+        out.update(overrides)
+    elif rtype == "ImmunizationRecommendation":
+        out["recommendation"][0]["vaccineCode"] = [{"text": "flu"}]
+
+
 def build_minimal_valid(model_cls: type[FHIRBaseModel]) -> dict[str, Any]:
     """Build a minimal structurally valid dictionary for any generated FHIRBaseModel class."""
     if model_cls in _MINIMAL_VALID_CACHE:
@@ -118,10 +156,7 @@ def build_minimal_valid(model_cls: type[FHIRBaseModel]) -> dict[str, Any]:
             ann = hints.get(first_var, info.annotation)
             out[info.alias or first_var] = sample_value_for_field(ann, info.metadata)
 
-    if out.get("resourceType") == "CapabilityStatement":
-        out["kind"] = "capability"
-        out["software"] = {"name": "sample-sw"}
-        out["rest"] = [{"mode": "server"}]
+    _apply_invariant_defaults(out)
 
     _MINIMAL_VALID_CACHE[model_cls] = dict(out)
     return out
@@ -250,6 +285,10 @@ def test_every_r4_resource_enforces_required_fields(rtype: str) -> None:
     elif req_choices:
         assert any("requires exactly one value" in i for i in issues), (
             f"{rtype} did not report missing required choice {req_choices}: {issues}"
+        )
+    elif rtype in ("InsurancePlan", "Organization"):
+        assert any("Invariant[" in i for i in issues), (
+            f"{rtype} did not enforce root invariant: {issues}"
         )
     else:
         assert issues == [], f"{rtype} has no required fields but rejected bare stub: {issues}"
