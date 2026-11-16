@@ -82,21 +82,25 @@ The FHIRlance test suite in `tests/` contains **2,764 offline collected pytest i
 
 ### 2.1 Quantitative Overview by Test Module
 
-| Test Module | Collected Pytest Items | Distinct Scenarios Evaluated | Primary Scope |
-| :--- | ---: | ---: | :--- |
-| [`tests/test_all_183_ig_profiles.py`](../tests/test_all_183_ig_profiles.py) | **1,268** | **4,190+** | All **183 compiled IG profiles** across 5 IGs and all **2,009 profile rules** (positive + negative checks for `required`, `forbidden`, `max_one`, `fixed`, `pattern`, `type_narrowing`, `target_types`, `bindings`, and `slices`) |
-| [`tests/test_full_r4_coverage.py`](../tests/test_full_r4_coverage.py) | **917** | **2,400+** | All **146 FHIR R4 resources** (valid minimal instances, unknown fields, empty arrays, invalid primitives, `txt-1`/`ext-1`/`_primitive` extensions, required fields) + all **186 `[x]` choice groups** across all 659 generated models |
-| [`tests/test_complex_types_and_primitives.py`](../tests/test_complex_types_and_primitives.py) | **342** | **620+** | All **54 complex datatype & BackboneElement classes** in `types.py`, **112 primitive regex/calendar/type boundary cases**, and all **176 root resource `Literal` ValueSet bindings** |
-| [`tests/test_invariants_and_profiles_unit.py`](../tests/test_invariants_and_profiles_unit.py) | **93** | **185+** | All compiled FHIRPath invariants across 11 `Observation.value[x]` fields, 5 `Condition.abatement[x]` fields, 4 `Patient.contact` fields, 9 `Bundle.type` codes, and internal engine edge branches |
-| [`tests/test_output_ig_and_parallel.py`](../tests/test_output_ig_and_parallel.py) | **41** | **150+** | Output formatters (`OperationOutcome`, SARIF v2.1.0, JUnit XML, JSON, text), dynamic runtime IG loader (`.tgz`, directory, Bundle, SD, semver cache, ZipSlip/size guards), and multi-process intra-file/inter-file parallelism |
-| [`tests/test_terminology_unit.py`](../tests/test_terminology_unit.py) | **32** | **120+** | Terminology unit tests: offline grammars (UCUM, BCP-47, MIME, ISO-3166), L1 LRU + L2 SQLite WAL caching, remote `$validate-code` mocking, binding strengths, and standalone codings |
-| [`tests/test_terminology.py`](../tests/test_terminology.py) | **24** | **85+** | End-to-end terminology integration: CLI flags (`--tx`, `--strict-extensible`), dataset validation (serial & parallel), base & profile binding deduplication, US Core vital signs, and OperationOutcome/SARIF formatters |
-| [`tests/test_comprehensive_profiles_and_resilience.py`](../tests/test_comprehensive_profiles_and_resilience.py) | **14** | **45+** | End-to-end profile rules, `_primitive` extensions, `ext-1`, `obs-7`, `bdl-7`, `contained[]` recursion, depth guard (`>16`), strict JSON `NaN`/`Infinity`, and CLI exit codes |
-| [`tests/test_validator_equivalence.py`](../tests/test_validator_equivalence.py) | **10** (`hl7_live`) | **20** | Per-resource comparative equivalence between `validate_resource` and `validator_cli.jar` |
-| [`tests/test_property_and_perf.py`](../tests/test_property_and_perf.py) | **6** | **405+** | Property-based Hypothesis fuzzing (200 arbitrary JSON & mutated resource examples), strict JSON `NaN`/`Infinity`/`-Infinity` rejection, and Rust hot-path guard + 200-iteration throughput benchmark (`<0.5s`) |
-| [`tests/test_codegen_unit.py`](../tests/test_codegen_unit.py) | **4** | **12+** | Unit tests for `scripts/generate_models.py` keyword escaping, `baseDefinition` profile inheritance merging, and BackboneElement / `[x]` choice model emission |
-| [`tests/test_all_146_live_hl7_equivalence.py`](../tests/test_all_146_live_hl7_equivalence.py) | **2** (`1` offline + `1` `hl7_live`) | **358** (`325` live JVM + `33` offline) | Batch equivalence across all **146 R4 resource types** (146 valid + 146 mutated) + **33 targeted invariant, primitive, choice, recursive, and multi-IG profile cases** in a single `validator_cli.jar` run |
-| **Total (Full Offline Suite)** | **2,764 items** (offline) | — | **96.91% branch coverage across `src/fhirlance/` (`0` skipped)** |
+| Test Module | Collected Pytest Items | Primary Scope |
+| :--- | ---: | :--- |
+| [`tests/test_all_183_ig_profiles.py`](../tests/test_all_183_ig_profiles.py) | **1,276** | All **183 compiled IG profiles** across 5 IGs and all **2,009 profile rules** (positive + negative checks for `required`, `forbidden`, `max_one`, `fixed`, `pattern`, `type_narrowing`, `target_types`, `bindings`, and `slices`) |
+| [`tests/test_full_r4_coverage.py`](../tests/test_full_r4_coverage.py) | **917** | All **146 FHIR R4 resources** (valid minimal instances, unknown fields, empty arrays, invalid primitives, `txt-1`/`ext-1`/`_primitive` extensions, required fields) + all **186 `[x]` choice groups** across all 659 generated models |
+| [`tests/test_complex_types_and_primitives.py`](../tests/test_complex_types_and_primitives.py) | **342** | All **54 complex datatype & BackboneElement classes** in `types.py`, **112 primitive regex/calendar/type boundary cases**, and all **176 root resource `Literal` ValueSet bindings** |
+| [`tests/test_output_ig_and_parallel.py`](../tests/test_output_ig_and_parallel.py) | **41** | Output formatters (`OperationOutcome`, SARIF v2.1.0, JUnit XML, JSON, text), dynamic runtime IG loader (`.tgz`, directory, Bundle, SD, semver cache, ZipSlip/size guards), and multi-process intra-file/inter-file parallelism |
+| [`tests/test_invariants_and_profiles_unit.py`](../tests/test_invariants_and_profiles_unit.py) | **37** | Compiled FHIRPath invariants across 11 `Observation.value[x]` fields, 5 `Condition.abatement[x]` fields, 4 `Patient.contact` fields, 9 `Bundle.type` codes, and internal profile engine edge branches |
+| [`tests/test_terminology_unit.py`](../tests/test_terminology_unit.py) | **32** | Terminology unit tests: offline grammars (UCUM, BCP-47, MIME, ISO-3166), L1 LRU + L2 SQLite WAL caching, remote `$validate-code` mocking, binding strengths, and standalone codings |
+| [`tests/test_terminology.py`](../tests/test_terminology.py) | **26** | End-to-end terminology integration: CLI flags (`--tx`, `--strict-extensible`), dataset validation (serial & parallel), base & profile binding deduplication, US Core vital signs, and OperationOutcome/SARIF formatters |
+| [`tests/test_slicing.py`](../tests/test_slicing.py) | **25** | Complete FHIR R4 slicing semantics: `value`, `pattern`, `type`, `profile`, and `exists` discriminators, slice `min`/`max` cardinality, `closed`/`openAtEnd`/`ordered` rules, and nested sub-slicing |
+| [`tests/test_bundle_references.py`](../tests/test_bundle_references.py) | **24** | Bundle reference graph, `entry[].fullUrl` / `#contained` symbol table, `Reference.type`, `targetProfile` conformance, `aggregation`, and outer `Bundle` validation (`bdl-1`–`bdl-12`) |
+| [`tests/test_extensions.py`](../tests/test_extensions.py) | **17** | First-class Extension `StructureDefinition` validation (`context`, `value[x]` types & bindings, complex sub-extensions, `modifierExtension` `isModifier` & unknown modifier rejection) |
+| [`tests/test_complex_datatype_bindings.py`](../tests/test_complex_datatype_bindings.py) | **10** | ValueSet bindings declared on complex datatypes (`Identifier.type`, `ContactPoint`, `HumanName`, `Address`, etc.) |
+| [`tests/test_validator_equivalence.py`](../tests/test_validator_equivalence.py) | **9** (`hl7_live`) | Per-resource comparative equivalence between `validate_resource` and `validator_cli.jar` |
+| [`tests/test_property_and_perf.py`](../tests/test_property_and_perf.py) | **7** | Property-based Hypothesis fuzzing (200 arbitrary JSON & mutated resource examples), strict JSON `NaN`/`Infinity`/`-Infinity` rejection, and Rust hot-path guard + 200-iteration throughput benchmark (`<0.5s`) |
+| [`tests/test_comprehensive_profiles_and_resilience.py`](../tests/test_comprehensive_profiles_and_resilience.py) | **6** | End-to-end profile rules, `_primitive` extensions, `ext-1`, `obs-7`, `bdl-7`, `contained[]` recursion, depth guard (`>16`), strict JSON `NaN`/`Infinity`, and CLI exit codes |
+| [`tests/test_codegen_unit.py`](../tests/test_codegen_unit.py) | **3** | Unit tests for `scripts/generate_models.py` keyword escaping, `baseDefinition` profile inheritance merging, and BackboneElement / `[x]` choice model emission |
+| [`tests/test_all_146_live_hl7_equivalence.py`](../tests/test_all_146_live_hl7_equivalence.py) | **2** (`1` offline + `1` `hl7_live`) | Batch equivalence across all **146 R4 resource types** (146 valid + 146 mutated) + **33 targeted invariant, primitive, choice, recursive, and multi-IG profile cases** in a single `validator_cli.jar` run |
+| **Total** | **2,774** (**2,764** offline + **10** `hl7_live`) | **96.91% branch coverage across `src/fhirlance/` (`0` skipped)** |
 
 ---
 
@@ -195,9 +199,9 @@ Contains **342 parametrized pytest items**:
 
 ---
 
-### 3.5 FHIRPath Invariants, Canadian Localization & Unit Suites (`tests/test_invariants_and_profiles_unit.py`)
+### 3.5 FHIRPath Invariants & Profile Engine Unit Suites (`tests/test_invariants_and_profiles_unit.py`)
 
-Contains **92 pytest items**:
+Contains **37 pytest items**:
 - **All 11 `Observation.value[x]` Variants (`test_obs6_and_obs7_across_all_11_value_fields`)**: Verifies `obs-6` and `obs-7` trigger across `valueQuantity`, `valueCodeableConcept`, `valueString`, `valueBoolean`, `valueInteger`, `valueRange`, `valueRatio`, `valueSampledData`, `valueTime`, `valueDateTime`, and `valuePeriod`.
 - **All 5 `Condition.abatement[x]` Variants (`test_con4_across_all_5_abatement_fields`)**: Verifies `con-4` triggers when `clinicalStatus` is missing across `abatementDateTime`, `abatementAge`, `abatementPeriod`, `abatementRange`, and `abatementString`, and passes when `clinicalStatus` is present.
 - **All 4 `Patient.contact` Fields (`test_pat1_satisfied_by_each_contact_field`)**: Verifies `pat-1` passes when any one of `name`, `telecom`, `address`, or `organization` is present and fails when all four are absent.
