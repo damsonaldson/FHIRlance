@@ -234,7 +234,7 @@ def _measure_or_load_hl7_baseline(corpus: list[dict[str, Any]], run_live: bool) 
                 (tmp_dir / f"{idx:04d}.json").write_text(json.dumps(payload), encoding="utf-8")
             out_file = tmp_dir / "outcome.json"
             t0 = time.perf_counter()
-            subprocess.run(  # noqa: S603
+            proc = subprocess.run(  # noqa: S603
                 [  # noqa: S607
                     "java",
                     "-jar",
@@ -255,6 +255,10 @@ def _measure_or_load_hl7_baseline(corpus: list[dict[str, Any]], run_live: bool) 
                 text=True,
                 check=False,
             )
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"validator_cli.jar exited with {proc.returncode}: {proc.stderr or proc.stdout}"
+                )
             return round(time.perf_counter() - t0, 2)
 
     if BENCHMARK_JSON_PATH.exists():
@@ -437,7 +441,7 @@ def _replace_between_markers(file_path: Path, rendered_block: str) -> None:
     before, remainder = content.split(START_MARKER, maxsplit=1)
     _, after = remainder.split(END_MARKER, maxsplit=1)
     updated = f"{before}{rendered_block}{after}"
-    file_path.write_text(updated, encoding="utf-8")
+    file_path.write_text(updated, encoding="utf-8", newline="\n")
 
 
 def update_documentation(report: BenchmarkReport) -> None:
