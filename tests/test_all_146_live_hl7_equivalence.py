@@ -78,7 +78,7 @@ def _select_official_examples() -> dict[str, dict[str, Any]]:
 
 
 def _extra_equivalence_cases() -> list[tuple[str, dict[str, Any], bool]]:
-    """Return 48 targeted live equivalence cases across invariants, primitives, choices, and IGs."""
+    """Return 50 targeted live equivalence cases across invariants, primitives, choices, and IGs."""
     return [
         # 1. FHIRPath Invariants (txt-1, pat-1, obs-6, obs-7, con-4, bdl-1/3/4/7, ext-1)
         (
@@ -488,6 +488,306 @@ def _extra_equivalence_cases() -> list[tuple[str, dict[str, Any], bool]]:
                     ]
                 },
                 "code": {"coding": [{"system": "http://snomed.info/sct", "code": "91936005"}]},
+            },
+            False,
+        ),
+        # 6. Tier 2 Base R4 FHIRPath Invariants (dom-2..dom-5, obs-3)
+        (
+            "inv_dom2_nested_contained",
+            {
+                "resourceType": "Patient",
+                "id": "dom2-bad",
+                "contained": [
+                    {
+                        "resourceType": "Practitioner",
+                        "id": "c1",
+                        "contained": [
+                            {"resourceType": "Organization", "id": "c2", "name": "Nested"}
+                        ],
+                    }
+                ],
+                "generalPractitioner": [{"reference": "#c1"}],
+            },
+            False,
+        ),
+        (
+            "inv_dom3_unreferenced_contained",
+            {
+                "resourceType": "Patient",
+                "id": "dom3-bad",
+                "contained": [{"resourceType": "Organization", "id": "orphan", "name": "Orphan"}],
+            },
+            False,
+        ),
+        (
+            "inv_dom4_contained_meta_version_id",
+            {
+                "resourceType": "Patient",
+                "id": "dom4-bad",
+                "managingOrganization": {"reference": "#org1"},
+                "contained": [
+                    {
+                        "resourceType": "Organization",
+                        "id": "org1",
+                        "name": "Org",
+                        "meta": {"versionId": "1"},
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_dom5_contained_meta_security",
+            {
+                "resourceType": "Patient",
+                "id": "dom5-bad",
+                "managingOrganization": {"reference": "#org1"},
+                "contained": [
+                    {
+                        "resourceType": "Organization",
+                        "id": "org1",
+                        "name": "Org",
+                        "meta": {
+                            "security": [
+                                {
+                                    "system": "http://terminology.hl7.org/CodeSystem/v3-Confidentiality",
+                                    "code": "R",
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_obs3_empty_reference_range",
+            {
+                "resourceType": "Observation",
+                "id": "obs3-bad",
+                "status": "final",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "8867-4"}]},
+                "referenceRange": [{}],
+            },
+            False,
+        ),
+        # 7. Tier 2 Specialized R4 Resource Invariants (que-*, cpb-*, opd-*, spd-*, cmd-*, sub-*)
+        (
+            "inv_que_valid_questionnaire",
+            {
+                "resourceType": "Questionnaire",
+                "id": "que-ok",
+                "status": "active",
+                "item": [
+                    {"linkId": "q1", "type": "boolean", "text": "Has allergy?"},
+                    {
+                        "linkId": "q2",
+                        "type": "string",
+                        "text": "Details",
+                        "enableWhen": [{"question": "q1", "operator": "=", "answerBoolean": True}],
+                    },
+                ],
+            },
+            True,
+        ),
+        (
+            "inv_que2_duplicate_link_id",
+            {
+                "resourceType": "Questionnaire",
+                "id": "que2-bad",
+                "status": "active",
+                "item": [
+                    {"linkId": "dup", "type": "string"},
+                    {"linkId": "dup", "type": "boolean"},
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_que5_group_with_answer_option",
+            {
+                "resourceType": "Questionnaire",
+                "id": "que5-bad",
+                "status": "active",
+                "item": [
+                    {
+                        "linkId": "grp",
+                        "type": "group",
+                        "answerOption": [{"valueString": "bad"}],
+                        "item": [{"linkId": "child", "type": "string"}],
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_que4_answer_option_and_valueset",
+            {
+                "resourceType": "Questionnaire",
+                "id": "que4-bad",
+                "status": "active",
+                "item": [
+                    {
+                        "linkId": "q1",
+                        "type": "choice",
+                        "answerOption": [{"valueString": "a"}],
+                        "answerValueSet": "http://hl7.org/fhir/ValueSet/yesno",
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_cpb1_missing_rest_messaging_document",
+            {
+                "resourceType": "CapabilityStatement",
+                "id": "cpb1-bad",
+                "status": "active",
+                "date": "2026-01-01",
+                "kind": "instance",
+                "fhirVersion": "4.0.1",
+                "format": ["json"],
+                "description": "Missing rest/messaging/document",
+            },
+            False,
+        ),
+        (
+            "inv_cpb3_messaging_endpoint_not_instance",
+            {
+                "resourceType": "CapabilityStatement",
+                "id": "cpb3-bad",
+                "status": "active",
+                "date": "2026-01-01",
+                "kind": "capability",
+                "fhirVersion": "4.0.1",
+                "format": ["json"],
+                "description": "Bad messaging endpoint on capability",
+                "messaging": [
+                    {
+                        "endpoint": [
+                            {
+                                "protocol": {
+                                    "system": "http://terminology.hl7.org/CodeSystem/message-transport",
+                                    "code": "http",
+                                },
+                                "address": "http://example.org/fhir",
+                            }
+                        ]
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_opd2_search_type_not_string",
+            {
+                "resourceType": "OperationDefinition",
+                "id": "opd2-bad",
+                "name": "BadOp",
+                "status": "active",
+                "kind": "operation",
+                "code": "bad-op",
+                "system": True,
+                "type": False,
+                "instance": False,
+                "parameter": [
+                    {
+                        "name": "p1",
+                        "use": "in",
+                        "min": 0,
+                        "max": "1",
+                        "type": "integer",
+                        "searchType": "token",
+                    }
+                ],
+            },
+            False,
+        ),
+        (
+            "inv_spd2_chain_not_reference",
+            {
+                "resourceType": "SearchParameter",
+                "id": "spd2-bad",
+                "url": "http://example.org/SearchParameter/spd2-bad",
+                "name": "bad-chain",
+                "status": "active",
+                "description": "Chain on string param",
+                "code": "bad-chain",
+                "base": ["Patient"],
+                "type": "string",
+                "chain": ["name"],
+            },
+            False,
+        ),
+        (
+            "inv_cmd1_narrower_missing_comment",
+            {
+                "resourceType": "ConceptMap",
+                "id": "cmd1-bad",
+                "status": "active",
+                "group": [
+                    {
+                        "source": "http://example.org/cs1",
+                        "target": "http://example.org/cs2",
+                        "element": [
+                            {
+                                "code": "A",
+                                "target": [{"code": "B", "equivalence": "narrower"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            False,
+        ),
+        # 8. Tier 2 Element Constraints & IG FHIRPath Constraints (SimpleQuantity, us-core-17)
+        (
+            "profile_r4_cholesterol_simple_quantity_comparator_rejected",
+            {
+                "resourceType": "Observation",
+                "id": "chol-bad",
+                "meta": {"profile": ["http://hl7.org/fhir/StructureDefinition/cholesterol"]},
+                "status": "final",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "35200-5"}]},
+                "subject": {"reference": "Patient/pat-1"},
+                "effectiveDateTime": "2026-01-01",
+                "valueQuantity": {
+                    "value": 4.0,
+                    "unit": "mmol/L",
+                    "system": "http://unitsofmeasure.org",
+                    "code": "mmol/L",
+                },
+                "referenceRange": [{"high": {"value": 4.5, "comparator": "<"}}],
+            },
+            False,
+        ),
+        (
+            "profile_us_core_practitioner_npi_valid",
+            {
+                "resourceType": "Practitioner",
+                "id": "us-pract-ok",
+                "meta": {
+                    "profile": [
+                        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner"
+                    ]
+                },
+                "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": "1234567893"}],
+                "name": [{"family": "Smith", "given": ["Alice"]}],
+            },
+            True,
+        ),
+        (
+            "profile_us_core_practitioner_npi_bad_luhn",
+            {
+                "resourceType": "Practitioner",
+                "id": "us-pract-bad",
+                "meta": {
+                    "profile": [
+                        "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner"
+                    ]
+                },
+                "identifier": [{"system": "http://hl7.org/fhir/sid/us-npi", "value": "1234567890"}],
+                "name": [{"family": "Smith", "given": ["Alice"]}],
             },
             False,
         ),
