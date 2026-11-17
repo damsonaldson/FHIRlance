@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import keyword
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1322,11 +1324,11 @@ def _generate_all_ig_profiles(
     )
 
 
-def _write_complex_types(
+def _render_complex_types(
     complex_sds: list[dict[str, Any]],
     value_sets: dict[str, list[str]],
     known_types: set[str],
-) -> None:
+) -> str:
     blocks: list[str] = [
         '"""Generated FHIR R4 complex datatypes (39 base types)."""',
         "from __future__ import annotations",
@@ -1361,14 +1363,14 @@ def _write_complex_types(
     )
     blocks.extend(f"{sd['id']}.model_rebuild()" for sd in complex_sds)
     blocks.append("SimpleQuantity.model_rebuild()")
-    (OUT_DIR / "types.py").write_text("\n".join(blocks) + "\n", encoding="utf-8")
+    return "\n".join(blocks) + "\n"
 
 
-def _write_resources(
+def _render_resources(
     resource_sds: list[dict[str, Any]],
     value_sets: dict[str, list[str]],
     known_types: set[str],
-) -> list[str]:
+) -> tuple[str, list[str]]:
     mod_ext = (
         "    modifierExtension: Annotated[list[fhir_types.Extension], Field(min_length=1)] "
         "| None = None"
@@ -1404,12 +1406,44 @@ def _write_resources(
     blocks.extend(f"    {name!r}: {name}," for name in res_names)
     blocks.append("}")
     blocks.extend(f"{name}.model_rebuild()" for name in res_names)
-    (OUT_DIR / "resources.py").write_text("\n".join(blocks) + "\n", encoding="utf-8")
-    return res_names
+    return "\n".join(blocks) + "\n", res_names
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Regenerate or verify FHIR R4 models and IG profiles."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify generated files match package outputs without writing to disk.",
+    )
+    return parser.parse_args(argv)
+
+
+def _check_generated_files(rendered: dict[str, str]) -> int:
+    drifted: list[str] = []
+    for filename, expected in rendered.items():
+        target = OUT_DIR / filename
+        if not target.exists() or target.read_text(encoding="utf-8") != expected:
+            drifted.append(filename)
+    if drifted:
+        print(
+            f"Generated files out of sync with packages: {', '.join(drifted)}",
+            file=sys.stderr,
+        )
+        return 1
+    print("All generated files (types.py, resources.py, profiles.py) are up to date.")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     """Regenerate types.py, resources.py, and profiles.py from cached HL7 FHIR packages."""
+    args = _parse_args(argv)
+    if not R4_PKG.exists():
+        print(f"Error: FHIR R4 core package not found at {R4_PKG}", file=sys.stderr)
+        return 1
+
     r4_cs, r4_hierarchy = _load_complete_code_systems(IG_PKGS)
     r4_vs_specs = _load_all_value_sets(IG_PKGS, r4_cs, r4_hierarchy)
     r4_vs_codes = {u: s.codes for u, s in r4_vs_specs.items()}
@@ -1430,7 +1464,7 @@ def main() -> None:
         and s.get("derivation") == "specialization"
     ]
     known_types = {s["id"] for s in complex_sds} | {"Element", "BackboneElement", "SimpleQuantity"}
-    _write_complex_types(complex_sds, r4_vs_codes, known_types)
+    types_content = _render_complex_types(complex_sds, r4_vs_codes, known_types)
 
     resource_sds = [
         s
@@ -1439,7 +1473,7 @@ def main() -> None:
         and not s.get("abstract")
         and s.get("derivation") == "specialization"
     ]
-    res_names = _write_resources(resource_sds, r4_vs_codes, known_types)
+    resources_content, res_names = _render_resources(resource_sds, r4_vs_codes, known_types)
     base_bindings = _extract_base_resource_bindings(R4_PKG)
     complex_bindings = _extract_complex_type_bindings(R4_PKG, r4_vs_codes)
     preferred_bindings = _extract_preferred_resource_bindings(R4_PKG)
@@ -1457,13 +1491,23 @@ def main() -> None:
             base_constraints=base_constraints,
         ),
     )
-    (OUT_DIR / "profiles.py").write_text(profiles_content, encoding="utf-8")
+    rendered = {
+        "types.py": types_content,
+        "resources.py": resources_content,
+        "profiles.py": profiles_content,
+    }
+    if args.check:
+        return _check_generated_files(rendered)
+
+    for filename, content in rendered.items():
+        (OUT_DIR / filename).write_text(content, encoding="utf-8", newline="\n")
     print(f"Generated {len(complex_sds)} complex types and {len(res_names)} R4 resources.")
     print(
         f"Compiled {len(complete_cs)} CodeSystems, {len(vs_specs)} ValueSets, "
         f"{len(base_bindings)} base bindings, and {len(complex_bindings)} complex bindings."
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

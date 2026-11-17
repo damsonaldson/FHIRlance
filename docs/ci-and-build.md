@@ -15,7 +15,7 @@ flowchart LR
         PKGS["HL7 FHIR Packages (~/.fhir/packages)<br/>• R4 Core 4.0.1<br/>• CA-Baseline 1.2.0 & Infoway 1.1.0<br/>• HL7 IPS 1.0.0 & US Core 8.0.1"]
         CODEGEN["Schema Compiler<br/>(scripts/generate_models.py)"]
         GEN["Generated Modules (Zero Runtime I/O)<br/>• src/fhirlance/types.py (39 types)<br/>• src/fhirlance/resources.py (146 resources)<br/>• src/fhirlance/profiles.py (IG constraints)"]
-        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py, extension_spec.py,<br/>extensions.py, invariants.py, specialized_invariants.py, fhirpath.py,<br/>questionnaire.py, terminology.py, vs_expansion.py, conceptmap.py,<br/>pkg_manager.py, ig_loader.py, resource_validator.py, dataset.py, formatters.py, cli.py)"]
+        CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py,<br/>extensions.py, invariants.py, fhirpath.py,<br/>specialized_invariants.py, questionnaire.py, conceptmap.py,<br/>pkg_manager.py, vs_expansion.py, resource_validator.py, cli.py)"]
         PRE["Local Pre-Commit Gate<br/>(.pre-commit-config.yaml)<br/>• ruff --fix & ruff-format<br/>• mypy (strict + pydantic.mypy)"]
 
         PKGS --> CODEGEN --> GEN --> PRE
@@ -72,7 +72,7 @@ FHIRlance avoids parsing multi-megabyte FHIR StructureDefinition JSON files at r
 
 > [!IMPORTANT]
 > **Engineering Guardrails**:
-> 1. **Never hand-edit** `src/fhirlance/types.py`, `src/fhirlance/resources.py`, or `src/fhirlance/profiles.py`. Always regenerate via `python scripts/generate_models.py`.
+> 1. **Never hand-edit** `src/fhirlance/types.py`, `src/fhirlance/resources.py`, or `src/fhirlance/profiles.py`. Always regenerate via `python scripts/generate_models.py` (and verify zero drift with `python scripts/generate_models.py --check`).
 > 2. **Keep the hot path in Rust (`pydantic-core`)**: `FHIRBaseModel` intentionally omits `@model_validator(mode="before")` so standard JSON payloads validate at native Rust speeds; `_primitive` JSON extensions are handled lazily by `primitive_extensions.py` only when extra keys are rejected.
 
 ---
@@ -82,6 +82,15 @@ Before commits leave a developer workstation, `pre-commit` enforces:
 - **Repository Hygiene**: `trailing-whitespace`, `end-of-file-fixer`, `check-toml`, `check-yaml`, `check-merge-conflict`, and `check-added-large-files` (`--maxkb=1024`).
 - **Linting & Formatting**: `ruff --fix` and `ruff-format` (targeting Python 3.10+, 100-char line length, McCabe complexity ≤ 10, max 5 arguments, max 10 branches, max 35 statements per function).
 - **Static Typing**: `mypy` in `strict = true` mode with the `pydantic.mypy` plugin enabled across `src/fhirlance`, `scripts`, and `tests`.
+
+Run the full local quality gate before pushing (using `.venv/bin/python` on Linux/macOS or `.venv\Scripts\python.exe` on Windows):
+
+```bash
+.venv/bin/python -m ruff check .
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m mypy
+.venv/bin/python -m pytest -m "not hl7_live" --cov --cov-report=term-missing --cov-fail-under=95
+```
 
 ---
 
@@ -96,10 +105,10 @@ Triggered on `push` to `main`, `pull_request` targeting `main`, and manual `work
 | **`security`** | `ubuntu-latest` (Python 3.13) | None | Runs `pip-audit --progress-spinner off` (~22s) to audit all installed runtime and dev dependencies against the PyPA advisory database for known CVEs. |
 | **`test`** | `ubuntu-latest`, `windows-latest` × Python `3.10`, `3.11`, `3.12`, `3.13` (8 jobs) | `needs: quality` | Runs `pytest -m "not hl7_live" --cov --cov-report=xml --cov-report=term-missing --cov-fail-under=95`. Enforces **≥ 95% branch coverage** across all handwritten modules in `src/fhirlance` and uploads `coverage.xml` from `ubuntu-latest` / Python 3.13 (14-day retention). |
 | **`build`** | `ubuntu-latest` (Python 3.13) | `needs: [quality, test]` | Runs `python scripts/benchmark_performance.py --update-docs` to refresh the Performance section in `README.md`, `docs/equivalence-and-testing.md`, and `docs/benchmark-results.json`, builds sdist (`.tar.gz`) and wheel (`.whl`) via `python -m build`, validates package metadata with `twine check dist/*`, uploads the `benchmark-results` artifact, and runs a **clean-room smoke test** inside `/tmp/smoke-venv` (`pip install dist/*.whl`, `fhirlance --help`, and `assert len(fhirlance.RESOURCE_MODELS) == 146`). |
-| **`hl7-equivalence`** | `ubuntu-latest` (Python 3.13 + Temurin JDK 17) | `if: github.event_name == 'workflow_dispatch'` | Downloads the latest official HL7 `validator_cli.jar` from `hapifhir/org.hl7.fhir.core`, runs `pytest -m hl7_live -v -s` to verify equivalence against the reference Java validator across all 146 R4 resources, and runs `python scripts/benchmark_performance.py --run-hl7-live --update-docs`. |
+| **`hl7-equivalence`** | `ubuntu-latest` (Python 3.13 + Temurin JDK 17) | `if: github.event_name == 'workflow_dispatch'` | Downloads the latest official HL7 `validator_cli.jar` from `hapifhir/org.hl7.fhir.core`, sets `FHIR_VALIDATOR_JAR`, runs `pytest -m hl7_live -v -s` to verify equivalence against the reference Java validator across all 146 R4 resources, runs `python scripts/benchmark_performance.py --run-hl7-live --update-docs`, and uploads the `hl7-benchmark-results` artifact. |
 
 #### 2. Static Application Security Testing (`.github/workflows/codeql.yml`)
-- Runs GitHub **CodeQL** analysis for Python (`github/codeql-action@v3`) on every push to `main`, every pull request targeting `main`, and on a weekly schedule (`23 4 * * 1` — Mondays at 04:23 UTC).
+- Runs GitHub **CodeQL** analysis for Python (`github/codeql-action@v4`) on every push to `main`, every pull request targeting `main`, and on a weekly schedule (`23 4 * * 1` — Mondays at 04:23 UTC).
 - Reports findings directly to the repository's GitHub **Security** tab (`security-events: write`).
 
 #### 3. Automated AI PR Code Review (`.github/workflows/ai-review.yml`)
@@ -108,3 +117,7 @@ Triggered on `push` to `main`, `pull_request` targeting `main`, and manual `work
 
 #### 4. Automated Dependency Maintenance (`.github/dependabot.yml`)
 - Configured for weekly automated pull requests across both **`pip`** (`pyproject.toml`) and **`github-actions`** (`.github/workflows/*.yml`).
+
+#### 5. Automated Release & PyPI Publishing (`.github/workflows/release.yml`)
+- Triggered on version tag pushes (`v*.*.*`) and manual `workflow_dispatch`.
+- Runs the full quality, CVE audit, and ≥ 95% branch coverage gate, verifies the Git tag matches `pyproject.toml`, builds and smoke-tests the clean wheel, publishes to PyPI via **OIDC Trusted Publishing** (`id-token: write`), and creates a GitHub Release with the attached `dist/*` artifacts.

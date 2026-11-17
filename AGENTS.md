@@ -7,7 +7,7 @@
   2. Fix any valid findings (and re-run the local quality gate if code/tests changed).
   3. Commit on a branch off `main` and open a Pull Request so CI (including `Automated AI Code Review`) reviews it.
 - **Commit Style**: Use Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`).
-- **Pre-Commit / Pre-Merge Local Quality Gate**: Before creating a commit or merging a PR, verify that all local checks pass cleanly using `.venv\Scripts\python.exe`:
+- **Pre-Commit / Pre-Merge Local Quality Gate**: Before creating a commit or merging a PR, verify that all local checks pass cleanly using `.venv/bin/python` (Linux/macOS) or `.venv\Scripts\python.exe` (Windows):
   1. `ruff check .`
   2. `ruff format --check .`
   3. `mypy`
