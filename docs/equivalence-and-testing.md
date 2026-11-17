@@ -1,6 +1,6 @@
 # Proof of Functional Equivalence & Test Suite Architecture
 
-This document details how **FHIRlance** proves functional equivalence with the official HL7 Java Reference Implementation (**`validator_cli.jar`**) and describes the architecture, breadth, and scenario coverage of the repository's test suite (**3,035 pytest test items** / **3,025 offline** at **97.17% statement and branch coverage**).
+This document details how **FHIRlance** proves functional equivalence with the official HL7 Java Reference Implementation (**`validator_cli.jar`**) and describes the architecture, breadth, and scenario coverage of the repository's test suite (**3,039 pytest test items** / **3,029 offline** at **97.17% statement and branch coverage**).
 
 ---
 
@@ -13,7 +13,7 @@ The canonical reference for FHIR R4 and Implementation Guide (IG) conformance is
 FHIRlance proves functional equivalence against `validator_cli.jar` (`-version 4.0.1 -tx n/a`) using a two-pronged approach:
 
 1. **Ahead-of-Time Specification Compilation (`scripts/generate_models.py`)**:
-   Both engines consume the exact same canonical HL7 NPM packages (`hl7.fhir.r4.core#4.0.1`, `hl7.fhir.ca.baseline#1.2.0`, `ca.infoway.io.core#1.1.0-dft-preballot`, `hl7.fhir.uv.ips#1.0.0`, and `hl7.fhir.us.core.r4#8.0.1`). Instead of interpreting StructureDefinition JSON graphs in a JVM at runtime, FHIRlance compiles all **146 base FHIR R4 resources**, **39 complex datatypes**, **473 BackboneElement sub-models** (**659 total Pydantic v2 classes** covering **8,350 typed fields**), and **198 IG profiles** directly into Rust-backed `pydantic-core` schemas and frozen constraint tuples.
+   Both engines consume the exact same canonical HL7 NPM packages (`hl7.fhir.r4.core#4.0.1`, `hl7.fhir.ca.baseline#1.2.0`, `ca.infoway.io.core#1.1.0-dft-preballot`, `hl7.fhir.uv.ips#1.0.0`, and `hl7.fhir.us.core.r4#8.0.1`). Instead of interpreting StructureDefinition JSON graphs in a JVM at runtime, FHIRlance compiles all **146 base FHIR R4 resources**, **39 complex datatypes**, **473 BackboneElement sub-models** (**661 total Pydantic v2 classes** covering **8,350 typed fields**), and **198 IG profiles** directly into Rust-backed `pydantic-core` schemas and frozen constraint tuples.
 2. **Automated Differential Equivalence Harness (`pytest -m hl7_live`)**:
    The live equivalence suites (`tests/test_all_146_live_hl7_equivalence.py` and `tests/test_validator_equivalence.py`) feed identical valid and systematically mutated FHIR JSON payloads into both `fhirlance.validate_resource(...)` and `java -jar validator_cli.jar`, parsing the resulting HL7 `OperationOutcome` Bundle and asserting zero equivalence mismatches across all structural, primitive, invariant, specialized resource, element constraint, and IG profile test cases.
 
@@ -28,7 +28,7 @@ flowchart LR
 
     subgraph PY["FHIRlance Engine (Python + Rust pydantic-core)"]
         direction TB
-        P1["1. Structural Schema (664 Models)"]
+        P1["1. Structural Schema (661 Models)"]
         P2["2. Lazy _primitive Fallback"]
         P3["3. AOT + AST-Combinator FHIRPath & Specialized Invariants"]
         P4["4. Compiled IG Profile Engine (198 Profiles)"]
@@ -55,8 +55,8 @@ flowchart LR
 
 | Validation Dimension | Official HL7 `validator_cli.jar` | FHIRlance Implementation | Equivalence Status |
 | :--- | :--- | :--- | :--- |
-| **Base R4 Resource Types** | Validates all 146 R4 `StructureDefinition` resource schemas | 146 generated `FHIRBaseModel` / `DomainResourceBase` classes in `resources.py` (`608` classes including BackboneElements) | **100% Equivalent** (verified across all 146 resource types) |
-| **Complex Datatypes** | Validates all 39 R4 complex datatype schemas | 39 complex datatype models (including `SimpleQuantity`) + `Element` + BackboneElements (`57` classes) in `types.py` | **100% Equivalent** |
+| **Base R4 Resource Types** | Validates all 146 R4 `StructureDefinition` resource schemas | 146 generated `FHIRBaseModel` / `DomainResourceBase` classes in `resources.py` (`606` classes including BackboneElements) | **100% Equivalent** (verified across all 146 resource types) |
+| **Complex Datatypes** | Validates all 39 R4 complex datatype schemas | 39 complex datatype models (including `SimpleQuantity`) + `Element` + BackboneElements (`55` classes) in `types.py` | **100% Equivalent** |
 | **Unknown JSON Properties** | Rejects undeclared properties (`Unrecognised property`) | `ConfigDict(extra="forbid")` compiled into Rust `pydantic-core` on every model class | **100% Equivalent** |
 | **Empty JSON Arrays (`[]`)** | Rejects empty arrays (`ele-1` / array must not be empty) | `Annotated[list[T], Field(min_length=1)]` on every repeating (`max="*"`) FHIR element | **100% Equivalent** |
 | **Required Elements (`min >= 1`)** | Reports missing mandatory elements on root and BackboneElements | Required Pydantic fields + IG `PathRule` required checks (`543` IG required rules) | **100% Equivalent** |
@@ -70,7 +70,7 @@ flowchart LR
 | **Element Constraints & MustSupport** | Enforces `maxLength`, `minValue`/`maxValue`, `type.profile` (`SimpleQuantity`), empty-list `min >= 1`, and MustSupport | Enforced across [`base.py`](../src/fhirlance/base.py), [`profile_engine.py`](../src/fhirlance/profile_engine.py), [`extensions.py`](../src/fhirlance/extensions.py), and `--enforce-must-support` | **100% Equivalent** |
 | **Recursive `Bundle` & `contained[]`** | Recursively validates `Bundle.entry[].resource` and `DomainResource.contained[]` | `_validate_nested_resources` in `resource_validator.py` with path prefixing and depth guard (`max_depth=16`) | **100% Equivalent** |
 | **Multi-IG Profile & Package Ecosystem** | Evaluates differential/snapshot constraints and resolves transitive IG dependencies | Pre-compiled `COMPILED_PROFILES` (198 profiles) + runtime `ig_loader.py` with transitive `package.json` deps, `fhirlance pkg install`, and `--unknown-profile` | **100% Equivalent** on structural & closed ValueSet rules |
-| **Terminology & Grammar Validation** | Evaluates ValueSets, CodeSystems, supplements, filters, and queries `-tx` server | 1,161+ CodeSystems, 3,297+ ValueSets, versioned canonicals (`url\|version`), `CodeSystem.supplements`, VS `filter` expansion ([`vs_expansion.py`](../src/fhirlance/vs_expansion.py)), offline UCUM/BCP-47/MIME/ISO-3166 grammars, `--tx` with L1/L2 SQLite cache, and `--strict-extensible` ([`terminology.md`](terminology.md)) | **100% Equivalent** |
+| **Terminology & Grammar Validation** | Evaluates ValueSets, CodeSystems, supplements, filters, and queries `-tx` server | 3,061+ CodeSystems, 7,139+ ValueSets, versioned canonicals (`url\|version`), `CodeSystem.supplements`, VS `filter` expansion ([`vs_expansion.py`](../src/fhirlance/vs_expansion.py)), offline UCUM/BCP-47/MIME/ISO-3166 grammars, `--tx` with L1/L2 SQLite cache, and `--strict-extensible` ([`terminology.md`](terminology.md)) | **100% Equivalent** |
 
 > [!NOTE]
 > **Terminology Boundaries & Execution Modes (`--tx`)**:
@@ -80,7 +80,7 @@ flowchart LR
 
 ## 2. Test Suite Scale, Breadth & Coverage Summary
 
-The FHIRlance test suite in `tests/` contains **3,025 offline collected pytest items** (plus 10 live HL7 equivalence tests, **3,035 total**) covering R4 resources, datatypes, primitives, invariants, FHIRPath AST constraints, specialized R4 resources, extensions, slicing, Bundle references, terminology, element constraints, transitive IG packages, and IG profiles.
+The FHIRlance test suite in `tests/` contains **3,029 offline collected pytest items** (plus 10 live HL7 equivalence tests, **3,039 total**) covering R4 resources, datatypes, primitives, invariants, FHIRPath AST constraints, specialized R4 resources, extensions, slicing, Bundle references, terminology, element constraints, transitive IG packages, and IG profiles.
 
 ### 2.1 Quantitative Overview by Test Module
 
@@ -111,7 +111,7 @@ The FHIRlance test suite in `tests/` contains **3,025 offline collected pytest i
 | [`tests/test_tier2_edge_and_coverage_gaps.py`](../tests/test_tier2_edge_and_coverage_gaps.py) | **5** | Extension `value[x]` bindings & `targetProfile` extraction, `fhirpath` context matching, two-pass forward ValueSet resolution, `contained[]` warning propagation, and CLI `pkg` usage exit |
 | [`tests/test_transitive_ig_and_unknown_profile.py`](../tests/test_transitive_ig_and_unknown_profile.py) | **4** | Transitive package dependency loading, runtime IG supplements/filters/versioned VS, versioned built-in terminology lookup, and `--unknown-profile` (`ignore`/`warning`/`error`) |
 | [`tests/test_all_146_live_hl7_equivalence.py`](../tests/test_all_146_live_hl7_equivalence.py) | **2** (`1` offline + `1` `hl7_live`) | Batch equivalence across all **146 R4 resource types** (146 valid + 146 mutated) + **50 targeted invariant, primitive, choice, recursive, Tier 2, and multi-IG profile cases** in a single `validator_cli.jar` run |
-| **Total** | **3,035** (**3,025** offline + **10** `hl7_live`) | **97.17% branch coverage across `src/fhirlance/` (`0` skipped)** |
+| **Total** | **3,039** (**3,029** offline + **10** `hl7_live`) | **97.17% branch coverage across `src/fhirlance/` (`0` skipped)** |
 
 ---
 
@@ -267,20 +267,20 @@ Contains **58 pytest items** (32 unit + 26 integration) exercising the complete 
 This section is automatically updated on every build by [`scripts/benchmark_performance.py`](../scripts/benchmark_performance.py) (`python scripts/benchmark_performance.py --update-docs`, with structured JSON output saved to [`docs/benchmark-results.json`](benchmark-results.json)).
 
 It compares:
-1. **FHIRlance Standard Validation Mode** (`validate_resource` returning `list[str]`) against the **342-resource Master Equivalence Corpus** (all `146` R4 resource types, invariants, specialized resources, and `5` IGs) and the **3,035-item Master Test Suite**.
+1. **FHIRlance Standard Validation Mode** (`validate_resource` returning `list[str]`) against the **342-resource Master Equivalence Corpus** (all `146` R4 resource types, invariants, specialized resources, and `5` IGs) and the **3,039-item Master Test Suite**.
 2. **FHIRlance "FHIR Output" (`OperationOutcome`) Mode** (`validate_to_operation_outcome` & `format_dataset_report(..., output_format="operation-outcome")` emitting compliant FHIR R4 `OperationOutcome` resources with structured `IssueType` codes and FHIRPath `expression` locations).
 3. **Official HL7 Baseline Validator (`validator_cli.jar`)** (`-version 4.0.1 -tx n/a -ig hl7.fhir.uv.ips#1.0.0 -ig hl7.fhir.us.core.r4#8.0.1 -output outcome.json`) against the **exact same 325-resource dataset**.
 
 <!-- PERFORMANCE_BENCHMARK_START -->
-**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `2,996` pytest items (`2,986` offline, `96.52%` coverage) | **Updated**: `2026-11-16 20:48 UTC`
+**Release**: `v0.1.0` | **Python**: `3.13.18` | **Pydantic**: `v2.14.3` (Rust `pydantic-core`) | **Master Suite**: `3,039` pytest items (`3,029` offline, `97.17%` coverage) | **Updated**: `2026-11-17 13:44 UTC`
 
-#### 1. Master Equivalence Dataset (`325` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
+#### 1. Master Equivalence Dataset (`342` Resources, `146` R4 Types, `10` Invariants & `5` IGs)
 
-| Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |
+| Validator / Mode | Batch (`342`) | Latency | Throughput | Speedup |
 | :--- | ---: | ---: | ---: | ---: |
-| **FHIRlance — Standard Mode** | **`44.60 ms`** | **`137.2 µs`** | **`7,287 /s`** | **`787.6x`** |
-| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`49.13 ms`** | **`151.2 µs`** | **`6,615 /s`** | **`715.1x`** |
-| **Official HL7 Baseline Validator** | `35.13 s` | `108.1 ms` | `9.25 /s` | `1.0x` |
+| **FHIRlance — Standard Mode** | **`41.71 ms`** | **`122.0 µs`** | **`8,199 /s`** | **`842.2x`** |
+| **FHIRlance — FHIR Output (`OperationOutcome`) Mode** | **`45.31 ms`** | **`132.5 µs`** | **`7,548 /s`** | **`775.4x`** |
+| **Official HL7 Baseline Validator** | `35.13 s` | `102.7 ms` | `9.74 /s` | `1.0x` |
 
 <sub>Standard: `validate_resource()` · FHIR Output: `validate_to_operation_outcome()` · HL7 Baseline: `validator_cli.jar -version 4.0.1 -tx n/a`</sub>
 
@@ -288,8 +288,8 @@ It compares:
 
 | Workload | Volume | Elapsed | Throughput |
 | :--- | ---: | ---: | ---: |
-| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`166.71 ms`** | **`5,998 /s`** |
-| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`162.91 ms`** | **`6,138 /s`** |
-| **Offline Pytest Suite** (`not hl7_live`) | `2,986` items (`96.52%` cov) | `26.08 s` | **`114.5 items/s`** |
+| **NDJSON Batch** (`validate_dataset`, JSON) | `1,000` res | **`152.93 ms`** | **`6,539 /s`** |
+| **NDJSON Batch** (`--format operation-outcome`) | `1,000` res | **`156.25 ms`** | **`6,400 /s`** |
+| **Offline Pytest Suite** (`not hl7_live`) | `3,029` items (`97.17%` cov) | `25.66 s` | **`118.0 items/s`** |
 <!-- PERFORMANCE_BENCHMARK_END -->
 

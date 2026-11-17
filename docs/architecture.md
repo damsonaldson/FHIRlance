@@ -21,7 +21,7 @@ flowchart TB
     DS --> RV
 
     RV --> BASE["base.py · Rust pydantic-core Hot Path & Primitives"]
-    RV --> MODELS["types.py & resources.py · 664 Generated Models"]
+    RV --> MODELS["types.py & resources.py · 661 Generated Models"]
     RV --> PE["primitive_extensions.py · Lazy _primitive Fallback"]
     RV --> INV["invariants.py · Core FHIRPath & dom-2..5 Fast-Path"]
     RV --> SINV["specialized_invariants.py · Resource & Subscription Checks"]
@@ -46,7 +46,7 @@ flowchart TB
 | Module | Role & Responsibilities |
 | :--- | :--- |
 | [`base.py`](../src/fhirlance/base.py) | `FHIRBaseModel` (pure Rust `pydantic-core` hot path with `extra="forbid"`), `ExtensionBase` (`ext-1`), `DomainResourceBase`, and strict FHIR R4 primitive types (`FHIRDate`, `FHIRDateTime`, `FHIRInstant`, `FHIRTime`, `FHIRId`, `FHIRCode`, 32-bit `FHIRInteger` `-2147483648..2147483647`, 1 MB `FHIRString` `max_length=1048576`, `FHIRPositiveInt`, `FHIRUnsignedInt`). |
-| [`types.py`](../src/fhirlance/types.py) & [`resources.py`](../src/fhirlance/resources.py) | Auto-generated Pydantic v2 models for all **39 complex datatypes** (including `SimpleQuantity`), **146 FHIR R4 resources**, and BackboneElement sub-models (**664 distinct `BaseModel` subclasses**: `608` in `resources.py`, `57` in `types.py`). Never hand-edit. |
+| [`types.py`](../src/fhirlance/types.py) & [`resources.py`](../src/fhirlance/resources.py) | Auto-generated Pydantic v2 models for all **39 complex datatypes** (including `SimpleQuantity`), **146 FHIR R4 resources**, and BackboneElement sub-models (**661 distinct `BaseModel` subclasses**: `606` in `resources.py`, `55` in `types.py`). Never hand-edit. |
 | [`profiles.py`](../src/fhirlance/profiles.py) | Auto-generated Implementation Guide profile constraint definitions (**198 profiles** — `185` resource + `13` complex-type profiles — and **3,579 compiled rules** across 5 IGs), **441 `EXTENSION_CONSTRAINTS`**, **38 `BASE_RESOURCE_CONSTRAINTS`**, and terminology tables (**3,061 `COMPLETE_CODE_SYSTEMS`**, **7,139 `VALUE_SET_SPECS`**, `BASE_RESOURCE_BINDINGS`, `COMPLEX_TYPE_BINDINGS`). Never hand-edit. |
 | [`profile_engine.py`](../src/fhirlance/profile_engine.py) | Typed, pre-compiled `StructureDefinition` constraint evaluator (`required`, `forbidden`, `max_one`, `fixed[x]`, `pattern[x]`, `[x]` type narrowing, `Reference.targetProfile` / `aggregation`, `required` / `preferred` ValueSet bindings, `mustSupport`, `max_length`, `value_bounds`, `element_profiles`, FHIRPath `constraints`, and full discriminator slicing). |
 | [`fhirpath.py`](../src/fhirlance/fhirpath.py) | Pure-Python, zero-`exec` AST-combinator FHIRPath R4 evaluation engine used for `StructureDefinition.element.constraint` invariants and dynamic profile expressions. |
