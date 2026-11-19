@@ -82,14 +82,30 @@ All four Tier 2 pillars are implemented and verified on `main` (PRs #26–#29):
 
 ## Tier 3: Server Sidecar, HAPI / Smile CDR & Enterprise Scale (`v0.4.0` — Next #1)
 
-1. **`fhirlance serve` — Persistent `$validate` Sidecar Daemon**
-   - **Unix Domain Sockets** (`fhirlance serve --uds /run/fhirlance.sock`) and HTTP (`--host 127.0.0.1 --port 8080`) with pre-forked workers (`--workers N`).
-   - Exposes `POST /$validate`, `POST /{resourceType}/$validate`, `POST /$validate-batch`, `GET /healthz`, `GET /igs`, `HTTP 204 No Content` / `HTTP 422` fast paths, `validate_resource_detailed()`, and `--watch`.
-2. **HAPI FHIR / Smile CDR Raw-Byte Interceptor & Edge Filter**
-   - Hooks `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` (and Smile CDR `CHANNEL_IMPORT`) to stream raw UTF-8 request bytes over UDS to `fhirlance serve` before Jackson/DOM parsing or `FhirInstanceValidator` runs (`< 0.3 ms`).
-   - Reference Envoy / NGINX edge filter configs and Kubernetes sidecar / Docker Compose manifests.
-3. **Memory-Mapped (`mmap`) Streaming NDJSON**
-   - Byte-offset chunking for multi-gigabyte `.ndjson` files with `--stream` $O(1)$-memory output.
+> [!NOTE]
+> **Architecture Reference**: See the comprehensive research document in [**FHIR Server Runtimes & Ingestion Architecture**](research-fhir-server-runtimes.md) for the ecosystem survey (HAPI, Medplum, IBM FHIR, Microsoft FHIR, Cloud stores), IPC benchmarks, and topology comparison.
+
+1. **`fhirlance serve` — Persistent Validation Daemon**
+   - **Unix Domain Sockets** (`fhirlance serve --uds /run/fhirlance.sock`, ~20 µs IPC latency) and HTTP (`--host 0.0.0.0 --port 8080`) with pre-forked worker pools (`--workers N`).
+   - **Dual-Mode API & Fast-Path Status Signaling**:
+     - **Ingestion Fast-Path (`POST /filter`)**: Returns `HTTP 204 No Content` on valid resources (zero response body serialization, zero upstream JSON parsing). Returns `HTTP 422 Unprocessable Entity` with full FHIR R4 `OperationOutcome` JSON on error.
+     - **Interactive Validation (`POST /$validate`)**: Standards-compliant FHIR `$validate`, always returning `HTTP 200 OK` with an `OperationOutcome` payload.
+     - Additional endpoints: `POST /{resourceType}/$validate`, `GET /healthz`, and `GET /igs`.
+   - **Comprehensive Payload Scope**: Evaluates single resources (`POST /{type}`) and transactional / batch `Bundle`s (`POST /`) in a single pass, verifying entry profiles, bundle invariants (`bdl-1`–`bdl-12`), and cross-references (`urn:uuid:`, `#contained`) before database persistence.
+   - **Profile Routing & Overrides**: Auto-detects profiles from `meta.profile[]`, with support for an optional `X-FHIR-Profile` header or `?profile=` query override so gateways can enforce mandatory regional IGs (US Core, CA-Baseline, IPS) even when client payloads omit `meta.profile`.
+
+2. **Dual Reference Deployments (Zero-Code Edge Filter + Thin HAPI Interceptor)**
+   - **Perimeter Edge Filter (Envoy / NGINX)**: Zero code changes to the FHIR server. Declarative Envoy `ext_authz` HTTP filter configuration with request body buffering (`with_request_body`). Invalid payloads rejected at the network perimeter in `< 0.3 ms`, protecting downstream FHIR servers (HAPI, Medplum, or managed cloud stores like AWS HealthLake, Google Cloud Healthcare, Azure Health Data Services) from CPU and DB exhaustion.
+   - **HAPI FHIR / Smile CDR Raw-Byte Interceptor**: Standalone single-file Java class (`FhirLanceRawByteInterceptor.java`, ~120 LOC) hooking `Pointcut.SERVER_INCOMING_REQUEST_POST_PROCESSED` via standard Java 16+ `UnixDomainSocketAddress`. Inspects raw request bytes over UDS before HAPI parses them into Java AST models.
+   - **Resilience Policy**: Default to **Fail-Closed** (`HTTP 503` + `OperationOutcome` if `fhirlance serve` is unreachable or times out) to guarantee clinical data integrity, with a configurable fail-open toggle (`FHIRLANCE_FAIL_CLOSED=false`).
+
+3. **Turnkey Distribution Package**
+   - Official minimal OCI container image (`ghcr.io/damsonaldson/fhirlance`).
+   - Turnkey Docker Compose & Kubernetes Pod manifests demonstrating co-located sidecar and Envoy ingress patterns.
+   - Standalone embeddable Java HAPI interceptor class.
+
+4. **Memory-Mapped (`mmap`) Streaming NDJSON**
+   - Byte-offset chunking for multi-gigabyte `.ndjson` files with `--stream` `O(1)`-memory output for bulk `$import` and Kafka data pipelines.
 
 ---
 
