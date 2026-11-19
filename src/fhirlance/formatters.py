@@ -584,7 +584,7 @@ def dataset_to_sarif(report: dict[str, Any]) -> dict[str, Any]:
                 "tool": {
                     "driver": {
                         "name": "FHIRlance",
-                        "version": "0.1.0",
+                        "version": "0.3.0",
                         "informationUri": "https://github.com/damsonaldson/FHIRlance",
                         "rules": SARIF_RULES,
                     }
