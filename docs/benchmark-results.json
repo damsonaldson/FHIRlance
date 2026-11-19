@@ -1,34 +1,34 @@
 {
   "release_version": "0.1.0",
-  "recorded_at_utc": "2026-11-16 20:48 UTC",
+  "recorded_at_utc": "2026-11-17 13:44 UTC",
   "python_version": "3.13.18",
   "pydantic_version": "2.14.3",
   "platform_info": "Linux 7.0.2-6-pve (x86_64)",
-  "corpus_size": 325,
+  "corpus_size": 342,
   "r4_resource_types": 146,
   "compiled_ig_profiles": 198,
-  "master_suite_items": 2996,
-  "offline_suite_items": 2986,
-  "coverage_pct": 96.52,
-  "offline_suite_elapsed_s": 26.08,
+  "master_suite_items": 3039,
+  "offline_suite_items": 3029,
+  "coverage_pct": 97.17,
+  "offline_suite_elapsed_s": 25.66,
   "standard_mode": {
-    "elapsed_ms": 44.6,
-    "per_resource_us": 137.24,
-    "resources_per_sec": 7286.7,
-    "speedup_vs_hl7": 787.6
+    "elapsed_ms": 41.71,
+    "per_resource_us": 121.97,
+    "resources_per_sec": 8198.8,
+    "speedup_vs_hl7": 842.2
   },
   "operation_outcome_mode": {
-    "elapsed_ms": 49.13,
-    "per_resource_us": 151.16,
-    "resources_per_sec": 6615.4,
-    "speedup_vs_hl7": 715.1
+    "elapsed_ms": 45.31,
+    "per_resource_us": 132.48,
+    "resources_per_sec": 7548.5,
+    "speedup_vs_hl7": 775.4
   },
   "hl7_baseline_mode": {
     "elapsed_ms": 35130.0,
-    "per_resource_us": 108092.31,
-    "resources_per_sec": 9.25,
+    "per_resource_us": 102719.3,
+    "resources_per_sec": 9.74,
     "speedup_vs_hl7": 1.0
   },
-  "ndjson_1k_standard_ms": 166.71,
-  "ndjson_1k_operation_outcome_ms": 162.91
+  "ndjson_1k_standard_ms": 152.93,
+  "ndjson_1k_operation_outcome_ms": 156.25
 }

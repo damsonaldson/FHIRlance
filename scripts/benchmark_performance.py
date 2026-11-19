@@ -400,7 +400,7 @@ def render_markdown_section(report: BenchmarkReport) -> str:
         f"#### 1. Master Equivalence Dataset (`{report.corpus_size}` Resources, "
         f"`{report.r4_resource_types}` R4 Types, `10` Invariants & `5` IGs)",
         "",
-        "| Validator / Mode | Batch (`325`) | Latency | Throughput | Speedup |",
+        f"| Validator / Mode | Batch (`{report.corpus_size}`) | Latency | Throughput | Speedup |",
         "| :--- | ---: | ---: | ---: | ---: |",
         "| **FHIRlance — Standard Mode** | "
         f"**`{std.elapsed_ms:.2f} ms`** | **`{std.per_resource_us:.1f} µs`** | "

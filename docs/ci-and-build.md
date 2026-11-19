@@ -66,9 +66,9 @@ FHIRlance avoids parsing multi-megabyte FHIR StructureDefinition JSON files at r
    - `hl7.fhir.uv.ips#1.0.0` (HL7 International Patient Summary)
    - `hl7.fhir.us.core.r4#8.0.1` (HL7 US Core)
 2. **Generated Artifacts (Committed to `src/fhirlance/`)**:
-   - `types.py`: All **39 FHIR R4 complex datatypes** (`57` `BaseModel` subclasses incl. `SimpleQuantity`, `Coding`, `CodeableConcept`, `Identifier`, `Period`, `Reference`, etc.).
-   - `resources.py`: All **146 FHIR R4 base resources** (`608` `BaseModel` subclasses; `664` total models across `types.py` + `resources.py`) inheriting from `DomainResourceBase` / `FHIRBaseModel` (`extra="forbid"`, strict R4 regex primitives, 32-bit `FHIRInteger`, 1 MB `FHIRString`).
-   - `profiles.py`: Pre-compiled Implementation Guide profile constraints (**198 `PROFILE_CONSTRAINTS`**: `185` resource + `13` complex-type profiles, `3,579` rules; **441 `EXTENSION_CONSTRAINTS`**; **38 `BASE_RESOURCE_CONSTRAINTS`** / `663` rules across `144` resources) with resolved `baseDefinition` inheritance chains (cardinality, `max=0` forbidden elements, `fixed[x]`, `pattern[x]`, `[x]` type narrowing, `Reference.targetProfile`, `maxLength`, `minValue`/`maxValue`, `type.profile`, `mustSupport`, `binding_specs` preserving parent `required` strength, and slicing definitions), plus precompiled terminology tables: **3,061 `COMPLETE_CODE_SYSTEMS`** (incl. `hl7.terminology.r4#6.2.0`), **7,139 `VALUE_SET_SPECS`** (with `url|version` indexing), and **146 `BASE_RESOURCE_BINDINGS`**.
+   - `types.py`: All **55 FHIR R4 complex datatype models** (39 core datatypes + `SimpleQuantity` and nested element models).
+   - `resources.py`: All **146 FHIR R4 base resources** (`606` resource & backbone models, `661` total distinct `BaseModel` subclasses across `types.py` + `resources.py`) with `extra="forbid"`, strict R4 regex primitives, 32-bit `FHIRInteger`, and 1 MB `FHIRString`.
+   - `profiles.py`: Pre-compiled Implementation Guide profile constraints (**198 `PROFILE_CONSTRAINTS`**, `3,579` rules, **441 `EXTENSION_CONSTRAINTS`**, **38 `BASE_RESOURCE_CONSTRAINTS`**) with resolved `baseDefinition` inheritance chains, plus precompiled terminology tables: **3,061 `COMPLETE_CODE_SYSTEMS`** (incl. `hl7.terminology.r4#6.2.0` and `url|version` keys), **7,139 `VALUE_SET_SPECS`**, and **146 `BASE_RESOURCE_BINDINGS`**.
 
 > [!IMPORTANT]
 > **Engineering Guardrails**:
