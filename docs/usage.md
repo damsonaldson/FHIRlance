@@ -104,7 +104,7 @@ Install FHIR Implementation Guide NPM packages (and their transitive `package.js
 fhirlance pkg install hl7.fhir.uv.ips#1.0.0
 
 # Install into a custom cache directory without transitive dependencies
-fhirlance pkg install hl7.fhir.us.core#8.0.1 --cache-dir /path/to/cache --no-deps
+fhirlance pkg install hl7.fhir.us.core.r4#8.0.1 --cache-dir /path/to/cache --no-deps
 ```
 
 ---
