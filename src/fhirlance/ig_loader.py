@@ -992,12 +992,18 @@ def _resolve_source_path(source: str | Path) -> Path:
     raise FileNotFoundError(f"IG source not found: {source}")
 
 
-def _resolve_sources_with_deps(sources: Sequence[str | Path]) -> list[Path]:
-    direct = [_resolve_source_path(s) for s in sources]
+def _normalize_sources(sources: str | Path | Sequence[str | Path]) -> tuple[str | Path, ...]:
+    if isinstance(sources, (str, Path)):
+        return (sources,)
+    return tuple(sources)
+
+
+def _resolve_sources_with_deps(sources: str | Path | Sequence[str | Path]) -> list[Path]:
+    direct = [_resolve_source_path(s) for s in _normalize_sources(sources)]
     return resolve_transitive_packages(direct)
 
 
-def load_raw_ig_profiles(sources: Sequence[str | Path]) -> dict[str, dict[str, Any]]:
+def load_raw_ig_profiles(sources: str | Path | Sequence[str | Path]) -> dict[str, dict[str, Any]]:
     """Load StructureDefinition profiles from IG sources and resolve inheritance."""
     resolved_paths = _resolve_sources_with_deps(sources)
     value_sets, vs_specs, all_sds, sd_type_by_url = _load_ig_sds(resolved_paths)
@@ -1118,7 +1124,7 @@ def _extract_profiles_and_extensions(
 
 
 def load_compiled_ig_bundle(
-    sources: Sequence[str | Path],
+    sources: str | Path | Sequence[str | Path],
 ) -> tuple[dict[str, CompiledProfile], dict[str, CompiledExtension]]:
     """Load and compile both IG profiles and Extension StructureDefinitions in one pass."""
     resolved_sources = _resolve_sources_with_deps(sources)
@@ -1178,9 +1184,9 @@ def load_ig_concept_maps(ig_sources: Sequence[str | Path]) -> ConceptMapRegistry
     return registry.copy()
 
 
-def register_ig(sources: Sequence[str | Path]) -> dict[str, CompiledProfile]:
+def register_ig(sources: str | Path | Sequence[str | Path]) -> dict[str, CompiledProfile]:
     """Compile IG sources and register profiles and extensions globally."""
-    compiled, compiled_exts = load_compiled_ig_bundle(sources)
+    compiled, compiled_exts = load_compiled_ig_bundle(_normalize_sources(sources))
     with _CACHE_LOCK:
         COMPILED_PROFILES.update(compiled)
         COMPILED_EXTENSIONS.update(compiled_exts)
@@ -1188,8 +1194,8 @@ def register_ig(sources: Sequence[str | Path]) -> dict[str, CompiledProfile]:
 
 
 def load_compiled_ig_profiles(
-    sources: Sequence[str | Path],
+    sources: str | Path | Sequence[str | Path],
 ) -> dict[str, CompiledProfile]:
     """Load, compile, and merge IG profiles with built-in COMPILED_PROFILES."""
-    profiles, _ = load_compiled_ig_bundle(sources)
+    profiles, _ = load_compiled_ig_bundle(_normalize_sources(sources))
     return profiles

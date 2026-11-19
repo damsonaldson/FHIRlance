@@ -659,12 +659,30 @@ def test_validate_binding_extensible_and_strict() -> None:
         "codes": ["active"],
         "system_codes": {"http://hl7.org/fhir/contact-point-system": ["phone", "email"]},
     }
-    # Extensible with known system -> error
-    coding_known = {"system": "http://hl7.org/fhir/contact-point-system", "code": "fax"}
+    # Extensible with invalid code in known system -> error
+    coding_invalid = {"system": "http://hl7.org/fhir/contact-point-system", "code": "not-a-code"}
     res_ext = validate_binding_value(
-        coding_known, "telecom.system", "http://vs", "extensible", TxOptions("local"), vs_spec=spec
+        coding_invalid,
+        "telecom.system",
+        "http://vs",
+        "extensible",
+        TxOptions("local"),
+        vs_spec=spec,
     )
     assert len(res_ext.errors) == 1
+
+    # Extensible with valid code from complete CodeSystem outside subset VS -> warning
+    coding_valid_ext = {"system": "http://hl7.org/fhir/contact-point-system", "code": "fax"}
+    res_ext_valid = validate_binding_value(
+        coding_valid_ext,
+        "telecom.system",
+        "http://vs",
+        "extensible",
+        TxOptions("local"),
+        vs_spec=spec,
+    )
+    assert res_ext_valid.errors == []
+    assert len(res_ext_valid.warnings) == 1
 
     # Extensible with unknown system and not strict -> warning
     coding_other = {"system": "http://custom-system.org", "code": "custom-val"}

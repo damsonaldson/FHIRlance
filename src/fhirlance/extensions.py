@@ -176,15 +176,61 @@ def _matches_choice_stem(path: str, stem: str) -> bool:
     return rest == "" or ("." not in rest and rest[0].isupper())
 
 
-def _match_element_expr(expr: str, ctx: _WalkContext) -> bool:
+_CANONICAL_RESOURCE_TYPES: frozenset[str] = frozenset(
+    {
+        "ActivityDefinition",
+        "CapabilityStatement",
+        "ChargeItemDefinition",
+        "CodeSystem",
+        "CompartmentDefinition",
+        "ConceptMap",
+        "EffectEvidenceSynthesis",
+        "EventDefinition",
+        "Evidence",
+        "EvidenceVariable",
+        "ExampleScenario",
+        "GraphDefinition",
+        "ImplementationGuide",
+        "Library",
+        "Measure",
+        "MessageDefinition",
+        "NamingSystem",
+        "OperationDefinition",
+        "PlanDefinition",
+        "Questionnaire",
+        "ResearchDefinition",
+        "ResearchElementDefinition",
+        "RiskEvidenceSynthesis",
+        "SearchParameter",
+        "StructureDefinition",
+        "StructureMap",
+        "TerminologyCapabilities",
+        "TestScript",
+        "ValueSet",
+    }
+)
+
+
+def _match_abstract_expr(expr: str, ctx: _WalkContext) -> bool | None:
     if expr == "Element":
         return not ctx.is_root
     if expr == "Resource":
         return ctx.is_root
     if expr == "DomainResource":
         return ctx.is_root and ctx.is_domain_resource
+    if expr in ("CanonicalResource", "MetadataResource"):
+        return ctx.is_root and ctx.fhir_type in _CANONICAL_RESOURCE_TYPES
     if expr == "Extension":
         return ctx.parent_ext_url is not None
+    return None
+
+
+def _match_element_expr(expr: str, ctx: _WalkContext) -> bool:
+    if "#" in expr:
+        expr = expr.split("#", maxsplit=1)[1]
+    abstract = _match_abstract_expr(expr, ctx)
+    if abstract is not None:
+        return abstract
     if expr.endswith("[x]"):
         stem = expr[:-3]
         return (

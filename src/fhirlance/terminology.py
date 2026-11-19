@@ -17,7 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -64,6 +64,9 @@ class _BindingContext:
     options: TxOptions
     vs_spec: dict[str, Any] | None
     profile_prefix: str
+    complete_systems: Mapping[str, frozenset[str]] = field(
+        default_factory=lambda: _DEFAULT_FROZEN_COMPLETE_SYSTEMS
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -616,6 +619,15 @@ _BRACKETED_UNITS = frozenset(
         "[qt_us]",
         "[pt_us]",
         "[foz_us]",
+        "[gal_br]",
+        "[qt_br]",
+        "[pt_br]",
+        "[foz_br]",
+        "[gil_br]",
+        "[fdr_br]",
+        "[min_br]",
+        "[pk_br]",
+        "[bu_br]",
         "[cup_us]",
         "[tbs_us]",
         "[tsp_us]",
@@ -626,8 +638,10 @@ _BRACKETED_UNITS = frozenset(
         "[drop]",
         "[sft_i]",
         "[sin_i]",
+        "[syd_i]",
         "[cin_i]",
         "[cft_i]",
+        "[cyd_i]",
         "[PRU]",
         "[wood'U]",
         "[diop]",
@@ -1079,15 +1093,14 @@ def _evaluate_external_code(
     if vs_spec is None:
         return True, None
     ext = vs_spec.get("external_systems", ())
-    if system in ext or "*" in ext:
-        if code in vs_spec.get("codes", ()):
-            return True, None
-        if options.mode == "remote":
-            return validate_remote_code(
-                options=options, system=system, code=code, value_set_url=vs_url
-            )
+    is_unexpanded = not vs_spec.get("codes") and not vs_spec.get("system_codes") and not ext
+    if not is_unexpanded and system not in ext and "*" not in ext:
+        return False, None
+    if not is_unexpanded and code in vs_spec.get("codes", ()):
         return True, None
-    return False, None
+    if options.mode == "remote":
+        return validate_remote_code(options=options, system=system, code=code, value_set_url=vs_url)
+    return True, None
 
 
 def _evaluate_grammar_in_valueset(
@@ -1157,6 +1170,15 @@ def _evaluate_code_in_valueset(
     return _evaluate_external_code(system, code, vs_url, vs_spec, options)
 
 
+def _is_valid_in_complete_system(
+    system: str,
+    code: str,
+    complete_systems: Mapping[str, frozenset[str]],
+) -> bool:
+    cs = _lookup_code_system(system, complete_systems)
+    return cs is not None and code in cs
+
+
 def _record_binding_issue(
     system: str,
     code: str,
@@ -1176,6 +1198,7 @@ def _record_binding_issue(
             ctx.vs_spec is not None
             and bool(ctx.vs_spec.get("system_codes"))
             and system in ctx.vs_spec.get("system_codes", {})
+            and not _is_valid_in_complete_system(system, code, ctx.complete_systems)
         )
         msg_str = f"{prefix}'{ctx.path}' code '{code}' not in extensible ValueSet '{ctx.vs_url}'"
         return ([msg_str], []) if (is_known or ctx.options.strict_extensible) else ([], [msg_str])
@@ -1305,6 +1328,7 @@ def validate_binding_value(
         raw_spec = _lookup_value_set(vs_url)
     vs_spec = _normalize_vs_spec(raw_spec)
     prefix = str(kwargs.get("profile_prefix", ""))
+    frozen_cs = _get_frozen_complete_systems(kwargs.get("complete_systems"))
     ctx = _BindingContext(
         path=path,
         vs_url=vs_url,
@@ -1312,6 +1336,7 @@ def validate_binding_value(
         options=options,
         vs_spec=vs_spec,
         profile_prefix=prefix,
+        complete_systems=_DEFAULT_FROZEN_COMPLETE_SYSTEMS if frozen_cs is None else frozen_cs,
     )
 
     if isinstance(val, list):
