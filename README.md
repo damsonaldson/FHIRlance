@@ -12,6 +12,7 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 - **[Proof of Functional Equivalence & Test Suite](docs/equivalence-and-testing.md)** — HL7 `validator_cli.jar` equivalence matrix and test catalog (`3,039` items / `97.17%` coverage).
 - **[Build & CI/CD Architecture](docs/ci-and-build.md)** — Ahead-of-time schema compilation, security gates, and cross-platform CI pipeline.
 - **[Architecture & Product Roadmap](docs/roadmap.md)** — Footprint-prioritized roadmap (`v0.1.0`–`v1.0.0`) and HAPI FHIR / Smile CDR integration design.
+- **[FHIR Server Runtimes & Ingestion Architecture](docs/research-fhir-server-runtimes.md)** — Comparative research on open-source FHIR servers (HAPI, Medplum, IBM, Microsoft), deployment topologies, and Tier 3 integration architecture.
 
 ## Coverage (TL;DR)
 - **Full FHIR R4 Base Spec**: All **146 resources** and **39 complex datatypes** (`661` generated Pydantic v2 models incl. `SimpleQuantity`, 32-bit `FHIRInteger`, 1 MB `FHIRString`, `_primitive` extensions, `ext-1`, `38` base invariant sets / `91` rules, zero-`exec` AST-combinator FHIRPath, `Questionnaire`/`QuestionnaireResponse`, and recursive `Bundle` / `contained[]` validation).
