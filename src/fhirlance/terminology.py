@@ -698,6 +698,8 @@ _BRACKETED_UNITS = frozenset(
         "[tr]",
         "[Hg]",
         "[H2O]",
+        "[HPF]",
+        "[LPF]",
     }
 )
 
