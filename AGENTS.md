@@ -37,4 +37,4 @@
    - Any change affecting FHIR R4 structural, FHIRPath invariant, or IG profile validation semantics must preserve parity with the official HL7 `validator_cli.jar` (`pytest -m hl7_live`).
 
 ## 3. Licensing & Attribution
-- Licensed under **CC BY-NC 4.0** (`LICENSE`), Copyright (c) 2026 **Brightwood Consulting Group Limited**.
+- Licensed under **[PolyForm Noncommercial License 1.0.0](LICENSE)** (`PolyForm-Noncommercial-1.0.0`), Copyright (c) 2026 **Brightwood Consulting Group Limited**.

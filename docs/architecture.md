@@ -8,6 +8,7 @@ For other topics, see:
 - **[Proof of Functional Equivalence & Test Suite Architecture](equivalence-and-testing.md)**
 - **[Build & CI/CD Architecture](ci-and-build.md)**
 - **[Architecture & Product Roadmap](roadmap.md)**
+- **[FHIR Server Runtimes & Ingestion Architecture](research-fhir-server-runtimes.md)**
 
 ---
 
