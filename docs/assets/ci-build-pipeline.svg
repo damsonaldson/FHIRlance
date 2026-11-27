@@ -68,7 +68,7 @@
   <text x="58" y="494" fill="#94a3b8" font-size="11" font-family="Consolas, monospace">src/fhirlance/*.py</text>
   <text x="58" y="513" fill="#cbd5e1" font-size="11">• Rust pydantic-core hot path</text>
   <text x="58" y="529" fill="#cbd5e1" font-size="11">• FHIRPath invariants &amp; slicing</text>
-  <text x="58" y="545" fill="#cbd5e1" font-size="11">• Canadian rules &amp; parallel CLI</text>
+  <text x="58" y="545" fill="#cbd5e1" font-size="11">• Terminology, extensions &amp; CLI</text>
 
   <line x1="165" y1="568" x2="165" y2="596" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 
@@ -120,7 +120,7 @@
   <text x="516" y="490" fill="#34d399" font-size="10" font-weight="700">PASSING</text>
   <text x="358" y="488" fill="#34d399" font-size="13" font-weight="700">Workflow: CodeQL SAST</text>
   <text x="358" y="506" fill="#94a3b8" font-size="11">codeql.yml (+ Mon 04:23 UTC cron)</text>
-  <text x="358" y="526" fill="#cbd5e1" font-size="11">• github/codeql-action/init@v3</text>
+  <text x="358" y="526" fill="#cbd5e1" font-size="11">• github/codeql-action/init@v4</text>
   <text x="358" y="542" fill="#cbd5e1" font-size="11">• Static Python security analysis</text>
   <text x="358" y="558" fill="#cbd5e1" font-size="11">• Publishes to Security Events</text>
 
@@ -133,7 +133,7 @@
   <text x="358" y="650" fill="#cbd5e1" font-size="11">• Diffs handwritten code only</text>
   <text x="358" y="666" fill="#cbd5e1" font-size="11">• Checks SOLID &amp; Rust guardrails</text>
   <text x="358" y="682" fill="#cbd5e1" font-size="11">• Posts PR comment via Gemini</text>
-  <text x="358" y="700" fill="#fcd34d" font-size="10">⚠ Needs model bump to 3.8-flash</text>
+  <text x="358" y="700" fill="#6ee7b7" font-size="10">✓ Uses gemini-3.8-flash (+ fallback)</text>
 
   <!-- Arrow from quality to Test Matrix -->
   <line x1="587" y1="264" x2="636" y2="264" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrowGreen)"/>
@@ -234,6 +234,6 @@
   <text x="956" y="618" fill="#94a3b8" font-size="10" font-family="Consolas, monospace">permissions: contents: read</text>
   <rect x="948" y="634" width="194" height="64" rx="6" fill="#064e3b" stroke="#10b981"/>
   <text x="960" y="654" fill="#ecfdf5" font-size="12" font-weight="700">Verified Release Artifact</text>
-  <text x="960" y="672" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.1.0-py3-none-any.whl</text>
-  <text x="960" y="688" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.1.0.tar.gz</text>
+  <text x="960" y="672" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.3.0-py3-none-any.whl</text>
+  <text x="960" y="688" fill="#a7f3d0" font-size="10" font-family="Consolas, monospace">fhirlance-0.3.0.tar.gz</text>
 </svg>

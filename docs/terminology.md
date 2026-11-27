@@ -10,6 +10,7 @@ For other topics, see:
 - **[Proof of Functional Equivalence & Test Suite Architecture](equivalence-and-testing.md)**
 - **[Build & CI/CD Architecture](ci-and-build.md)**
 - **[Architecture & Product Roadmap](roadmap.md)**
+- **[FHIR Server Runtimes & Ingestion Architecture](research-fhir-server-runtimes.md)**
 
 ---
 
@@ -235,7 +236,7 @@ FHIR defines 4 binding strengths: `required`, `extensible`, `preferred`, and `ex
 | Binding Strength | Local Validation Behavior (`--tx local`) | Remote Mode (`--tx remote`) | Strict Mode (`--strict-extensible`) |
 | :--- | :--- | :--- | :--- |
 | **`required`** | Code **must** be present in the ValueSet specification or valid according to the grammar. Missing codes or invalid codes produce a blocking **validation error** (`severity: "error"`). | Code must match locally or validate via remote `$validate-code`. Unmatched codes produce a blocking **validation error**. | Same as local/remote. |
-| **`extensible`** | 1. If code belongs to a CodeSystem covered by the ValueSet (`system in system_codes`): code must be valid; an invalid code produces a blocking **validation error**.<br/>2. If code belongs to an alternate/external system: produces a non-blocking diagnostic **warning** (`severity: "warning"`). | Same local evaluation, querying remote Tx server for external systems. | Uncovered external codes produce a blocking **validation error** instead of a warning. |
+| **`extensible`** | 1. If code belongs to a CodeSystem covered by the ValueSet (`system in system_codes`): an invalid code not defined in that CodeSystem produces a blocking **validation error**; a valid code from a complete CodeSystem extending a subset extensible ValueSet emits a non-blocking **warning** (`severity: "warning"`).<br/>2. If code belongs to an alternate/external system: produces a non-blocking diagnostic **warning** (`severity: "warning"`). | Same local evaluation, querying remote Tx server for external systems. | Valid external or extending codes emit a blocking **validation error** instead of a warning. |
 | **`preferred`** | Informational by default; emits a non-blocking `Warning: BestPractice[...]` when `--best-practice` (`best_practice=True`) is enabled and the code is not in the ValueSet. | Same as local, querying remote Tx server when `--best-practice` is enabled. | Informational by default; emits best-practice warning under `--best-practice`. |
 | **`example`** | Informational; not evaluated as blocking validation errors. | Informational. | Informational. |
 

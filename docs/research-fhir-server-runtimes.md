@@ -33,13 +33,13 @@ As Fast Healthcare Interoperability Resources (HL7 FHIR R4) becomes the mandator
 
 Historically, FHIR validation has relied almost exclusively on the reference HL7 Java Core validator (`org.hl7.fhir.core`) and its server wrapper in HAPI FHIR (`FhirInstanceValidator`). While functionally complete, the Java validator suffers from substantial initialization overhead, heavy heap consumption, garbage collection (GC) pauses during sustained loads, and execution latencies ranging between **35 ms and 100+ ms per resource** (~10 to 30 res/s per core).
 
-In contrast, **FHIRlance** demonstrates that structural, slicing, extension, invariant (FHIRPath), and terminology constraints can be evaluated in pure Python 3.10+ backed by Rust (`pydantic-core`) at **~122 µs per resource (~8,200 res/s per core)**—an **842x speedup** over `validator_cli.jar`.
+In contrast, **FHIRlance** demonstrates that structural, slicing, extension, invariant (FHIRPath), and terminology constraints can be evaluated in pure Python 3.10+ backed by Rust (`pydantic-core`) at **~120 µs per resource (~8,300 res/s per core)**—an **854x speedup** over `validator_cli.jar`.
 
 ```
 Validation Latency per Resource (Logarithmic Scale)
 ========================================================================================
 HL7 validator_cli.jar / HAPI :  ████████████████████████████████████ 102.7 ms (102,700 µs)
-FHIRlance (Local / In-Process):  ▏ 0.122 ms (122 µs)  [842x faster]
+FHIRlance (Local / In-Process):  ▏ 0.120 ms (120 µs)  [854x faster]
 FHIRlance via UDS Sidecar    :  ▎ 0.165 ms (165 µs)  [622x faster]
 FHIRlance via Envoy Filter   :  ▎ 0.185 ms (185 µs)  [555x faster]
 ========================================================================================
@@ -276,7 +276,7 @@ Kubernetes Pod / Host Node Boundary
 1. **IPC Latency vs. Validation Benchmark**:
    - Linux kernel Unix Domain Sockets bypass the network stack entirely: no TCP loopback overhead, no IP packet fragmentation, no TCP checksumming, and no network interface card (NIC) virtualization layers.
    - Round-trip IPC latency over UDS for typical FHIR payloads (5 KB–50 KB) is consistently **between 10 µs and 30 µs**.
-   - With FHIRlance's baseline validation time of **~122 µs**, the combined end-to-end validation check takes **~140 µs–165 µs (< 0.2 ms)**!
+   - With FHIRlance's baseline validation time of **~120 µs**, the combined end-to-end validation check takes **~140 µs–165 µs (< 0.2 ms)**!
    - Compared to HAPI's native `FhirInstanceValidator` (35,000 µs–100,000 µs), the UDS sidecar pattern is still **over 500x faster** than the native Java validator.
 
 2. **Universal Compatibility Across ALL Servers**:
@@ -390,15 +390,15 @@ The following decision matrix evaluates the four deployment topologies across cr
 | Evaluation Dimension | Topology 1: In-Process (C-ABI / FFI) | Topology 2: Sidecar Microservice (UDS) | Topology 3: Pre-Ingestion Reverse Proxy (Envoy) | Topology 4: Bulk Stream / Queue Worker |
 | :--- | :---: | :---: | :---: | :---: |
 | **Mean Latency Overhead** | **Lowest** (~1–5 µs) | **Very Low** (10–30 µs) | **Low** (30–60 µs) | **N/A** (Asynchronous) |
-| **End-to-End Validation Time** | ~123 µs | ~150 µs | ~180 µs | ~122 µs / record |
-| **Throughput (cores/sec)** | ~8,200 res/s | ~6,500 res/s | ~5,500 res/s | ~8,200 res/s (batched) |
+| **End-to-End Validation Time** | ~123 µs | ~150 µs | ~180 µs | ~120 µs / record |
+| **Throughput (cores/sec)** | ~8,300 res/s | ~6,500 res/s | ~5,500 res/s | ~8,300 res/s (batched) |
 | **Memory & Process Isolation** | ❌ None (Shared address space) | ✅ **Full** (Container cgroups) | ✅ **Full** (Network boundary) | ✅ **Full** (Separate workers) |
 | **Crash Blast Radius** | ❌ **High** (Crashes FHIR server) | ✅ **Isolated** (Sidecar restarts) | ✅ **Isolated** (Gateway fallback) | ✅ **Zero** (Message retried/DLQ) |
 | **Multi-Server Portability** | ❌ Low (Re-bind per language) | ✅ **Universal** (Standard socket) | ✅ **Universal** (Network-level) | ✅ **Universal** (Data-level) |
 | **Support for Managed Cloud Stores** | ❌ Impossible | ❌ Impossible | ✅ **Full** (Google, Azure, AWS) | ✅ **Full** (Via cloud queue) |
 | **Implementation Effort (FHIRlance)** | ❌ Extreme (Native Rust/C-ABI) | 🟢 **Moderate** (UDS Daemon) | 🟢 **Low** (Envoy Config + UDS) | 🟢 **Low** (CLI / Python script) |
 | **Maintenance Burden** | ❌ High (Multi-platform wheels) | 🟢 **Very Low** (Single Python daemon) | 🟢 **Very Low** (Declarative proxy) | 🟢 **Very Low** (Standard Python worker) |
-| **Primary Use Case** | Embedded embedded engines | **HAPI / Medplum server hooks** | **Enterprise API perimeter** | **Nightly ETL / Bulk `$import`** |
+| **Primary Use Case** | Embedded engines | **HAPI / Medplum server hooks** | **Enterprise API perimeter** | **Nightly ETL / Bulk `$import`** |
 
 ---
 
@@ -528,4 +528,4 @@ Deliver a lightweight Java library (`fhirlance-hapi-interceptor.jar`):
 ---
 *Document Version: 1.0.0*  
 *Date of Research: November 19, 2026*  
-*Copyright (c) 2026 Brightwood Consulting Group Limited. Licensed under [CC BY-NC 4.0](../LICENSE).*
+*Copyright (c) 2026 Brightwood Consulting Group Limited. Licensed under [PolyForm Noncommercial License 1.0.0](../LICENSE).*

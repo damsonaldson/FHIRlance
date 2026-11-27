@@ -1,6 +1,6 @@
 # Proof of Functional Equivalence & Test Suite Architecture
 
-This document details how **FHIRlance** proves functional equivalence with the official HL7 Java Reference Implementation (**`validator_cli.jar`**) and describes the architecture, breadth, and scenario coverage of the repository's test suite (**3,039 pytest test items** / **3,029 offline** at **97.17% statement and branch coverage**).
+This document details how **FHIRlance** proves functional equivalence with the official HL7 Java Reference Implementation (**`validator_cli.jar`**) and describes the architecture, breadth, and scenario coverage of the repository's test suite (**3,044 pytest test items** / **3,034 offline** at **97.16% statement and branch coverage**).
 
 ---
 
@@ -85,7 +85,7 @@ While FHIRlance maintains exact equivalence with `validator_cli.jar` for in-scop
 | Boundary / Capability | Official HL7 `validator_cli.jar` | FHIRlance Implementation | Rationale & Impact |
 | :--- | :--- | :--- | :--- |
 | **1. Outbound External Reference Scraping** | Follows absolute HTTP(S) reference URLs over the public network to download and validate external target resources from remote servers. | Resolves references strictly within the local validation boundary (`#contained` resources and `Bundle.entry[].fullUrl` by `urn:uuid:`, `urn:oid:`, `ResourceType/id`, or exact URI). Does **not** perform outbound network calls during reference checks. | **Zero-Network Hot Path & Determinism**: Prevents external HTTP latency, transient timeouts, or non-deterministic validation failures caused by third-party server downtime in high-throughput pipelines. |
-| **2. Offline Ontological Subsumption (ECL / `is-a`)** | Requires an active external FHIR terminology server (`tx.fhir.org` or local HAPI/Snowstorm) for dynamic SNOMED CT Expression Constraint Language (ECL) or deep subsumption hierarchies. | Ships with **3,061 complete CodeSystems**, **7,139 pre-expanded ValueSets**, and offline grammars (UCUM, BCP-47, MIME, ISO-3166). External subsumption is queried via `--tx remote` (with L1 memory + L2 SQLite caching), but in pure offline mode (`--tx off` or local unexpanded stubs), deep subsumption is not calculated from scratch. | **Self-Contained Microsecond Validation**: Precompiled snapshots cover >99% of clinical payloads in ~122 µs without network dependencies; remote fallback is available when live ontology traversal is explicitly needed. |
+| **2. Offline Ontological Subsumption (ECL / `is-a`)** | Requires an active external FHIR terminology server (`tx.fhir.org` or local HAPI/Snowstorm) for dynamic SNOMED CT Expression Constraint Language (ECL) or deep subsumption hierarchies. | Ships with **3,061 complete CodeSystems**, **7,139 pre-expanded ValueSets**, and offline grammars (UCUM, BCP-47, MIME, ISO-3166). External subsumption is queried via `--tx remote` (with L1 memory + L2 SQLite caching), but in pure offline mode (`--tx off` or local unexpanded stubs), deep subsumption is not calculated from scratch. | **Self-Contained Microsecond Validation**: Precompiled snapshots cover >99% of clinical payloads in ~120 µs without network dependencies; remote fallback is available when live ontology traversal is explicitly needed. |
 | **3. Non-Conformance FHIRPath Functions** | Implements the entire normative FHIRPath specification, including functions intended for clinical quality measure (CQM) execution, reporting, or debugging. | Implements all conformance-relevant FHIRPath functions used across base R4 and IGs (`exists`, `empty`, `all`, `where`, `select`, `matches`, `startsWith`, `contains`, `resolve`, `ofType`, `as`, `is`, `extension`, boolean/math operators, datetime comparisons, etc.). Does not evaluate esoteric analytical functions like `aggregate()`, `trace()`, or math vectors. | **Performance & Scope**: Specialized measure-evaluation functions do not appear in standard `ElementDefinition.constraint` expressions. Skipping unused analytical functions keeps the AST evaluator lightweight and fast. |
 | **4. Dynamic Transformation Execution (`$transform`)** | Includes a full FHIR Mapping Language (FML) execution runtime capable of running `StructureMap` `$transform` scripts to mutate and translate resources between models. | Validates the **structure, syntax, and conformance of `StructureMap` resources themselves** as valid FHIR assets, but does not execute data transformations between arbitrary external schemas. | **Single Responsibility**: FHIRlance is a dedicated validator, not an ETL/transformation execution runtime. |
 | **5. Multi-Version Support (`R4B`, `R5`, `R6`)** | Multi-version CLI supporting `-version 3.0.2` (STU3), `4.0.1` (R4), `4.3.0` (R4B), and `5.0.0` (R5). | Purely focused on **FHIR R4 (4.0.1)** today. Multi-version `R4B`/`R5` codegen is scheduled for **Tier 4 / `v1.0.0`**. | **Laser Focus on Current Footprint**: R4 represents >90% of global and Canadian production deployments (US Core, IPS, CA-Baseline, Ontario Health, BC, Alberta). |
@@ -94,7 +94,7 @@ While FHIRlance maintains exact equivalence with `validator_cli.jar` for in-scop
 
 ## 2. Test Suite Scale, Breadth & Coverage Summary
 
-The FHIRlance test suite in `tests/` contains **3,029 offline collected pytest items** (plus 10 live HL7 equivalence tests, **3,039 total**) covering R4 resources, datatypes, primitives, invariants, FHIRPath AST constraints, specialized R4 resources, extensions, slicing, Bundle references, terminology, element constraints, transitive IG packages, and IG profiles.
+The FHIRlance test suite in `tests/` contains **3,034 offline collected pytest items** (plus 10 live HL7 equivalence tests, **3,044 total**) covering R4 resources, datatypes, primitives, invariants, FHIRPath AST constraints, specialized R4 resources, extensions, slicing, Bundle references, terminology, element constraints, transitive IG packages, and IG profiles.
 
 ### 2.1 Quantitative Overview by Test Module
 
@@ -122,16 +122,17 @@ The FHIRlance test suite in `tests/` contains **3,029 offline collected pytest i
 | [`tests/test_property_and_perf.py`](../tests/test_property_and_perf.py) | **7** | Property-based Hypothesis fuzzing (200 arbitrary JSON & mutated resource examples), strict JSON `NaN`/`Infinity`/`-Infinity` rejection, and Rust hot-path guard + 200-iteration throughput benchmark (`<0.5s`) |
 | [`tests/test_codegen_unit.py`](../tests/test_codegen_unit.py) | **10** | Unit tests for `scripts/generate_models.py` keyword escaping, `baseDefinition` profile inheritance merging, FHIRPath AOT emission, `SimpleQuantity` bounds, and BackboneElement / `[x]` choice model emission |
 | [`tests/test_comprehensive_profiles_and_resilience.py`](../tests/test_comprehensive_profiles_and_resilience.py) | **6** | End-to-end profile rules, `_primitive` extensions, `ext-1`, `obs-7`, `bdl-7`, `contained[]` recursion, depth guard (`>16`), strict JSON `NaN`/`Infinity`, and CLI exit codes |
+| [`tests/test_real_world_ig_regressions.py`](../tests/test_real_world_ig_regressions.py) | **5** | Real-world Ontario Health DHDR/MI IG regressions: single-string `register_ig()`, `CanonicalResource`/`<url>#` extension contexts, extensible complete-CodeSystem warnings, unexpanded empty ValueSet local pass-through, and British imperial/yard UCUM units |
 | [`tests/test_tier2_edge_and_coverage_gaps.py`](../tests/test_tier2_edge_and_coverage_gaps.py) | **5** | Extension `value[x]` bindings & `targetProfile` extraction, `fhirpath` context matching, two-pass forward ValueSet resolution, `contained[]` warning propagation, and CLI `pkg` usage exit |
 | [`tests/test_transitive_ig_and_unknown_profile.py`](../tests/test_transitive_ig_and_unknown_profile.py) | **4** | Transitive package dependency loading, runtime IG supplements/filters/versioned VS, versioned built-in terminology lookup, and `--unknown-profile` (`ignore`/`warning`/`error`) |
 | [`tests/test_all_146_live_hl7_equivalence.py`](../tests/test_all_146_live_hl7_equivalence.py) | **2** (`1` offline + `1` `hl7_live`) | Batch equivalence across all **146 R4 resource types** (146 valid + 146 mutated) + **50 targeted invariant, primitive, choice, recursive, Tier 2, and multi-IG profile cases** in a single `validator_cli.jar` run |
-| **Total** | **3,039** (**3,029** offline + **10** `hl7_live`) | **97.17% branch coverage across `src/fhirlance/` (`0` skipped)** |
+| **Total** | **3,044** (**3,034** offline + **10** `hl7_live`) | **97.16% branch coverage across `src/fhirlance/` (`0` skipped)** |
 
 ---
 
 ### 2.2 Code Coverage by Module (`src/fhirlance/`)
 
-Running `pytest -m "not hl7_live" --cov --cov-report=term-missing` achieves **97.17% branch coverage** across all handwritten modules (above the 95% CI gate enforced in `pyproject.toml`):
+Running `pytest -m "not hl7_live" --cov --cov-report=term-missing` achieves **97.16% branch coverage** across all handwritten modules (above the 95% CI gate enforced in `pyproject.toml`):
 
 | Module | Statements | Missed | Branches | Partial | Coverage |
 | :--- | ---: | ---: | ---: | ---: | ---: |
@@ -141,22 +142,22 @@ Running `pytest -m "not hl7_live" --cov --cov-report=term-missing` achieves **97
 | `src/fhirlance/conceptmap.py` | 448 | 7 | 186 | 8 | **98%** |
 | `src/fhirlance/dataset.py` | 227 | 0 | 56 | 0 | **100%** |
 | `src/fhirlance/extension_spec.py` | 226 | 4 | 130 | 11 | **95%** |
-| `src/fhirlance/extensions.py` | 293 | 4 | 168 | 10 | **97%** |
+| `src/fhirlance/extensions.py` | 303 | 4 | 174 | 10 | **97%** |
 | `src/fhirlance/fhirpath.py` | 1,028 | 14 | 498 | 18 | **98%** |
 | `src/fhirlance/formatters.py` | 257 | 1 | 112 | 2 | **99%** |
-| `src/fhirlance/ig_loader.py` | 733 | 20 | 362 | 34 | **95%** |
+| `src/fhirlance/ig_loader.py` | 737 | 20 | 364 | 34 | **95%** |
 | `src/fhirlance/invariants.py` | 175 | 5 | 104 | 6 | **96%** |
-| `src/fhirlance/pkg_manager.py` | 244 | 6 | 108 | 9 | **96%** |
+| `src/fhirlance/pkg_manager.py` | 244 | 7 | 108 | 10 | **95%** |
 | `src/fhirlance/primitive_extensions.py` | 44 | 0 | 24 | 0 | **100%** |
 | `src/fhirlance/profile_engine.py` | 743 | 18 | 362 | 20 | **97%** |
 | `src/fhirlance/questionnaire.py` | 251 | 6 | 142 | 10 | **96%** |
 | `src/fhirlance/resource_validator.py` | 330 | 2 | 170 | 7 | **98%** |
 | `src/fhirlance/slicing_spec.py` | 160 | 2 | 68 | 2 | **98%** |
 | `src/fhirlance/specialized_invariants.py` | 347 | 9 | 218 | 18 | **95%** |
-| `src/fhirlance/terminology.py` | 620 | 4 | 312 | 5 | **99%** |
+| `src/fhirlance/terminology.py` | 626 | 4 | 312 | 5 | **99%** |
 | `src/fhirlance/validator.py` | 8 | 0 | 0 | 0 | **100%** |
 | `src/fhirlance/vs_expansion.py` | 323 | 2 | 184 | 9 | **98%** |
-| **TOTAL** | **6,656** | **106** | **3,268** | **171** | **97.17%** |
+| **TOTAL** | **6,676** | **107** | **3,276** | **172** | **97.16%** |
 
 ---
 
@@ -273,6 +274,8 @@ Contains **58 pytest items** (32 unit + 26 integration) exercising the complete 
   - **14 pytest items** verifying `maxLength` (compiled, runtime IG, extensions), `FHIRString` 1 MB cap, `FHIRInteger` 32-bit bounds, `minValue`/`maxValue` (numeric, Quantity, date), `type.profile` (`SimpleQuantity` rejecting `comparator`, `CodeableConcept` UV IPS), empty-list `min >= 1`, and `--enforce-must-support`.
 - **Transitive IG Packages, ValueSet Expansion & Edge Cases ([`tests/test_pkg_manager.py`](../tests/test_pkg_manager.py), [`tests/test_vs_expansion.py`](../tests/test_vs_expansion.py), [`tests/test_transitive_ig_and_unknown_profile.py`](../tests/test_transitive_ig_and_unknown_profile.py), [`tests/test_tier2_edge_and_coverage_gaps.py`](../tests/test_tier2_edge_and_coverage_gaps.py))**:
   - **39 pytest items** covering `fhirlance pkg install`, transitive `package.json` dependency resolution, `CodeSystem.supplements`, `ValueSet.compose.include.filter`, two-pass forward ValueSet resolution, versioned canonicals (`url|version`), `--unknown-profile` (`ignore`/`warning`/`error`), extension `value[x]` bindings, and `contained[]` warning propagation.
+- **Real-World Ontario Health IG Regressions ([`tests/test_real_world_ig_regressions.py`](../tests/test_real_world_ig_regressions.py))**:
+  - **5 pytest items** verifying real-world regressions found against Ontario Health DHDR & Medical Imaging IGs: single-string `register_ig()`, `CanonicalResource`/`<url>#` extension contexts, extensible complete-CodeSystem warnings, unexpanded empty ValueSet local pass-through, and British imperial/yard UCUM units.
 
 ---
 
@@ -281,7 +284,7 @@ Contains **58 pytest items** (32 unit + 26 integration) exercising the complete 
 This section is automatically updated on every build by [`scripts/benchmark_performance.py`](../scripts/benchmark_performance.py) (`python scripts/benchmark_performance.py --update-docs`, with structured JSON output saved to [`docs/benchmark-results.json`](benchmark-results.json)).
 
 It compares:
-1. **FHIRlance Standard Validation Mode** (`validate_resource` returning `list[str]`) against the **342-resource Master Equivalence Corpus** (all `146` R4 resource types, invariants, specialized resources, and `5` IGs) and the **3,039-item Master Test Suite**.
+1. **FHIRlance Standard Validation Mode** (`validate_resource` returning `list[str]`) against the **342-resource Master Equivalence Corpus** (all `146` R4 resource types, invariants, specialized resources, and `5` IGs) and the **3,044-item Master Test Suite**.
 2. **FHIRlance "FHIR Output" (`OperationOutcome`) Mode** (`validate_to_operation_outcome` & `format_dataset_report(..., output_format="operation-outcome")` emitting compliant FHIR R4 `OperationOutcome` resources with structured `IssueType` codes and FHIRPath `expression` locations).
 3. **Official HL7 Baseline Validator (`validator_cli.jar`)** (`-version 4.0.1 -tx n/a -ig hl7.fhir.uv.ips#1.0.0 -ig hl7.fhir.us.core.r4#8.0.1 -output outcome.json`) against the **exact same 342-resource dataset**.
 

@@ -12,7 +12,7 @@ This document explains how **FHIRlance** compiles HL7 FHIR R4 specifications int
 flowchart LR
     subgraph Phase1["1. Offline Schema Compilation & Local Gate"]
         direction TB
-        PKGS["HL7 FHIR Packages (~/.fhir/packages)<br/>• R4 Core 4.0.1<br/>• CA-Baseline 1.2.0 & Infoway 1.1.0<br/>• HL7 IPS 1.0.0 & US Core 8.0.1"]
+        PKGS["HL7 FHIR Packages (~/.fhir/packages)<br/>• R4 Core 4.0.1 & UTG 6.2.0<br/>• CA-Baseline 1.2.0 & Infoway 1.1.0<br/>• HL7 IPS 1.0.0 & US Core 8.0.1"]
         CODEGEN["Schema Compiler<br/>(scripts/generate_models.py)"]
         GEN["Generated Modules (Zero Runtime I/O)<br/>• src/fhirlance/types.py (39 types)<br/>• src/fhirlance/resources.py (146 resources)<br/>• src/fhirlance/profiles.py (IG constraints)"]
         CORE["Handwritten Validation Engine<br/>(base.py, profile_engine.py, slicing_spec.py,<br/>extensions.py, invariants.py, fhirpath.py,<br/>specialized_invariants.py, questionnaire.py, conceptmap.py,<br/>pkg_manager.py, vs_expansion.py, resource_validator.py, cli.py)"]
@@ -118,6 +118,6 @@ Triggered on `push` to `main`, `pull_request` targeting `main`, and manual `work
 #### 4. Automated Dependency Maintenance (`.github/dependabot.yml`)
 - Configured for weekly automated pull requests across both **`pip`** (`pyproject.toml`) and **`github-actions`** (`.github/workflows/*.yml`).
 
-#### 5. Automated Release & PyPI Publishing (`.github/workflows/release.yml`)
+#### 5. Automated GitHub Releases & Opt-In PyPI Publishing (`.github/workflows/release.yml`)
 - Triggered on version tag pushes (`v*.*.*`) and manual `workflow_dispatch`.
-- Runs the full quality, CVE audit, and ≥ 95% branch coverage gate, verifies the Git tag matches `pyproject.toml`, builds and smoke-tests the clean wheel, publishes to PyPI via **OIDC Trusted Publishing** (`id-token: write`), and creates a GitHub Release with the attached `dist/*` artifacts.
+- Runs the full quality, CVE audit, and ≥ 95% branch coverage gate, verifies the Git tag matches `pyproject.toml`, builds and smoke-tests the clean wheel, creates a GitHub Release with the attached `dist/*` artifacts (`needs: build`), and optionally publishes to PyPI via **OIDC Trusted Publishing** (`id-token: write`) when repository variable `ENABLE_PYPI_PUBLISH=true` is enabled.

@@ -9,10 +9,11 @@ High-performance **FHIR R4 structural & Implementation Guide profile validator**
 - **[CLI & Python API Reference](docs/usage.md)** — Full CLI flags, output formats, exit codes, and Python API examples.
 - **[Package Architecture & Development Reference](docs/architecture.md)** — Internal module breakdown, schema codegen, and local quality-gate workflow.
 - **[Terminology Validation Engine & TX Reference](docs/terminology.md)** — Offline grammars (UCUM, BCP-47, MIME, ISO-3166), 3,061 complete CodeSystems, 7,139 ValueSets, `ConceptMap` `$translate`, `--tx` modes, and L1/SQLite caching.
-- **[Proof of Functional Equivalence & Test Suite](docs/equivalence-and-testing.md)** — HL7 `validator_cli.jar` equivalence matrix and test catalog (`3,039` items / `97.17%` coverage).
+- **[Proof of Functional Equivalence & Test Suite](docs/equivalence-and-testing.md)** — HL7 `validator_cli.jar` equivalence matrix and test catalog (`3,044` items / `97.16%` coverage).
 - **[Build & CI/CD Architecture](docs/ci-and-build.md)** — Ahead-of-time schema compilation, security gates, and cross-platform CI pipeline.
 - **[Architecture & Product Roadmap](docs/roadmap.md)** — Footprint-prioritized roadmap (`v0.1.0`–`v1.0.0`) and HAPI FHIR / Smile CDR integration design.
 - **[FHIR Server Runtimes & Ingestion Architecture](docs/research-fhir-server-runtimes.md)** — Comparative research on open-source FHIR servers (HAPI, Medplum, IBM, Microsoft), deployment topologies, and Tier 3 integration architecture.
+- **[Changelog](CHANGELOG.md)** — Release history (`v0.1.0`–`v0.3.0`).
 
 ## Coverage (TL;DR)
 - **Full FHIR R4 Base Spec**: All **146 resources** and **39 complex datatypes** (`661` generated Pydantic v2 models incl. `SimpleQuantity`, 32-bit `FHIRInteger`, 1 MB `FHIRString`, `_primitive` extensions, `ext-1`, `38` base invariant sets / `91` rules, zero-`exec` AST-combinator FHIRPath, `Questionnaire`/`QuestionnaireResponse`, and recursive `Bundle` / `contained[]` validation).
@@ -48,7 +49,7 @@ Auto-updated on build via [`scripts/benchmark_performance.py`](scripts/benchmark
 
 ## HL7 Equivalence & Testing (TL;DR)
 - **Live `validator_cli.jar` Parity**: Verified against HL7's official Java reference validator (`-version 4.0.1 -tx n/a`) via `pytest -m hl7_live` (local JDK 17 + `FHIR_VALIDATOR_JAR` or the `hl7-equivalence` CI `workflow_dispatch` job) across all 146 R4 resource types, invariants, primitives, and IG profiles with **zero equivalence mismatches**.
-- **Exhaustive Test Matrix**: **3,039 pytest items** (`3,029` offline + `10` `hl7_live`) at **97.17% branch coverage**, plus Hypothesis property-based fuzzing.
+- **Exhaustive Test Matrix**: **3,044 pytest items** (`3,034` offline + `10` `hl7_live`) at **97.16% branch coverage**, plus Hypothesis property-based fuzzing.
 - **Details**: **[Proof of Functional Equivalence & Test Suite Architecture](docs/equivalence-and-testing.md)**.
 
 ## Quick Start (TL;DR)
@@ -86,7 +87,7 @@ report = validate_dataset("path/to/data", parallel=True, tx="local")
 
 ## Architecture & CI/CD (TL;DR)
 - **Ahead-of-Time Codegen + Rust Hot Path**: `scripts/generate_models.py` compiles HL7 FHIR packages into `types.py`, `resources.py`, and `profiles.py` with zero runtime schema I/O and no Python `@model_validator(mode="before")` on `FHIRBaseModel`.
-- **Quality, Security & Release Gates**: Enforces pre-commit hooks (`.pre-commit-config.yaml`), `ruff`, strict `mypy` (`pydantic.mypy`), `pytest --cov-fail-under=95` across Linux/Windows (Python 3.10–3.13), `pip-audit`, CodeQL, clean-room wheel smoke tests, and tag-triggered PyPI Trusted Publishing (`release.yml`).
+- **Quality, Security & Release Gates**: Enforces pre-commit hooks (`.pre-commit-config.yaml`), `ruff`, strict `mypy` (`pydantic.mypy`), `pytest --cov-fail-under=95` across Linux/Windows (Python 3.10–3.13), `pip-audit`, CodeQL, clean-room wheel smoke tests, and tag-triggered GitHub Releases with opt-in PyPI Trusted Publishing (`release.yml`).
 - **Details**: **[Package Architecture & Development Reference](docs/architecture.md)** and **[Build & CI/CD Architecture](docs/ci-and-build.md)**.
 
 ## Roadmap & HAPI FHIR / Smile CDR Integration (TL;DR)
@@ -98,4 +99,6 @@ report = validate_dataset("path/to/data", parallel=True, tx="local")
 - **Details**: **[Architecture & Product Roadmap](docs/roadmap.md)**.
 
 ## License
-Copyright (c) 2026 **Brightwood Consulting Group Limited**. Licensed under **[CC BY-NC 4.0](LICENSE)** (free for non-commercial use with attribution).
+`Required Notice: Copyright (c) 2026 Brightwood Consulting Group Limited (https://github.com/damsonaldson/FHIRlance)`
+
+Licensed under **[PolyForm Noncommercial License 1.0.0](LICENSE)** (`PolyForm-Noncommercial-1.0.0`) for noncommercial, personal, research, educational, charitable, and public-health uses (see [NOTICE](NOTICE)). For commercial production licensing or enterprise support, contact **Brightwood Consulting Group Limited**.
