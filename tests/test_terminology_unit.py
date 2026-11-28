@@ -195,6 +195,8 @@ def test_ucum_validation_compounds() -> None:
     assert is_valid_ucum_code("mm[Hg]")
     assert is_valid_ucum_code("cm[H2O]")
     assert is_valid_ucum_code("[in_i]2")
+    assert is_valid_ucum_code("/[HPF]")
+    assert is_valid_ucum_code("/[LPF]")
 
     # Annotations & Nested expressions
     assert is_valid_ucum_code("{score}")
